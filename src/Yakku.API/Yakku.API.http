@@ -1,0 +1,81 @@
+@Yakku.API_HostAddress = http://localhost:5012
+@accessToken = replace-with-access-token
+@refreshToken = replace-with-refresh-token
+
+### Request OTP
+POST {{Yakku.API_HostAddress}}/api/auth/request-otp
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+
+### Verify OTP
+POST {{Yakku.API_HostAddress}}/api/auth/verify-otp
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "otp": "483921"
+}
+
+### Refresh tokens
+POST {{Yakku.API_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Logout
+POST {{Yakku.API_HostAddress}}/api/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Get my profile
+GET {{Yakku.API_HostAddress}}/api/users/me
+Authorization: Bearer {{accessToken}}
+
+### Get my polls
+GET {{Yakku.API_HostAddress}}/api/users/me/polls
+Authorization: Bearer {{accessToken}}
+
+### Get my polls next page
+GET {{Yakku.API_HostAddress}}/api/users/me/polls?cursor=replace-with-next-cursor
+Authorization: Bearer {{accessToken}}
+
+### Create poll
+POST {{Yakku.API_HostAddress}}/api/polls
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "Which option do you prefer?",
+  "options": ["Option A", "Option B"]
+}
+
+### Get poll by id
+GET {{Yakku.API_HostAddress}}/api/polls/00000000-0000-0000-0000-000000000000
+
+### System health
+GET {{Yakku.API_HostAddress}}/api/system/health
+
+### Decrypt OTP from Redis challenge
+POST {{Yakku.API_HostAddress}}/api/system/otp/decrypt
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+
+### Decrypt OTP from hash
+POST {{Yakku.API_HostAddress}}/api/system/otp/decrypt
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "otpHash": "replace-with-sha256-hex"
+}

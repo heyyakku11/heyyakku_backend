@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Yakku.API/Yakku.API.csproj" />
+    <Project Path="src/Yakku.Application/Yakku.Application.csproj" />
+    <Project Path="src/Yakku.Domain/Yakku.Domain.csproj" />
+    <Project Path="src/Yakku.Infrastructure/Yakku.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Yakku.Application.Tests/Yakku.Application.Tests.csproj" />
+  </Folder>
+</Solution>
