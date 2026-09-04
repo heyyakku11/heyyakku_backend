@@ -22,7 +22,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<IVoteRepository, VoteRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
             services.AddScoped<ISystemHealthService, SystemHealthService>();
-            services.AddScoped<ISystemLogWriter, SystemLogWriter>();
+            services.AddSingleton<ISystemLogWriter, SystemLogWriter>();
             services.AddSingleton<IEmailSender, LoggingEmailSender>();
             services.AddSingleton(_ =>
             {
