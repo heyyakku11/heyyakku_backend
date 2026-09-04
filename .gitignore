@@ -22,11 +22,19 @@ artifacts/
 *.sln.docstates
 *.rsuser
 *.userprefs
+*.DotSettings.user
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+.history/
+**/.localhistory/
+
+# ASP.NET local overrides (keep appsettings.json / appsettings.Development.json tracked)
+**/appsettings.*.local.json
+**/secrets.json
+*.pfx
 
 # Tests and coverage
 [Tt]est[Rr]esult*/
@@ -37,6 +45,11 @@ artifacts/
 coverage*.json
 coverage*.xml
 coverage*.info
+TestResult.xml
+
+# Local HTTP client secrets
+http-client.private.env.json
+*.http.user
 
 # NuGet
 *.nupkg
@@ -46,11 +59,19 @@ coverage*.info
 project.lock.json
 project.fragment.lock.json
 
-# Publish
+# Publish / EF tooling leftovers
 publish/
 *.pubxml
+*.azurePubxml
 *.publishproj
 *.publishsettings
+PublishScripts/
+MigrationBackup/
+
+# Misc generated
+*.tmp
+*.bak
+*.binlog
 
 # OS
 Thumbs.db
