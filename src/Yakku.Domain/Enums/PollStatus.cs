@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Yakku.Domain.Enums
+﻿namespace Yakku.Domain.Enums
 {
     public enum PollStatus
     {
+        Draft,
         Active,
-        Expired,
         Closed,
         Deleted
     }

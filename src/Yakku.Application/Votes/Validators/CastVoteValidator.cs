@@ -9,7 +9,7 @@ namespace Yakku.Application.Votes.Validators
         {
             RuleFor(x => x)
                 .Must(HaveExactlyOneChoice)
-                .WithMessage("Provide either optionId or customOption, not both.");
+                .WithMessage("Provide exactly one of optionId, customOption, or imageId.");
 
             When(x => x.OptionId is not null, () =>
             {
@@ -24,6 +24,13 @@ namespace Yakku.Application.Votes.Validators
                     .MaximumLength(200);
             });
 
+            When(x => x.ImageId is not null, () =>
+            {
+                RuleFor(x => x.ImageId)
+                    .NotEqual(Guid.Empty)
+                    .WithMessage("Image id is required.");
+            });
+
             RuleFor(x => x.Reason)
                 .MaximumLength(500)
                 .When(x => x.Reason is not null);
@@ -33,7 +40,9 @@ namespace Yakku.Application.Votes.Validators
         {
             var hasOption = request.OptionId is not null;
             var hasCustom = !string.IsNullOrWhiteSpace(request.CustomOption);
-            return hasOption ^ hasCustom;
+            var hasImage = request.ImageId is not null;
+            var count = (hasOption ? 1 : 0) + (hasCustom ? 1 : 0) + (hasImage ? 1 : 0);
+            return count == 1;
         }
     }
 }

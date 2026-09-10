@@ -12,7 +12,7 @@ namespace Yakku.Application.Votes
                 ApiErrorCodes.AlreadyVoted,
                 "You have already voted in this poll.",
                 field: null,
-                errorMessage: "This guest has already voted in this poll.");
+                errorMessage: "This voter has already voted in this poll.");
         }
     }
 }

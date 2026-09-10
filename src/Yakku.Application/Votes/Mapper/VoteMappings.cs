@@ -13,6 +13,7 @@ namespace Yakku.Application.Votes.Mapper
                 PollId = vote.PollId,
                 PollOptionId = vote.PollOptionId,
                 CustomOptionText = vote.CustomOptionText,
+                ImageId = vote.ImageId,
                 Reason = vote.Reason,
                 CreatedAt = vote.CreatedAt
             };

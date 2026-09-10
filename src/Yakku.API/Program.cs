@@ -82,7 +82,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Access token from POST /api/auth/verify-otp"
+        Description = "Access token from POST /api/v1/auth/verify-otp"
     });
     options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {

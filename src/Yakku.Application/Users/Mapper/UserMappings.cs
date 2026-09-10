@@ -14,7 +14,7 @@ namespace Yakku.Application.Users.Mapper
                 Email = user.Email,
                 DisplayName = user.Profile?.DisplayName ?? string.Empty,
                 LastLoginAt = user.LastLoginAt,
-                AvatarUrl = user.Profile?.AvatarUrl
+                AvatarUrl = null
             };
         }
     }

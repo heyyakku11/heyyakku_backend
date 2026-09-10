@@ -11,13 +11,13 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("Guests");
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.TokenHash)
+            builder.Property(x => x.GuestTokenHash)
                 .IsRequired()
-                .HasMaxLength(64);
+                .HasMaxLength(255);
 
-            builder.HasIndex(x => x.TokenHash)
+            builder.HasIndex(x => x.GuestTokenHash)
                 .IsUnique()
-                .HasDatabaseName("IX_Guests_TokenHash");
+                .HasDatabaseName("IX_Guests_GuestTokenHash");
         }
     }
 }

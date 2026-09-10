@@ -14,12 +14,18 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Email)
                 .IsRequired()
-                .HasMaxLength(256);
+                .HasMaxLength(320);
 
             builder.Property(x => x.Status)
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .HasDefaultValue(UserStatus.Active);
+
+            builder.Property(x => x.CreatedAt)
+                .IsRequired();
+
+            builder.Property(x => x.UpdatedAt)
+                .IsRequired();
 
             builder.HasIndex(x => x.Email)
                 .IsUnique()
@@ -28,6 +34,11 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasOne(x => x.Profile)
                 .WithOne(x => x.User)
                 .HasForeignKey<UserProfile>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(x => x.NotificationPreference)
+                .WithOne(x => x.User)
+                .HasForeignKey<NotificationPreference>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

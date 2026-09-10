@@ -35,11 +35,9 @@ namespace Yakku.Application.Auth.Services
             CancellationToken cancellationToken = default)
         {
             var secret = RefreshTokenHasher.GenerateSecret();
-            var salt = RefreshTokenHasher.GenerateSalt();
             var session = new UserSession(
                 userId,
-                RefreshTokenHasher.Hash(salt, secret),
-                salt,
+                RefreshTokenHasher.Hash(string.Empty, secret),
                 DateTime.UtcNow.Add(JwtOptions.RefreshTokenLifetime));
 
             await _sessions.AddAsync(session, cancellationToken);
@@ -55,10 +53,8 @@ namespace Yakku.Application.Auth.Services
             var session = await LoadValidSessionAsync(refreshToken, cancellationToken);
 
             var secret = RefreshTokenHasher.GenerateSecret();
-            var salt = RefreshTokenHasher.GenerateSalt();
             session.Rotate(
-                RefreshTokenHasher.Hash(salt, secret),
-                salt,
+                RefreshTokenHasher.Hash(string.Empty, secret),
                 DateTime.UtcNow.Add(JwtOptions.RefreshTokenLifetime));
 
             await _sessions.SaveChangesAsync(cancellationToken);
@@ -98,6 +94,23 @@ namespace Yakku.Application.Auth.Services
                 cancellationToken);
         }
 
+        public async Task RevokeAllAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            await _sessions.DeleteAllByUserIdAsync(userId, cancellationToken);
+            await _sessions.SaveChangesAsync(cancellationToken);
+            await _systemLogWriter.WriteAsync(
+                new SystemLogWriteRequest
+                {
+                    Level = SystemLogLevel.Information,
+                    EventType = SystemLogEventTypes.SessionRevoked,
+                    Message = "All sessions revoked.",
+                    UserId = userId
+                },
+                cancellationToken);
+        }
+
         private async Task<UserSession> LoadValidSessionAsync(
             string refreshToken,
             CancellationToken cancellationToken)
@@ -122,7 +135,7 @@ namespace Yakku.Application.Auth.Services
                 throw Unauthorized();
             }
 
-            if (!RefreshTokenHasher.Verify(session.TokenSalt, secret, session.TokenHash))
+            if (!RefreshTokenHasher.Verify(string.Empty, secret, session.RefreshTokenHash))
             {
                 throw Unauthorized();
             }

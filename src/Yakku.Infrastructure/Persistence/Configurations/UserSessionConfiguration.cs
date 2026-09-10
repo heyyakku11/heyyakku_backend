@@ -11,13 +11,13 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("UserSessions");
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.TokenHash)
+            builder.Property(x => x.RefreshTokenHash)
                 .IsRequired()
-                .HasMaxLength(128);
+                .HasMaxLength(255);
 
-            builder.Property(x => x.TokenSalt)
-                .IsRequired()
-                .HasMaxLength(64);
+            builder.HasIndex(x => x.RefreshTokenHash)
+                .IsUnique()
+                .HasDatabaseName("IX_UserSessions_RefreshTokenHash");
 
             builder.HasIndex(x => x.UserId)
                 .HasDatabaseName("IX_UserSessions_UserId");
@@ -26,6 +26,12 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .WithMany(x => x.Sessions)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(x => x.Device)
+                .WithMany(x => x.Sessions)
+                .HasForeignKey(x => x.DeviceId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

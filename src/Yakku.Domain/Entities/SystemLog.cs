@@ -1,3 +1,4 @@
+using System.Net;
 using Yakku.Domain.Enums;
 
 namespace Yakku.Domain.Entities
@@ -5,36 +6,42 @@ namespace Yakku.Domain.Entities
     public class SystemLog
     {
         public Guid Id { get; private set; }
-        public SystemLogLevel Level { get; private set; }
-        public string EventType { get; private set; } = string.Empty;
-        public string Message { get; private set; } = string.Empty;
-        public string? Details { get; private set; }
         public Guid? UserId { get; private set; }
         public Guid? GuestId { get; private set; }
-        public string? Path { get; private set; }
+        public SystemEventType EventType { get; private set; }
+        public LogSeverity Severity { get; private set; }
+        public string? Message { get; private set; }
+        public IPAddress? IpAddress { get; private set; }
+        public string? UserAgent { get; private set; }
+        public string? Metadata { get; private set; }
         public DateTime CreatedAt { get; private set; }
+
+        public User? User { get; private set; }
+        public Guest? Guest { get; private set; }
 
         private SystemLog()
         {
         }
 
         public SystemLog(
-            SystemLogLevel level,
-            string eventType,
-            string message,
-            string? details,
+            LogSeverity severity,
+            SystemEventType eventType,
+            string? message,
+            string? metadata,
             Guid? userId,
             Guid? guestId,
-            string? path)
+            IPAddress? ipAddress = null,
+            string? userAgent = null)
         {
             Id = Guid.NewGuid();
-            Level = level;
+            Severity = severity;
             EventType = eventType;
             Message = message;
-            Details = details;
+            Metadata = metadata;
             UserId = userId;
             GuestId = guestId;
-            Path = path;
+            IpAddress = ipAddress;
+            UserAgent = userAgent;
             CreatedAt = DateTime.UtcNow;
         }
     }

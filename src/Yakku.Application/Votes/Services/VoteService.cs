@@ -1,6 +1,7 @@
 using FluentValidation;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Images.Interfaces;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.System;
 using Yakku.Application.System.DTOs;
@@ -18,27 +19,41 @@ namespace Yakku.Application.Votes.Services
     {
         private readonly IPollRepository _pollRepository;
         private readonly IVoteRepository _voteRepository;
+        private readonly IImageRepository _imageRepository;
         private readonly ISystemLogWriter _systemLogWriter;
         private readonly IValidator<CastVoteRequest> _validator;
 
         public VoteService(
             IPollRepository pollRepository,
             IVoteRepository voteRepository,
+            IImageRepository imageRepository,
             ISystemLogWriter systemLogWriter,
             IValidator<CastVoteRequest> validator)
         {
             _pollRepository = pollRepository;
             _voteRepository = voteRepository;
+            _imageRepository = imageRepository;
             _systemLogWriter = systemLogWriter;
             _validator = validator;
         }
 
         public async Task<VoteResponse> CastAsync(
             Guid pollId,
-            Guid guestId,
+            Guid? userId,
+            Guid? guestId,
             CastVoteRequest request,
             CancellationToken cancellationToken = default)
         {
+            var hasUser = userId is not null && userId != Guid.Empty;
+            var hasGuest = guestId is not null && guestId != Guid.Empty;
+            if (hasUser == hasGuest)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "Exactly one of userId or guestId is required.");
+            }
+
             await _validator.ValidateAndThrowAsync(request, cancellationToken);
 
             var poll = await _pollRepository.GetByIdAsync(pollId, cancellationToken);
@@ -60,6 +75,7 @@ namespace Yakku.Application.Votes.Services
 
             Guid? pollOptionId = null;
             string? customOptionText = null;
+            Guid? imageId = null;
 
             if (request.OptionId is not null)
             {
@@ -75,22 +91,76 @@ namespace Yakku.Application.Votes.Services
 
                 pollOptionId = option.Id;
             }
+            else if (poll.OptionType == OptionType.Text)
+            {
+                if (request.ImageId is not null)
+                {
+                    throw new AppException(
+                        400,
+                        ApiErrorCodes.ValidationError,
+                        "Text polls do not accept custom image answers.",
+                        "imageId");
+                }
+
+                customOptionText = request.CustomOption!.Trim();
+            }
             else
             {
-                customOptionText = request.CustomOption!.Trim();
+                if (!string.IsNullOrWhiteSpace(request.CustomOption))
+                {
+                    throw new AppException(
+                        400,
+                        ApiErrorCodes.ValidationError,
+                        "Image polls do not accept custom text answers.",
+                        "customOption");
+                }
+
+                if (request.ImageId is null || request.ImageId == Guid.Empty)
+                {
+                    throw new AppException(
+                        400,
+                        ApiErrorCodes.ValidationError,
+                        "Custom image answer requires imageId.",
+                        "imageId");
+                }
+
+                var existing = await _imageRepository.GetExistingIdsAsync(
+                    [request.ImageId.Value],
+                    cancellationToken);
+                if (!existing.Contains(request.ImageId.Value))
+                {
+                    throw new AppException(
+                        400,
+                        ApiErrorCodes.ValidationError,
+                        "Image ID is invalid.",
+                        "imageId");
+                }
+
+                imageId = request.ImageId.Value;
             }
 
             var reason = string.IsNullOrWhiteSpace(request.Reason)
                 ? null
                 : request.Reason.Trim();
 
-            if (await _voteRepository.ExistsAsync(guestId, pollId, cancellationToken))
+            if (hasUser)
             {
-                await LogAlreadyVotedAsync(guestId, pollId, cancellationToken);
+                if (await _voteRepository.ExistsForUserAsync(userId!.Value, pollId, cancellationToken))
+                {
+                    await LogAlreadyVotedAsync(userId, null, pollId, cancellationToken);
+                    throw VoteExceptions.AlreadyVoted();
+                }
+            }
+            else if (await _voteRepository.ExistsForGuestAsync(guestId!.Value, pollId, cancellationToken))
+            {
+                await LogAlreadyVotedAsync(null, guestId, pollId, cancellationToken);
                 throw VoteExceptions.AlreadyVoted();
             }
 
-            var vote = new Vote(guestId, pollId, pollOptionId, customOptionText, reason);
+            var vote = hasUser
+                ? Vote.ForUser(userId!.Value, pollId, pollOptionId, customOptionText, reason, imageId)
+                : new Vote(guestId!.Value, pollId, pollOptionId, customOptionText, reason, imageId);
+
             await _voteRepository.AddAsync(vote, cancellationToken);
             try
             {
@@ -98,7 +168,7 @@ namespace Yakku.Application.Votes.Services
             }
             catch (AppException exception) when (exception.ErrorCode == ApiErrorCodes.AlreadyVoted)
             {
-                await LogAlreadyVotedAsync(guestId, pollId, cancellationToken);
+                await LogAlreadyVotedAsync(userId, guestId, pollId, cancellationToken);
                 throw;
             }
 
@@ -108,13 +178,15 @@ namespace Yakku.Application.Votes.Services
                     Level = SystemLogLevel.Information,
                     EventType = SystemLogEventTypes.VoteCast,
                     Message = "Vote submitted.",
+                    UserId = userId,
                     GuestId = guestId,
                     Details = new
                     {
                         pollId,
                         voteId = vote.Id,
                         pollOptionId,
-                        hasCustomOption = customOptionText is not null
+                        hasCustomOption = customOptionText is not null,
+                        hasCustomImage = imageId is not null
                     }
                 },
                 cancellationToken);
@@ -122,7 +194,11 @@ namespace Yakku.Application.Votes.Services
             return vote.ToResponse();
         }
 
-        private Task LogAlreadyVotedAsync(Guid guestId, Guid pollId, CancellationToken cancellationToken)
+        private Task LogAlreadyVotedAsync(
+            Guid? userId,
+            Guid? guestId,
+            Guid pollId,
+            CancellationToken cancellationToken)
         {
             return _systemLogWriter.WriteAsync(
                 new SystemLogWriteRequest
@@ -130,6 +206,7 @@ namespace Yakku.Application.Votes.Services
                     Level = SystemLogLevel.Warning,
                     EventType = SystemLogEventTypes.VoteRejectedAlreadyVoted,
                     Message = "Duplicate vote rejected.",
+                    UserId = userId,
                     GuestId = guestId,
                     Details = new { pollId }
                 },

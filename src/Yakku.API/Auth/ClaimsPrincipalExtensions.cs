@@ -9,10 +9,7 @@ namespace Yakku.API.Auth
     {
         public static Guid GetRequiredUserId(this ClaimsPrincipal user)
         {
-            var value = user.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub);
-
-            if (!Guid.TryParse(value, out var userId) || userId == Guid.Empty)
+            if (!user.TryGetUserId(out var userId))
             {
                 throw new AppException(
                     StatusCodes.Status401Unauthorized,
@@ -21,6 +18,20 @@ namespace Yakku.API.Auth
             }
 
             return userId;
+        }
+
+        public static bool TryGetUserId(this ClaimsPrincipal user, out Guid userId)
+        {
+            var value = user.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+            if (!Guid.TryParse(value, out userId) || userId == Guid.Empty)
+            {
+                userId = Guid.Empty;
+                return false;
+            }
+
+            return true;
         }
     }
 }

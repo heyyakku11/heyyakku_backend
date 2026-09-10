@@ -23,7 +23,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             CancellationToken cancellationToken = default)
         {
             return await _context.Guests
-                .FirstOrDefaultAsync(guest => guest.TokenHash == tokenHash, cancellationToken);
+                .FirstOrDefaultAsync(guest => guest.GuestTokenHash == tokenHash, cancellationToken);
         }
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)

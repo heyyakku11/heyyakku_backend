@@ -29,7 +29,7 @@ namespace Yakku.Application.Users.Services
             return user?.ToProfileResponse();
         }
 
-        public async Task<UserPollsPage> GetMyPollsAsync(
+        public async Task<UserPollsPage> GetAskedPollsAsync(
             Guid userId,
             string? cursor,
             CancellationToken cancellationToken = default)
@@ -54,6 +54,40 @@ namespace Yakku.Application.Users.Services
             {
                 var last = polls[PollCursor.PageSize - 1];
                 nextCursor = PollCursor.Encode(last.CreatedAt, last.Id);
+            }
+
+            return new UserPollsPage
+            {
+                Items = items,
+                Meta = PaginationMeta.ForCursor(PollCursor.PageSize, nextCursor, hasMore)
+            };
+        }
+
+        public async Task<UserPollsPage> GetAnsweredPollsAsync(
+            Guid userId,
+            string? cursor,
+            CancellationToken cancellationToken = default)
+        {
+            var decoded = PollCursor.TryDecode(cursor);
+            var take = PollCursor.PageSize + 1;
+            var entries = await _pollRepository.GetAnsweredByUserAsync(
+                userId,
+                decoded?.CreatedAt,
+                decoded?.Id,
+                take,
+                cancellationToken);
+
+            var hasMore = entries.Count > PollCursor.PageSize;
+            var page = entries.Take(PollCursor.PageSize).ToList();
+            var items = page
+                .Select(entry => entry.Poll.ToUserPollResponse())
+                .ToList();
+
+            string? nextCursor = null;
+            if (hasMore)
+            {
+                var last = page[^1];
+                nextCursor = PollCursor.Encode(last.VotedAt, last.Poll.Id);
             }
 
             return new UserPollsPage

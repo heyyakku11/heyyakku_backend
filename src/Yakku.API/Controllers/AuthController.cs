@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Yakku.API.Auth;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
@@ -19,7 +21,7 @@ namespace Yakku.API.Controllers
             _sessionService = sessionService;
         }
 
-        [HttpPost("request-otp")]
+        [HttpPost("/api/v1/auth/send-otp")]
         [ProducesResponseType(typeof(ApiResponse<RequestOtpResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> RequestOtp(
@@ -37,7 +39,7 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("verify-otp")]
+        [HttpPost("/api/v1/auth/verify-otp")]
         [ProducesResponseType(typeof(ApiResponse<VerifyOtpResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -79,7 +81,7 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("logout")]
+        [HttpPost("/api/v1/auth/logout")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Logout(
@@ -90,6 +92,23 @@ namespace Yakku.API.Controllers
             {
                 await _sessionService.RevokeAsync(request.RefreshToken, cancellationToken);
                 return Ok(ApiResponse.Ok<object?>(null, "Logged out successfully"));
+            }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
+        }
+
+        [Authorize]
+        [HttpPost("/api/v1/auth/logout-all")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> LogoutAll(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _sessionService.RevokeAllAsync(User.GetRequiredUserId(), cancellationToken);
+                return Ok(ApiResponse.Ok<object?>(null, "Logged out from all sessions successfully"));
             }
             catch (AppException ex)
             {

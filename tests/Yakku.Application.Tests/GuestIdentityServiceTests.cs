@@ -17,10 +17,10 @@ public class GuestIdentityServiceTests
         Assert.Single(fixture.Guests.Items);
         Assert.Equal(fixture.Guests.Items[0].Id, result.GuestId);
         Assert.Equal("guest-token-1", result.RawTokenToSet);
-        Assert.NotEqual(result.RawTokenToSet, fixture.Guests.Items[0].TokenHash);
+        Assert.NotEqual(result.RawTokenToSet, fixture.Guests.Items[0].GuestTokenHash);
         Assert.Equal(
             fixture.Hasher.Hash("guest-token-1"),
-            fixture.Guests.Items[0].TokenHash);
+            fixture.Guests.Items[0].GuestTokenHash);
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public class GuestIdentityServiceTests
         Assert.Equal(2, fixture.Guests.Items.Count);
         Assert.NotEqual(first.GuestId, second.GuestId);
         Assert.Equal("guest-token-2", second.RawTokenToSet);
-        Assert.DoesNotContain(fixture.Guests.Items, guest => guest.TokenHash == "unknown-cookie-token");
-        Assert.DoesNotContain(fixture.Guests.Items, guest => guest.TokenHash == second.RawTokenToSet);
+        Assert.DoesNotContain(fixture.Guests.Items, guest => guest.GuestTokenHash == "unknown-cookie-token");
+        Assert.DoesNotContain(fixture.Guests.Items, guest => guest.GuestTokenHash == second.RawTokenToSet);
     }
 
     [Fact]
@@ -63,9 +63,9 @@ public class GuestIdentityServiceTests
         var result = await fixture.Service.EstablishAsync(null);
 
         var stored = fixture.Guests.Items[0];
-        Assert.NotEqual(result.RawTokenToSet, stored.TokenHash);
-        Assert.Equal(64, stored.TokenHash.Length);
-        Assert.Equal(hasher.Hash(result.RawTokenToSet!), stored.TokenHash);
+        Assert.NotEqual(result.RawTokenToSet, stored.GuestTokenHash);
+        Assert.Equal(64, stored.GuestTokenHash.Length);
+        Assert.Equal(hasher.Hash(result.RawTokenToSet!), stored.GuestTokenHash);
     }
 
     private sealed class GuestFixture
@@ -115,7 +115,7 @@ public class GuestIdentityServiceTests
 
         public Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(Items.FirstOrDefault(guest => guest.TokenHash == tokenHash));
+            return Task.FromResult(Items.FirstOrDefault(guest => guest.GuestTokenHash == tokenHash));
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)

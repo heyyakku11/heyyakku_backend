@@ -6,7 +6,8 @@ namespace Yakku.Application.Votes.Interfaces
     {
         Task<VoteResponse> CastAsync(
             Guid pollId,
-            Guid guestId,
+            Guid? userId,
+            Guid? guestId,
             CastVoteRequest request,
             CancellationToken cancellationToken = default);
     }

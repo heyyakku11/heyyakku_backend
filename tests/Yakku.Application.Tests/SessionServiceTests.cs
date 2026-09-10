@@ -29,13 +29,13 @@ public class SessionServiceTests
         Assert.Equal(900, result.AccessTokenExpiresInSeconds);
         Assert.Equal(604800, result.RefreshTokenExpiresInSeconds);
         Assert.Single(fixture.Sessions.Items);
-        Assert.DoesNotContain(fixture.Sessions.Items[0].TokenHash, result.RefreshToken);
+        Assert.DoesNotContain(fixture.Sessions.Items[0].RefreshTokenHash, result.RefreshToken);
         Assert.True(RefreshTokenHasher.TryParse(result.RefreshToken, out var sessionId, out var secret));
         Assert.Equal(fixture.Sessions.Items[0].Id, sessionId);
         Assert.True(RefreshTokenHasher.Verify(
-            fixture.Sessions.Items[0].TokenSalt,
+            string.Empty,
             secret,
-            fixture.Sessions.Items[0].TokenHash));
+            fixture.Sessions.Items[0].RefreshTokenHash));
     }
 
     [Fact]
@@ -63,11 +63,9 @@ public class SessionServiceTests
         var fixture = SessionFixture.Create();
         var userId = Guid.NewGuid();
         var secret = RefreshTokenHasher.GenerateSecret();
-        var salt = RefreshTokenHasher.GenerateSalt();
         var session = new UserSession(
             userId,
-            RefreshTokenHasher.Hash(salt, secret),
-            salt,
+            RefreshTokenHasher.Hash(string.Empty, secret),
             DateTime.UtcNow.AddMinutes(-1));
         fixture.Sessions.Items.Add(session);
 
@@ -103,6 +101,24 @@ public class SessionServiceTests
 
         Assert.Equal(ApiErrorCodes.Unauthorized, exception.ErrorCode);
         Assert.Empty(fixture.Sessions.Items);
+    }
+
+    [Fact]
+    public async Task RevokeAll_RemovesOnlyThatUsersSessions()
+    {
+        var fixture = SessionFixture.Create();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        await fixture.Service.CreateAsync(userId);
+        await fixture.Service.CreateAsync(userId);
+        var other = await fixture.Service.CreateAsync(otherUserId);
+
+        await fixture.Service.RevokeAllAsync(userId);
+
+        Assert.Single(fixture.Sessions.Items);
+        Assert.True(RefreshTokenHasher.TryParse(other.RefreshToken, out var otherSessionId, out _));
+        Assert.Equal(otherSessionId, fixture.Sessions.Items[0].Id);
+        Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.SessionRevoked);
     }
 
     private sealed class SessionFixture
@@ -153,6 +169,12 @@ public class SessionServiceTests
         public Task DeleteAsync(UserSession session, CancellationToken cancellationToken = default)
         {
             Items.Remove(session);
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAllByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            Items.RemoveAll(session => session.UserId == userId);
             return Task.CompletedTask;
         }
 

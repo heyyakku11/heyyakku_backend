@@ -9,7 +9,7 @@ namespace Yakku.API.Controllers
 {
     [Authorize]
     [ApiController]
-    [Route("api/users")]
+    [Route("api/v1/users")]
     public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
@@ -31,14 +31,29 @@ namespace Yakku.API.Controllers
                 : Ok(ApiResponse.Ok(user, "User retrieved successfully"));
         }
 
-        [HttpGet("me/polls")]
+        [HttpGet("me/asked-polls")]
         [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> GetMyPolls(
+        public async Task<IActionResult> GetAskedPolls(
             [FromQuery] string? cursor,
             CancellationToken cancellationToken)
         {
-            var result = await _userService.GetMyPollsAsync(
+            var result = await _userService.GetAskedPollsAsync(
+                User.GetRequiredUserId(),
+                cursor,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
+        }
+
+        [HttpGet("me/answered-polls")]
+        [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetAnsweredPolls(
+            [FromQuery] string? cursor,
+            CancellationToken cancellationToken)
+        {
+            var result = await _userService.GetAnsweredPollsAsync(
                 User.GetRequiredUserId(),
                 cursor,
                 cancellationToken);

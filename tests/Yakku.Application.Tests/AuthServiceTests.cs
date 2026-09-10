@@ -167,6 +167,18 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task RequestOtp_WhenEmailSendFails_DeletesChallenge()
+    {
+        var fixture = AuthFixture.Create(emailSender: new FailingEmailSender());
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.Service.RequestOtpAsync(new RequestOtpRequest { Email = "new@example.com" }));
+
+        Assert.Equal(ApiErrorCodes.InternalServerError, exception.ErrorCode);
+        Assert.Null(fixture.OtpStore.Challenge);
+    }
+
+    [Fact]
     public async Task RequestOtp_DuringCooldown_ReturnsFailure()
     {
         var fixture = AuthFixture.Create();
@@ -225,13 +237,14 @@ public class AuthServiceTests
             Service = service;
         }
 
-        public static AuthFixture Create()
+        public static AuthFixture Create(IEmailSender? emailSender = null)
         {
             var users = new FakeUserRepository();
             var otpStore = new InMemoryOtpStore();
             var otpGenerator = new FakeOtpGenerator();
             var displayNameGenerator = new FakeDisplayNameGenerator();
-            var emailSender = new CapturingEmailSender();
+            var sender = emailSender ?? new CapturingEmailSender();
+            var capturingSender = sender as CapturingEmailSender ?? new CapturingEmailSender();
             var sessionService = new FakeSessionService();
             var logs = new FakeSystemLogWriter();
             var service = new AuthService(
@@ -239,13 +252,13 @@ public class AuthServiceTests
                 otpStore,
                 otpGenerator,
                 displayNameGenerator,
-                emailSender,
+                sender,
                 sessionService,
                 logs,
                 new RequestOtpValidator(),
                 new VerifyOtpValidator());
 
-            return new AuthFixture(users, otpStore, otpGenerator, displayNameGenerator, emailSender, logs, service);
+            return new AuthFixture(users, otpStore, otpGenerator, displayNameGenerator, capturingSender, logs, service);
         }
     }
 
@@ -361,6 +374,11 @@ public class AuthServiceTests
         {
             throw new NotImplementedException();
         }
+
+        public Task RevokeAllAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 
     private sealed class FakeOtpGenerator : IOtpGenerator
@@ -383,6 +401,17 @@ public class AuthServiceTests
             LastEmail = email;
             LastOtp = otp;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FailingEmailSender : IEmailSender
+    {
+        public Task SendOtpAsync(string email, string otp, CancellationToken cancellationToken = default)
+        {
+            throw new AppException(
+                502,
+                ApiErrorCodes.InternalServerError,
+                "Failed to send OTP email. Please try again.");
         }
     }
 }

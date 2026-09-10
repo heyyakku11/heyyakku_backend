@@ -4,6 +4,7 @@ namespace Yakku.Application.Votes.DTOs
     {
         public Guid? OptionId { get; set; }
         public string? CustomOption { get; set; }
+        public Guid? ImageId { get; set; }
         public string? Reason { get; set; }
     }
 }

@@ -12,11 +12,20 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Text)
-                .IsRequired()
-                .HasMaxLength(200);
+                .HasMaxLength(500);
 
-            builder.HasIndex(x => new { x.PollId, x.Position })
-                .IsUnique();
+            builder.Property(x => x.SortOrder)
+                .IsRequired();
+
+            builder.HasIndex(x => new { x.PollId, x.SortOrder })
+                .IsUnique()
+                .HasDatabaseName("IX_PollOptions_PollId_SortOrder");
+
+            builder.HasOne(x => x.Image)
+                .WithMany(x => x.PollOptions)
+                .HasForeignKey(x => x.ImageId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

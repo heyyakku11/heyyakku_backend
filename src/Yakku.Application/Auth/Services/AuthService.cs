@@ -83,7 +83,15 @@ namespace Yakku.Application.Auth.Services
             };
 
             await _otpChallengeStore.SetAsync(email, challenge, OtpOptions.Ttl, cancellationToken);
-            await _emailSender.SendOtpAsync(email, otp, cancellationToken);
+            try
+            {
+                await _emailSender.SendOtpAsync(email, otp, cancellationToken);
+            }
+            catch
+            {
+                await _otpChallengeStore.DeleteAsync(email, cancellationToken);
+                throw;
+            }
             await LogAsync(
                 SystemLogLevel.Information,
                 SystemLogEventTypes.OtpRequested,

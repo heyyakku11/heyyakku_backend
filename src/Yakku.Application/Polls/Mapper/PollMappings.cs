@@ -11,36 +11,39 @@ namespace Yakku.Application.Polls.Mapper
             return new PollResponse
             {
                 Id = poll.Id,
-                CreatorId = poll.CreatorId,
                 Question = poll.Question,
-                Status = poll.Status.ToString(),
+                CategoryId = poll.CategoryId,
+                ShareToken = poll.ShareToken,
+                OptionType = ToOptionTypeString(poll.OptionType),
+                Status = ToStatusString(poll.Status),
                 ExpiresAt = poll.ExpiresAt,
+                ClosedAt = poll.ClosedAt,
                 CreatedAt = poll.CreatedAt,
                 Options = poll.Options
-                    .OrderBy(option => option.Position)
+                    .OrderBy(option => option.SortOrder)
                     .Select(option => new PollOptionResponse
                     {
                         Id = option.Id,
                         Text = option.Text,
-                        IsSystemOption = false
-                    })
-                    .Append(new PollOptionResponse
-                    {
-                        Id = null,
-                        Text = "Something else",
-                        IsSystemOption = true
+                        ImageId = option.ImageId,
+                        SecureUrl = option.Image?.SecureUrl,
+                        SortOrder = option.SortOrder
                     })
                     .ToList()
             };
         }
 
-        public static CreatePollResponse ToCreateResponse(this PollEntity poll)
+        public static PollSummaryResponse ToSummaryResponse(this PollEntity poll)
         {
-            return new CreatePollResponse
+            return new PollSummaryResponse
             {
                 Id = poll.Id,
-                CreatorId = poll.CreatorId,
-                Question = poll.Question
+                Question = poll.Question,
+                CategoryId = poll.CategoryId,
+                OptionType = ToOptionTypeString(poll.OptionType),
+                Status = ToStatusString(poll.Status),
+                ExpiresAt = poll.ExpiresAt,
+                CreatedAt = poll.CreatedAt
             };
         }
 
@@ -50,18 +53,28 @@ namespace Yakku.Application.Polls.Mapper
             {
                 PollId = poll.Id,
                 Question = poll.Question,
-                Status = poll.Status.ToString(),
+                Status = ToStatusString(poll.Status),
                 ExpiresAt = poll.ExpiresAt,
                 CreatedAt = poll.CreatedAt,
                 PollOptions = poll.Options
-                    .OrderBy(option => option.Position)
+                    .OrderBy(option => option.SortOrder)
                     .Select(option => new UserPollOptionResponse
                     {
                         Id = option.Id,
-                        Text = option.Text
+                        Text = option.Text ?? string.Empty
                     })
                     .ToList()
             };
+        }
+
+        private static string ToOptionTypeString(Domain.Enums.OptionType optionType)
+        {
+            return optionType.ToString().ToLowerInvariant();
+        }
+
+        private static string ToStatusString(Domain.Enums.PollStatus status)
+        {
+            return status.ToString().ToLowerInvariant();
         }
     }
 }

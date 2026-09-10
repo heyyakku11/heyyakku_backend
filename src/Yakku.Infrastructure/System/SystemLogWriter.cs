@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Yakku.Application.System;
 using Yakku.Application.System.DTOs;
 using Yakku.Application.System.Interfaces;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 using Yakku.Infrastructure.Persistence;
 
 namespace Yakku.Infrastructure.System
@@ -33,13 +35,12 @@ namespace Yakku.Infrastructure.System
                 using var scope = _scopeFactory.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<YakkuDbContext>();
                 context.SystemLogs.Add(new SystemLog(
-                    request.Level,
-                    Truncate(request.EventType, 64),
-                    Truncate(request.Message, 500),
+                    MapSeverity(request.Level),
+                    MapEventType(request.EventType),
+                    request.Message,
                     SerializeDetails(request.Details),
                     request.UserId,
-                    request.GuestId,
-                    TruncateNullable(request.Path, 256)));
+                    request.GuestId));
                 await context.SaveChangesAsync(cancellationToken);
             }
             catch (Exception exception)
@@ -51,6 +52,40 @@ namespace Yakku.Infrastructure.System
             }
         }
 
+        private static LogSeverity MapSeverity(SystemLogLevel level)
+        {
+            return level switch
+            {
+                SystemLogLevel.Information => LogSeverity.Info,
+                SystemLogLevel.Warning => LogSeverity.Warning,
+                SystemLogLevel.Error => LogSeverity.Error,
+                _ => LogSeverity.Info
+            };
+        }
+
+        private static SystemEventType MapEventType(string eventType)
+        {
+            return eventType switch
+            {
+                SystemLogEventTypes.OtpRequested => SystemEventType.Authentication,
+                SystemLogEventTypes.OtpInvalid => SystemEventType.Authentication,
+                SystemLogEventTypes.UserRegistered => SystemEventType.Authentication,
+                SystemLogEventTypes.UserLoggedIn => SystemEventType.Authentication,
+                SystemLogEventTypes.SessionRefreshed => SystemEventType.Authentication,
+                SystemLogEventTypes.SessionRevoked => SystemEventType.Authentication,
+                SystemLogEventTypes.PollCreated => SystemEventType.Poll,
+                SystemLogEventTypes.PollClosed => SystemEventType.Poll,
+                SystemLogEventTypes.PollDeleted => SystemEventType.Poll,
+                SystemLogEventTypes.VoteCast => SystemEventType.Vote,
+                SystemLogEventTypes.VoteRejectedAlreadyVoted => SystemEventType.Vote,
+                SystemLogEventTypes.DeviceRegistered => SystemEventType.Device,
+                SystemLogEventTypes.DeviceUpdated => SystemEventType.Device,
+                SystemLogEventTypes.DeviceUnregistered => SystemEventType.Device,
+                SystemLogEventTypes.UnhandledException => SystemEventType.System,
+                _ => SystemEventType.System
+            };
+        }
+
         private static string? SerializeDetails(object? details)
         {
             if (details is null)
@@ -58,26 +93,9 @@ namespace Yakku.Infrastructure.System
                 return null;
             }
 
-            var json = details is string text
+            return details is string text
                 ? text
                 : JsonSerializer.Serialize(details, JsonOptions);
-
-            return TruncateNullable(json, 4000);
-        }
-
-        private static string Truncate(string? value, int maxLength)
-        {
-            return TruncateNullable(value, maxLength) ?? string.Empty;
-        }
-
-        private static string? TruncateNullable(string? value, int maxLength)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return value;
-            }
-
-            return value.Length <= maxLength ? value : value[..maxLength];
         }
     }
 }

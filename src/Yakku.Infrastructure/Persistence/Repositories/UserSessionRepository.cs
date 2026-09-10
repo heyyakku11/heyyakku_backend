@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Domain.Entities;
 
@@ -26,6 +27,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             _context.UserSessions.Remove(session);
             return Task.CompletedTask;
+        }
+
+        public async Task DeleteAllByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            var sessions = await _context.UserSessions
+                .Where(session => session.UserId == userId)
+                .ToListAsync(cancellationToken);
+            _context.UserSessions.RemoveRange(sessions);
         }
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)

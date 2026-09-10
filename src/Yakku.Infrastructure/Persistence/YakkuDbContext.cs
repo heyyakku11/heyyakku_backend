@@ -17,6 +17,11 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<Guest> Guests => Set<Guest>();
         public DbSet<Vote> Votes => Set<Vote>();
         public DbSet<SystemLog> SystemLogs => Set<SystemLog>();
+        public DbSet<Category> Categories => Set<Category>();
+        public DbSet<Image> Images => Set<Image>();
+        public DbSet<Device> Devices => Set<Device>();
+        public DbSet<Notification> Notifications => Set<Notification>();
+        public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -24,7 +24,7 @@ public class GuestCookieServiceTests
         Assert.Contains("samesite=lax", header, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("secure", header, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, context.Response.Body.Length);
-        Assert.DoesNotContain(fixture.Generator.Tokens[0], fixture.Guests.Items[0].TokenHash);
+        Assert.DoesNotContain(fixture.Generator.Tokens[0], fixture.Guests.Items[0].GuestTokenHash);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class GuestCookieServiceTests
 
         public Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(Items.FirstOrDefault(guest => guest.TokenHash == tokenHash));
+            return Task.FromResult(Items.FirstOrDefault(guest => guest.GuestTokenHash == tokenHash));
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)

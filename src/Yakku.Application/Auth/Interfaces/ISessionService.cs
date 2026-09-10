@@ -7,5 +7,6 @@ namespace Yakku.Application.Auth.Interfaces
         Task<TokenResponse> CreateAsync(Guid userId, CancellationToken cancellationToken = default);
         Task<TokenResponse> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default);
         Task RevokeAsync(string refreshToken, CancellationToken cancellationToken = default);
+        Task RevokeAllAsync(Guid userId, CancellationToken cancellationToken = default);
     }
 }

@@ -11,16 +11,26 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("UserProfiles");
             builder.HasKey(x => x.Id);
 
+            builder.Property(x => x.UserId)
+                .IsRequired();
+
             builder.Property(x => x.DisplayName)
                 .IsRequired()
-                .HasMaxLength(64);
+                .HasMaxLength(50);
 
             builder.HasIndex(x => x.DisplayName)
                 .IsUnique()
                 .HasDatabaseName("IX_UserProfiles_DisplayName");
 
-            builder.Property(x => x.AvatarUrl)
-                .HasMaxLength(2048);
+            builder.HasIndex(x => x.UserId)
+                .IsUnique()
+                .HasDatabaseName("IX_UserProfiles_UserId");
+
+            builder.HasOne(x => x.AvatarImage)
+                .WithMany(x => x.UserProfiles)
+                .HasForeignKey(x => x.AvatarImageId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }
