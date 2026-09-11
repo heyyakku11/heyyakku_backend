@@ -63,7 +63,7 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("refresh")]
+        [HttpPost("/api/v1/auth/refresh")]
         [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Refresh(
