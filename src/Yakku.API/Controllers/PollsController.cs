@@ -1,7 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Yakku.API.Auth;
 using Yakku.API.Guests;
+using Yakku.API.Middleware;
+using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls.DTOs;
 using Yakku.Application.Polls.Interfaces;
@@ -48,96 +51,140 @@ namespace Yakku.API.Controllers
                 ApiResponse.Ok(result, "Poll created successfully"));
         }
 
-        [Authorize]
+        [AllowAnonymous]
         [HttpGet]
-        [ProducesResponseType(typeof(ApiResponse<List<PollSummaryResponse>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> GetMine(
+        [ProducesResponseType(typeof(ApiResponse<List<PollResponse>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAll(
             [FromQuery] string? cursor,
             CancellationToken cancellationToken)
         {
-            var result = await _pollService.GetCreatorPollsAsync(
-                User.GetRequiredUserId(),
-                cursor,
-                cancellationToken);
+            var result = await _pollService.GetPollsAsync(cursor, cancellationToken);
 
             return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
         }
 
-        [Authorize]
+        [AllowAnonymous]
         [HttpGet("{id:guid}")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
         {
-            var poll = await _pollService.GetPollDetailsAsync(
-                id,
-                User.GetRequiredUserId(),
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
-        }
-
-        [Authorize]
-        [HttpPost("{id:guid}/close")]
-        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Close(Guid id, CancellationToken cancellationToken)
-        {
-            var poll = await _pollService.ClosePollAsync(
-                id,
-                User.GetRequiredUserId(),
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok(poll, "Poll closed successfully"));
-        }
-
-        [Authorize]
-        [HttpDelete("{id:guid}")]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
-        {
-            await _pollService.DeletePollAsync(
-                id,
-                User.GetRequiredUserId(),
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok<object?>(null, "Poll deleted successfully"));
+            try
+            {
+                var poll = await _pollService.GetPollDetailsAsync(id, cancellationToken);
+                return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
+            }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
         }
 
         [AllowAnonymous]
-        [HttpPost("{id:guid}/votes")]
+        [HttpGet("share/{shareToken}")]
+        [ProducesResponseType(typeof(ApiResponse<SharedPollResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetByShareToken(
+            string shareToken,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var poll = await _pollService.GetSharedPollByTokenAsync(shareToken, cancellationToken);
+                return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
+            }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
+        }
+
+        [Authorize]
+        [HttpPost("votes")]
         [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Vote(
-            Guid id,
             [FromBody] CastVoteRequest request,
             CancellationToken cancellationToken)
         {
-            Guid? userId = null;
-            Guid? guestId = null;
-
-            if (User.TryGetUserId(out var authenticatedUserId))
+            try
             {
-                userId = authenticatedUserId;
+                var result = await _voteService.CastAsync(
+                    request.PollId,
+                    User.GetRequiredUserId(),
+                    null,
+                    request,
+                    cancellationToken);
+                return Ok(ApiResponse.Ok(result, "Vote submitted successfully"));
             }
-            else
+            catch (ValidationException ex)
             {
-                guestId = await _guestCookieService.EnsureAsync(HttpContext, cancellationToken);
+                return ToValidationErrorResult(ex);
             }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
+        }
 
-            var result = await _voteService.CastAsync(
-                id,
-                userId,
-                guestId,
-                request,
-                cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Vote submitted successfully"));
+        [AllowAnonymous]
+        [HttpPost("guest-votes")]
+        [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> GuestVote(
+            [FromBody] CastVoteRequest request,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var guestId = (await _guestCookieService.EnsureAsync(HttpContext, cancellationToken)).GuestId;
+
+                var result = await _voteService.CastAsync(
+                    request.PollId,
+                    null,
+                    guestId,
+                    request,
+                    cancellationToken);
+                return Ok(ApiResponse.Ok(result, "Vote submitted successfully"));
+            }
+            catch (ValidationException ex)
+            {
+                return ToValidationErrorResult(ex);
+            }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
+        }
+
+        private static BadRequestObjectResult ToValidationErrorResult(ValidationException exception)
+        {
+            return new BadRequestObjectResult(
+                ApiResponse.Fail(
+                    "Validation failed",
+                    ApiErrorMapper.FromValidationException(exception)));
+        }
+
+        private static ObjectResult ToErrorResult(AppException exception)
+        {
+            var response = ApiResponse.Fail(
+                exception.Message,
+                [
+                    new ApiError
+                    {
+                        Code = exception.ErrorCode,
+                        Message = exception.ErrorMessage,
+                        Field = exception.Field
+                    }
+                ]);
+
+            return new ObjectResult(response)
+            {
+                StatusCode = exception.StatusCode
+            };
         }
     }
 }

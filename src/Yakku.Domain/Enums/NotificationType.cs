@@ -2,8 +2,8 @@ namespace Yakku.Domain.Enums
 {
     public enum NotificationType
     {
-        Normal,
-        Alert,
-        Offer
+        Normal = 0,
+        Alert = 1,
+        Offer = 2
     }
 }

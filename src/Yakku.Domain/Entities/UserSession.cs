@@ -34,6 +34,16 @@ namespace Yakku.Domain.Entities
             LastUsedAt = DateTime.UtcNow;
         }
 
+        public void AssignDevice(Guid deviceId)
+        {
+            if (deviceId == Guid.Empty)
+            {
+                throw new ArgumentException("Device id is required.", nameof(deviceId));
+            }
+
+            DeviceId = deviceId;
+        }
+
         public bool IsExpired(DateTime utcNow)
         {
             return utcNow >= ExpiresAt;

@@ -15,12 +15,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public async Task AddAsync(Polls poll, CancellationToken cancellationToken = default)
+        public async Task AddAsync(Poll poll, CancellationToken cancellationToken = default)
         {
             await _context.Polls.AddAsync(poll, cancellationToken);
         }
 
-        public async Task<Polls?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<Poll?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Polls
                 .Include(p => p.Options)
@@ -28,7 +28,18 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
-        public async Task<Polls?> GetByIdAndCreatorAsync(
+        public async Task<Poll?> GetByShareTokenAsync(
+            string shareToken,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.Polls
+                .Include(p => p.Category)
+                .Include(p => p.Options)
+                .ThenInclude(o => o.Image)
+                .FirstOrDefaultAsync(p => p.ShareToken == shareToken, cancellationToken);
+        }
+
+        public async Task<Poll?> GetByIdAndCreatorAsync(
             Guid id,
             Guid creatorId,
             CancellationToken cancellationToken = default)
@@ -41,7 +52,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
-        public async Task<IReadOnlyList<Polls>> GetCreatedByUserAsync(
+        public async Task<IReadOnlyList<Poll>> GetCreatedByUserAsync(
             Guid userId,
             DateTime? cursorCreatedAt,
             Guid? cursorId,
@@ -52,6 +63,32 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .AsNoTracking()
                 .Include(poll => poll.Options)
                 .Where(poll => poll.CreatorId == userId && poll.Status != PollStatus.Deleted);
+
+            if (cursorCreatedAt is not null && cursorId is not null)
+            {
+                query = query.Where(poll =>
+                    poll.CreatedAt < cursorCreatedAt.Value
+                    || (poll.CreatedAt == cursorCreatedAt.Value && poll.Id < cursorId.Value));
+            }
+
+            return await query
+                .OrderByDescending(poll => poll.CreatedAt)
+                .ThenByDescending(poll => poll.Id)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Poll>> GetVisiblePollsAsync(
+            DateTime? cursorCreatedAt,
+            Guid? cursorId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.Polls
+                .AsNoTracking()
+                .Include(poll => poll.Options)
+                .ThenInclude(option => option.Image)
+                .Where(poll => poll.Status != PollStatus.Deleted);
 
             if (cursorCreatedAt is not null && cursorId is not null)
             {

@@ -12,10 +12,10 @@ namespace Yakku.Domain.Entities
         public Guid? ImageId { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
-        public Polls Poll { get; private set; } = null!;
+        public Poll Poll { get; private set; } = null!;
         public User? User { get; private set; }
         public Guest? Guest { get; private set; }
-        public PollOptions? PollOption { get; private set; }
+        public PollOption? PollOption { get; private set; }
         public Image? Image { get; private set; }
 
         private Vote()

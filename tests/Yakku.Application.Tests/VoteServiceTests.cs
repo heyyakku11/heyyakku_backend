@@ -14,7 +14,7 @@ using Yakku.Application.Votes.Validators;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 using Xunit;
-using PollEntity = Yakku.Domain.Entities.Polls;
+using PollEntity = Yakku.Domain.Entities.Poll;
 
 namespace Yakku.Application.Tests.Votes;
 
@@ -30,7 +30,7 @@ public class VoteServiceTests
             fixture.Poll.Id,
             null,
             fixture.GuestId,
-            new CastVoteRequest { OptionId = optionId, Reason = null });
+            new CastVoteRequest { PollId = fixture.Poll.Id, OptionId = optionId, Reason = null });
 
         Assert.Single(fixture.Votes.Items);
         Assert.Equal(optionId, result.PollOptionId);
@@ -54,7 +54,7 @@ public class VoteServiceTests
             fixture.Poll.Id,
             userId,
             null,
-            new CastVoteRequest { OptionId = optionId });
+            new CastVoteRequest { PollId = fixture.Poll.Id, OptionId = optionId });
 
         Assert.Single(fixture.Votes.Items);
         Assert.Equal(optionId, result.PollOptionId);
@@ -70,7 +70,11 @@ public class VoteServiceTests
     {
         var fixture = VoteFixture.Create();
         var userId = Guid.NewGuid();
-        var request = new CastVoteRequest { OptionId = fixture.Poll.Options.First().Id };
+        var request = new CastVoteRequest
+        {
+            PollId = fixture.Poll.Id,
+            OptionId = fixture.Poll.Options.First().Id
+        };
 
         await fixture.Service.CastAsync(fixture.Poll.Id, userId, null, request);
 
@@ -96,6 +100,7 @@ public class VoteServiceTests
             fixture.GuestId,
             new CastVoteRequest
             {
+                PollId = fixture.Poll.Id,
                 CustomOption = "  Node.js  ",
                 Reason = "  I prefer JavaScript.  "
             });
@@ -120,7 +125,7 @@ public class VoteServiceTests
             fixture.Poll.Id,
             null,
             fixture.GuestId,
-            new CastVoteRequest { OptionId = optionId });
+            new CastVoteRequest { PollId = fixture.Poll.Id, OptionId = optionId });
 
         Assert.Equal(optionId, result.PollOptionId);
         Assert.Null(result.ImageId);
@@ -138,7 +143,12 @@ public class VoteServiceTests
             fixture.Poll.Id,
             null,
             fixture.GuestId,
-            new CastVoteRequest { ImageId = customImageId, Reason = "My outfit" });
+            new CastVoteRequest
+            {
+                PollId = fixture.Poll.Id,
+                ImageId = customImageId,
+                Reason = "My outfit"
+            });
 
         Assert.Null(result.PollOptionId);
         Assert.Null(result.CustomOptionText);
@@ -157,7 +167,7 @@ public class VoteServiceTests
                 fixture.Poll.Id,
                 null,
                 fixture.GuestId,
-                new CastVoteRequest { ImageId = Guid.NewGuid() }));
+                new CastVoteRequest { PollId = fixture.Poll.Id, ImageId = Guid.NewGuid() }));
 
         Assert.Equal(400, exception.StatusCode);
         Assert.Equal("imageId", exception.Field);
@@ -174,7 +184,11 @@ public class VoteServiceTests
                 fixture.Poll.Id,
                 null,
                 fixture.GuestId,
-                new CastVoteRequest { CustomOption = "Something else text" }));
+                new CastVoteRequest
+                {
+                    PollId = fixture.Poll.Id,
+                    CustomOption = "Something else text"
+                }));
 
         Assert.Equal("customOption", exception.Field);
     }
@@ -191,7 +205,7 @@ public class VoteServiceTests
                 fixture.Poll.Id,
                 null,
                 fixture.GuestId,
-                new CastVoteRequest { ImageId = imageId }));
+                new CastVoteRequest { PollId = fixture.Poll.Id, ImageId = imageId }));
 
         Assert.Equal("imageId", exception.Field);
     }
@@ -200,7 +214,11 @@ public class VoteServiceTests
     public async Task Cast_Duplicate_ThrowsAlreadyVoted()
     {
         var fixture = VoteFixture.Create();
-        var request = new CastVoteRequest { OptionId = fixture.Poll.Options.First().Id };
+        var request = new CastVoteRequest
+        {
+            PollId = fixture.Poll.Id,
+            OptionId = fixture.Poll.Options.First().Id
+        };
         await fixture.Service.CastAsync(fixture.Poll.Id, null, fixture.GuestId, request);
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
@@ -225,12 +243,12 @@ public class VoteServiceTests
             fixture.Poll.Id,
             null,
             fixture.GuestId,
-            new CastVoteRequest { OptionId = fixture.Poll.Options.First().Id });
+            new CastVoteRequest { PollId = fixture.Poll.Id, OptionId = fixture.Poll.Options.First().Id });
         await fixture.Service.CastAsync(
             other.Id,
             null,
             fixture.GuestId,
-            new CastVoteRequest { OptionId = other.Options.First().Id });
+            new CastVoteRequest { PollId = other.Id, OptionId = other.Options.First().Id });
 
         Assert.Equal(2, fixture.Votes.Items.Count);
     }
@@ -240,7 +258,11 @@ public class VoteServiceTests
     {
         var fixture = VoteFixture.Create();
         var otherGuest = Guid.NewGuid();
-        var request = new CastVoteRequest { OptionId = fixture.Poll.Options.First().Id };
+        var request = new CastVoteRequest
+        {
+            PollId = fixture.Poll.Id,
+            OptionId = fixture.Poll.Options.First().Id
+        };
 
         await fixture.Service.CastAsync(fixture.Poll.Id, null, fixture.GuestId, request);
         await fixture.Service.CastAsync(fixture.Poll.Id, null, otherGuest, request);
@@ -253,7 +275,11 @@ public class VoteServiceTests
     {
         var fixture = VoteFixture.Create();
         var userId = Guid.NewGuid();
-        var request = new CastVoteRequest { OptionId = fixture.Poll.Options.First().Id };
+        var request = new CastVoteRequest
+        {
+            PollId = fixture.Poll.Id,
+            OptionId = fixture.Poll.Options.First().Id
+        };
 
         await fixture.Service.CastAsync(fixture.Poll.Id, userId, null, request);
         await fixture.Service.CastAsync(fixture.Poll.Id, null, fixture.GuestId, request);
@@ -266,7 +292,11 @@ public class VoteServiceTests
     {
         var fixture = VoteFixture.Create();
         fixture.Votes.IgnoreExists = true;
-        var request = new CastVoteRequest { OptionId = fixture.Poll.Options.First().Id };
+        var request = new CastVoteRequest
+        {
+            PollId = fixture.Poll.Id,
+            OptionId = fixture.Poll.Options.First().Id
+        };
 
         await fixture.Service.CastAsync(fixture.Poll.Id, null, fixture.GuestId, request);
 
@@ -281,13 +311,14 @@ public class VoteServiceTests
     public async Task Cast_MissingPoll_ThrowsNotFound()
     {
         var fixture = VoteFixture.Create();
+        var missingPollId = Guid.NewGuid();
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
             fixture.Service.CastAsync(
-                Guid.NewGuid(),
+                missingPollId,
                 null,
                 fixture.GuestId,
-                new CastVoteRequest { CustomOption = "Node.js" }));
+                new CastVoteRequest { PollId = missingPollId, CustomOption = "Node.js" }));
 
         Assert.Equal(404, exception.StatusCode);
         Assert.Equal(ApiErrorCodes.NotFound, exception.ErrorCode);
@@ -311,7 +342,7 @@ public class VoteServiceTests
                 expired.Id,
                 null,
                 fixture.GuestId,
-                new CastVoteRequest { OptionId = expired.Options.First().Id }));
+                new CastVoteRequest { PollId = expired.Id, OptionId = expired.Options.First().Id }));
 
         Assert.Equal(400, exception.StatusCode);
         Assert.Equal(ApiErrorCodes.ValidationError, exception.ErrorCode);
@@ -329,7 +360,11 @@ public class VoteServiceTests
                 fixture.Poll.Id,
                 null,
                 fixture.GuestId,
-                new CastVoteRequest { OptionId = other.Options.First().Id }));
+                new CastVoteRequest
+                {
+                    PollId = fixture.Poll.Id,
+                    OptionId = other.Options.First().Id
+                }));
 
         Assert.Equal(400, exception.StatusCode);
         Assert.Equal("optionId", exception.Field);
@@ -348,6 +383,7 @@ public class VoteServiceTests
                 fixture.GuestId,
                 new CastVoteRequest
                 {
+                    PollId = fixture.Poll.Id,
                     OptionId = fixture.Poll.Options.First().Id,
                     CustomOption = "Node.js"
                 }));
@@ -365,6 +401,7 @@ public class VoteServiceTests
                 fixture.GuestId,
                 new CastVoteRequest
                 {
+                    PollId = fixture.Poll.Id,
                     OptionId = fixture.Poll.Options.First().Id,
                     ImageId = Guid.NewGuid()
                 }));
@@ -380,7 +417,7 @@ public class VoteServiceTests
                 fixture.Poll.Id,
                 null,
                 fixture.GuestId,
-                new CastVoteRequest()));
+                new CastVoteRequest { PollId = fixture.Poll.Id }));
     }
 
     [Fact]
@@ -396,7 +433,11 @@ public class VoteServiceTests
                 fixture.Poll.Id,
                 null,
                 fixture.GuestId,
-                new CastVoteRequest { OptionId = fixture.Poll.Options.First().Id }));
+                new CastVoteRequest
+                {
+                    PollId = fixture.Poll.Id,
+                    OptionId = fixture.Poll.Options.First().Id
+                }));
 
         Assert.Equal(ApiErrorCodes.ValidationError, exception.ErrorCode);
     }
@@ -477,6 +518,14 @@ public class VoteServiceTests
             return Task.FromResult(Items.FirstOrDefault(poll => poll.Id == id));
         }
 
+        public Task<PollEntity?> GetByShareTokenAsync(
+            string shareToken,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                Items.FirstOrDefault(poll => poll.ShareToken == shareToken));
+        }
+
         public Task<PollEntity?> GetByIdAndCreatorAsync(
             Guid id,
             Guid creatorId,
@@ -496,6 +545,16 @@ public class VoteServiceTests
             IReadOnlyList<PollEntity> page = Items
                 .Where(poll => poll.CreatorId == userId && poll.Status != PollStatus.Deleted)
                 .ToList();
+            return Task.FromResult(page);
+        }
+
+        public Task<IReadOnlyList<PollEntity>> GetVisiblePollsAsync(
+            DateTime? cursorCreatedAt,
+            Guid? cursorId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<PollEntity> page = [];
             return Task.FromResult(page);
         }
 

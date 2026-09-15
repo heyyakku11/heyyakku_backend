@@ -2,7 +2,7 @@ namespace Yakku.Domain.Enums
 {
     public enum OptionType
     {
-        Text,
-        Image
+        Text = 0,
+        Image = 1
     }
 }

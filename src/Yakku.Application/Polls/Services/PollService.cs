@@ -10,8 +10,9 @@ using Yakku.Application.System;
 using Yakku.Application.System.DTOs;
 using Yakku.Application.System.Interfaces;
 using Yakku.Application.Users;
+using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
-using PollEntity = Yakku.Domain.Entities.Polls;
+using PollEntity = Yakku.Domain.Entities.Poll;
 
 namespace Yakku.Application.Polls.Services
 {
@@ -101,6 +102,15 @@ namespace Yakku.Application.Polls.Services
                 }
             }
 
+            var selectedOption = poll.Options.ElementAt(request.SelectedOptionIndex);
+            var vote = Vote.ForUser(
+                creatorId,
+                poll.Id,
+                selectedOption.Id,
+                customOptionText: null,
+                reason: null);
+            poll.Votes.Add(vote);
+
             await _pollRepository.AddAsync(poll, cancellationToken);
             await _pollRepository.SaveChangesAsync(cancellationToken);
             await _systemLogWriter.WriteAsync(
@@ -114,18 +124,33 @@ namespace Yakku.Application.Polls.Services
                 },
                 cancellationToken);
 
-            return poll.ToResponse();
+            var response = poll.ToResponse();
+            response.SelectedOptionId = selectedOption.Id;
+            response.TotalVoteCount = 1;
+            foreach (var optionResponse in response.Options)
+            {
+                if (optionResponse.Id == selectedOption.Id)
+                {
+                    optionResponse.VoteCount = 1;
+                    optionResponse.Percentage = 100m;
+                }
+                else
+                {
+                    optionResponse.VoteCount = 0;
+                    optionResponse.Percentage = 0m;
+                }
+            }
+
+            return response;
         }
 
-        public async Task<CreatorPollsPage> GetCreatorPollsAsync(
-            Guid creatorId,
+        public async Task<CreatorPollsPage> GetPollsAsync(
             string? cursor,
             CancellationToken cancellationToken = default)
         {
             var decoded = PollCursor.TryDecode(cursor);
             var take = PollCursor.PageSize + 1;
-            var polls = await _pollRepository.GetCreatedByUserAsync(
-                creatorId,
+            var polls = await _pollRepository.GetVisiblePollsAsync(
                 decoded?.CreatedAt,
                 decoded?.Id,
                 take,
@@ -134,7 +159,7 @@ namespace Yakku.Application.Polls.Services
             var hasMore = polls.Count > PollCursor.PageSize;
             var items = polls
                 .Take(PollCursor.PageSize)
-                .Select(poll => poll.ToSummaryResponse())
+                .Select(poll => poll.ToResponse())
                 .ToList();
 
             string? nextCursor = null;
@@ -153,11 +178,38 @@ namespace Yakku.Application.Polls.Services
 
         public async Task<PollResponse> GetPollDetailsAsync(
             Guid pollId,
-            Guid creatorId,
             CancellationToken cancellationToken = default)
         {
-            var poll = await GetOwnedVisiblePollAsync(pollId, creatorId, cancellationToken);
+            var poll = await GetVisiblePollAsync(pollId, cancellationToken);
             return poll.ToResponse();
+        }
+
+        public async Task<SharedPollResponse> GetSharedPollByTokenAsync(
+            string shareToken,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(shareToken))
+            {
+                throw new AppException(
+                    404,
+                    ApiErrorCodes.NotFound,
+                    "Poll is not available.");
+            }
+
+            var poll = await _pollRepository.GetByShareTokenAsync(
+                shareToken.Trim(),
+                cancellationToken);
+            if (poll is null
+                || poll.Status != PollStatus.Active
+                || (poll.ExpiresAt is not null && poll.ExpiresAt <= DateTime.UtcNow))
+            {
+                throw new AppException(
+                    404,
+                    ApiErrorCodes.NotFound,
+                    "Poll is not available.");
+            }
+
+            return poll.ToSharedResponse();
         }
 
         public async Task<PollResponse> ClosePollAsync(
@@ -224,6 +276,22 @@ namespace Yakku.Application.Polls.Services
                     Details = new { pollId = poll.Id }
                 },
                 cancellationToken);
+        }
+
+        private async Task<PollEntity> GetVisiblePollAsync(
+            Guid pollId,
+            CancellationToken cancellationToken)
+        {
+            var poll = await _pollRepository.GetByIdAsync(pollId, cancellationToken);
+            if (poll is null || poll.Status == PollStatus.Deleted)
+            {
+                throw new AppException(
+                    404,
+                    ApiErrorCodes.NotFound,
+                    "Poll not found");
+            }
+
+            return poll;
         }
 
         private async Task<PollEntity> GetOwnedVisiblePollAsync(

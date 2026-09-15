@@ -4,7 +4,7 @@ using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Users.Services;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
-using PollEntity = Yakku.Domain.Entities.Polls;
+using PollEntity = Yakku.Domain.Entities.Poll;
 using Xunit;
 
 namespace Yakku.Application.Tests.Users;
@@ -62,6 +62,7 @@ public class UserServiceTests
             Assert.Equal("active", item.Status);
             Assert.Null(item.ExpiresAt);
             Assert.NotEqual(default, item.CreatedAt);
+            Assert.Equal(0, item.TotalVoteCount);
             Assert.NotNull(item.PollOptions);
         });
     }
@@ -229,6 +230,14 @@ public class UserServiceTests
             return Task.FromResult(Items.FirstOrDefault(poll => poll.Id == id));
         }
 
+        public Task<PollEntity?> GetByShareTokenAsync(
+            string shareToken,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                Items.FirstOrDefault(poll => poll.ShareToken == shareToken));
+        }
+
         public Task<PollEntity?> GetByIdAndCreatorAsync(
             Guid id,
             Guid creatorId,
@@ -260,6 +269,16 @@ public class UserServiceTests
                 .Take(take)
                 .ToList();
 
+            return Task.FromResult(page);
+        }
+
+        public Task<IReadOnlyList<PollEntity>> GetVisiblePollsAsync(
+            DateTime? cursorCreatedAt,
+            Guid? cursorId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<PollEntity> page = [];
             return Task.FromResult(page);
         }
 

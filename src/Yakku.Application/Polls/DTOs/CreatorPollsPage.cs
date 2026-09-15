@@ -4,7 +4,7 @@ namespace Yakku.Application.Polls.DTOs
 {
     public class CreatorPollsPage
     {
-        public List<PollSummaryResponse> Items { get; set; } = [];
+        public List<PollResponse> Items { get; set; } = [];
         public PaginationMeta Meta { get; set; } = new();
     }
 }

@@ -15,10 +15,8 @@ namespace Yakku.Domain.Entities
         public int? Height { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
-        public ICollection<UserProfile> UserProfiles { get; private set; } = new List<UserProfile>();
-        public ICollection<PollOptions> PollOptions { get; private set; } = new List<PollOptions>();
+        public ICollection<PollOption> PollOptions { get; private set; } = new List<PollOption>();
         public ICollection<Vote> Votes { get; private set; } = new List<Vote>();
-        public ICollection<Notification> Notifications { get; private set; } = new List<Notification>();
 
         private Image()
         {

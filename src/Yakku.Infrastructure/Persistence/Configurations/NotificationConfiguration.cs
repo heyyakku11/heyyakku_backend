@@ -36,25 +36,16 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasDefaultValue(false);
 
-            builder.Property(x => x.ExpiresAt)
-                .IsRequired();
+            builder.HasIndex(x => new { x.UserId, x.IsRead, x.CreatedAt })
+                .HasDatabaseName("IX_Notifications_UserId_IsRead_CreatedAt");
 
             builder.HasIndex(x => new { x.UserId, x.CreatedAt })
                 .HasDatabaseName("IX_Notifications_UserId_CreatedAt");
-
-            builder.HasIndex(x => new { x.UserId, x.IsRead })
-                .HasDatabaseName("IX_Notifications_UserId_IsRead");
 
             builder.HasOne(x => x.User)
                 .WithMany(x => x.Notifications)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.Image)
-                .WithMany(x => x.Notifications)
-                .HasForeignKey(x => x.ImageId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

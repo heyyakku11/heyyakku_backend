@@ -3,7 +3,7 @@ using Yakku.Domain.Enums;
 
 namespace Yakku.Domain.Entities
 {
-    public class Polls
+    public class Poll
     {
         public Guid Id { get; private set; }
         public Guid CreatorId { get; private set; }
@@ -16,17 +16,18 @@ namespace Yakku.Domain.Entities
         public DateTime? ClosedAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
+        public int TotalVoteCount { get; private set; }
 
         public User Creator { get; private set; } = null!;
         public Category? Category { get; private set; }
-        public ICollection<PollOptions> Options { get; private set; } = new List<PollOptions>();
+        public ICollection<PollOption> Options { get; private set; } = new List<PollOption>();
         public ICollection<Vote> Votes { get; private set; } = new List<Vote>();
 
-        private Polls()
+        private Poll()
         {
         }
 
-        public Polls(
+        public Poll(
             Guid creatorId,
             string question,
             OptionType optionType,
@@ -43,6 +44,7 @@ namespace Yakku.Domain.Entities
             ExpiresAt = ToUtc(expiresAt);
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
+            TotalVoteCount = 0;
         }
 
         private static DateTime? ToUtc(DateTime? value)
@@ -62,12 +64,12 @@ namespace Yakku.Domain.Entities
 
         public void AddTextOption(string text, int sortOrder)
         {
-            Options.Add(PollOptions.CreateText(Id, text, sortOrder));
+            Options.Add(PollOption.CreateText(Id, text, sortOrder));
         }
 
         public void AddImageOption(Guid imageId, int sortOrder)
         {
-            Options.Add(PollOptions.CreateImage(Id, imageId, sortOrder));
+            Options.Add(PollOption.CreateImage(Id, imageId, sortOrder));
         }
 
         public bool TryClose()

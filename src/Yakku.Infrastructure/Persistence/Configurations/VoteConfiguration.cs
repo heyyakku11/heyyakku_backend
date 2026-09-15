@@ -37,6 +37,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.PollOptionId)
                 .HasDatabaseName("IX_Votes_PollOptionId");
 
+            builder.HasIndex(x => new { x.PollId, x.PollOptionId })
+                .HasDatabaseName("IX_Votes_PollId_PollOptionId");
+
             builder.HasIndex(x => new { x.PollId, x.UserId })
                 .IsUnique()
                 .HasFilter("\"UserId\" IS NOT NULL")
@@ -46,6 +49,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsUnique()
                 .HasFilter("\"GuestId\" IS NOT NULL")
                 .HasDatabaseName("IX_Votes_PollId_GuestId");
+
+            builder.HasIndex(x => new { x.UserId, x.CreatedAt })
+                .HasFilter("\"UserId\" IS NOT NULL")
+                .HasDatabaseName("IX_Votes_UserId_CreatedAt");
 
             builder.HasOne(x => x.Poll)
                 .WithMany(x => x.Votes)
@@ -65,7 +72,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(x => x.PollOption)
-                .WithMany()
+                .WithMany(x => x.Votes)
                 .HasForeignKey(x => x.PollOptionId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.SetNull);

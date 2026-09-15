@@ -24,25 +24,5 @@ namespace Yakku.Application.Auth
 
             return CryptographicOperations.FixedTimeEquals(actualBytes, expectedBytes);
         }
-
-        public static string? TryRecover(string email, string otpHash)
-        {
-            if (string.IsNullOrWhiteSpace(otpHash) || otpHash.Length != 64)
-            {
-                return null;
-            }
-
-            var max = (int)Math.Pow(10, OtpOptions.Length);
-            for (var i = 0; i < max; i++)
-            {
-                var otp = i.ToString($"D{OtpOptions.Length}");
-                if (string.Equals(Hash(email, otp), otpHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    return otp;
-                }
-            }
-
-            return null;
-        }
     }
 }

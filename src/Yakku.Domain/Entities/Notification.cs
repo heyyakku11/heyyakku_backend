@@ -10,15 +10,13 @@ namespace Yakku.Domain.Entities
         public NotificationEventType EventType { get; private set; }
         public string Title { get; private set; } = string.Empty;
         public string Body { get; private set; } = string.Empty;
-        public Guid? ImageId { get; private set; }
         public string? Data { get; private set; }
         public bool IsRead { get; private set; }
         public DateTime? ReadAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
-        public DateTime ExpiresAt { get; private set; }
+        public DateTime? ExpiresAt { get; private set; }
 
         public User User { get; private set; } = null!;
-        public Image? Image { get; private set; }
 
         private Notification()
         {
@@ -30,8 +28,7 @@ namespace Yakku.Domain.Entities
             NotificationEventType eventType,
             string title,
             string body,
-            DateTime expiresAt,
-            Guid? imageId = null,
+            DateTime? expiresAt = null,
             string? data = null)
         {
             Id = Guid.NewGuid();
@@ -40,7 +37,6 @@ namespace Yakku.Domain.Entities
             EventType = eventType;
             Title = title;
             Body = body;
-            ImageId = imageId;
             Data = data;
             IsRead = false;
             CreatedAt = DateTime.UtcNow;

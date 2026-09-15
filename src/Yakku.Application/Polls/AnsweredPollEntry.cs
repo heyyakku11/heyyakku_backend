@@ -1,4 +1,4 @@
-using PollEntity = Yakku.Domain.Entities.Polls;
+using PollEntity = Yakku.Domain.Entities.Poll;
 
 namespace Yakku.Application.Polls
 {

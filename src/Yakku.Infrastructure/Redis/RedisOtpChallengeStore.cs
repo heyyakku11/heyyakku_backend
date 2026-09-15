@@ -63,6 +63,21 @@ namespace Yakku.Infrastructure.Redis
             await _redis.DeleteAsync(Key(email), cancellationToken);
         }
 
+        public async Task<bool> DeleteIfChallengeMatchesAsync(
+            string email,
+            Guid challengeId,
+            CancellationToken cancellationToken = default)
+        {
+            var challenge = await GetAsync(email, cancellationToken);
+            if (challenge is null || challenge.ChallengeId != challengeId)
+            {
+                return false;
+            }
+
+            await DeleteAsync(email, cancellationToken);
+            return true;
+        }
+
         private static string Key(string email)
         {
             return $"auth:otp:{email}";

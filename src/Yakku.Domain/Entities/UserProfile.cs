@@ -6,11 +6,12 @@ namespace Yakku.Domain.Entities
         public Guid UserId { get; private set; }
         public string DisplayName { get; private set; } = string.Empty;
         public Guid? AvatarImageId { get; private set; }
+        public string? Bio { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
         public User User { get; private set; } = null!;
-        public Image? AvatarImage { get; private set; }
+        public UserAvatar? AvatarImage { get; private set; }
 
         private UserProfile()
         {

@@ -147,7 +147,7 @@ namespace Yakku.Application.Auth.Services
         {
             return new TokenResponse
             {
-                AccessToken = _tokenService.CreateAccessToken(userId),
+                AccessToken = _tokenService.CreateAccessToken(userId, sessionId),
                 RefreshToken = $"{sessionId}.{secret}",
                 AccessTokenExpiresInSeconds = JwtOptions.AccessTokenExpiresInSeconds,
                 RefreshTokenExpiresInSeconds = JwtOptions.RefreshTokenExpiresInSeconds

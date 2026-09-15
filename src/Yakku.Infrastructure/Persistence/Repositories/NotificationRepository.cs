@@ -25,7 +25,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .AsNoTracking()
                 .Where(notification =>
                     notification.UserId == userId &&
-                    notification.ExpiresAt > now);
+                    (notification.ExpiresAt == null || notification.ExpiresAt > now));
 
             if (cursorCreatedAt is not null && cursorId is not null)
             {

@@ -52,9 +52,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.UserId)
                 .HasDatabaseName("IX_Devices_UserId");
 
-            builder.HasIndex(x => x.InstallationId)
+            builder.HasIndex(x => new { x.InstallationId, x.Platform })
                 .IsUnique()
-                .HasDatabaseName("IX_Devices_InstallationId");
+                .HasDatabaseName("IX_Devices_InstallationId_Platform");
 
             builder.HasOne(x => x.User)
                 .WithMany(x => x.Devices)

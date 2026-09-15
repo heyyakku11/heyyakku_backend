@@ -69,6 +69,8 @@ namespace Yakku.Infrastructure.System
             {
                 SystemLogEventTypes.OtpRequested => SystemEventType.Authentication,
                 SystemLogEventTypes.OtpInvalid => SystemEventType.Authentication,
+                SystemLogEventTypes.OtpEmailPermanentlyFailed => SystemEventType.Authentication,
+                SystemLogEventTypes.OtpEmailWorkerFault => SystemEventType.System,
                 SystemLogEventTypes.UserRegistered => SystemEventType.Authentication,
                 SystemLogEventTypes.UserLoggedIn => SystemEventType.Authentication,
                 SystemLogEventTypes.SessionRefreshed => SystemEventType.Authentication,
@@ -79,8 +81,6 @@ namespace Yakku.Infrastructure.System
                 SystemLogEventTypes.VoteCast => SystemEventType.Vote,
                 SystemLogEventTypes.VoteRejectedAlreadyVoted => SystemEventType.Vote,
                 SystemLogEventTypes.DeviceRegistered => SystemEventType.Device,
-                SystemLogEventTypes.DeviceUpdated => SystemEventType.Device,
-                SystemLogEventTypes.DeviceUnregistered => SystemEventType.Device,
                 SystemLogEventTypes.UnhandledException => SystemEventType.System,
                 _ => SystemEventType.System
             };

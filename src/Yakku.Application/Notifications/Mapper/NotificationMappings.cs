@@ -14,7 +14,6 @@ namespace Yakku.Application.Notifications.Mapper
                 EventType = notification.EventType.ToString().ToLowerInvariant(),
                 Title = notification.Title,
                 Body = notification.Body,
-                ImageId = notification.ImageId,
                 Data = notification.Data,
                 IsRead = notification.IsRead,
                 ReadAt = notification.ReadAt,

@@ -2,6 +2,7 @@ namespace Yakku.Application.Votes.DTOs
 {
     public class CastVoteRequest
     {
+        public Guid PollId { get; set; }
         public Guid? OptionId { get; set; }
         public string? CustomOption { get; set; }
         public Guid? ImageId { get; set; }

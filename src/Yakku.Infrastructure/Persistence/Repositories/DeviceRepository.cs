@@ -25,16 +25,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 cancellationToken);
         }
 
-        public Task<Device?> GetByInstallationIdAndUserIdAsync(
-            string installationId,
-            Guid userId,
-            CancellationToken cancellationToken = default)
-        {
-            return _context.Devices.FirstOrDefaultAsync(
-                device => device.InstallationId == installationId && device.UserId == userId,
-                cancellationToken);
-        }
-
         public async Task AddAsync(Device device, CancellationToken cancellationToken = default)
         {
             await _context.Devices.AddAsync(device, cancellationToken);

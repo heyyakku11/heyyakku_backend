@@ -21,13 +21,14 @@ namespace Yakku.Application.Auth.Services
             _signingKey = Encoding.UTF8.GetBytes(secret);
         }
 
-        public string CreateAccessToken(Guid userId)
+        public string CreateAccessToken(Guid userId, Guid sessionId)
         {
             var now = DateTime.UtcNow;
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
                 new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                new Claim(AuthClaimTypes.SessionId, sessionId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 

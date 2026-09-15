@@ -31,6 +31,7 @@ namespace Yakku.API.Controllers
             var result = await _deviceService.RegisterAsync(
                 User.GetRequiredUserId(),
                 request,
+                User.GetRequiredSessionId(),
                 cancellationToken);
 
             var response = ApiResponse.Ok(
@@ -40,41 +41,6 @@ namespace Yakku.API.Controllers
             return result.Created
                 ? StatusCode(StatusCodes.Status201Created, response)
                 : Ok(response);
-        }
-
-        [HttpPatch("{installationId}")]
-        [ProducesResponseType(typeof(ApiResponse<DeviceResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> Update(
-            string installationId,
-            [FromBody] UpdateDeviceRequest request,
-            CancellationToken cancellationToken)
-        {
-            var result = await _deviceService.UpdateAsync(
-                User.GetRequiredUserId(),
-                installationId,
-                request,
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok(result, "Device updated successfully"));
-        }
-
-        [HttpDelete("{installationId}")]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> Unregister(
-            string installationId,
-            CancellationToken cancellationToken)
-        {
-            await _deviceService.UnregisterAsync(
-                User.GetRequiredUserId(),
-                installationId,
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok<object?>(null, "Device unregistered successfully"));
         }
     }
 }

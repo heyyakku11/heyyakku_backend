@@ -19,8 +19,9 @@ public class DeviceServiceTests
     {
         var fixture = DeviceFixture.Create();
         var userId = Guid.NewGuid();
+        var sessionId = fixture.AddSession(userId);
 
-        var result = await fixture.Service.RegisterAsync(userId, NewRegisterRequest());
+        var result = await fixture.Service.RegisterAsync(userId, NewRegisterRequest(), sessionId);
 
         Assert.True(result.Created);
         Assert.Single(fixture.Devices.Items);
@@ -28,12 +29,16 @@ public class DeviceServiceTests
         Assert.True(result.Device.IsActive);
         Assert.Equal("install-1", result.Device.InstallationId);
         Assert.Equal("android", result.Device.Platform);
-        Assert.Equal("Pixel 8", result.Device.DeviceModel);
+        Assert.Equal("Pixel 8", fixture.Devices.Items[0].DeviceModel);
         Assert.Equal("granted", result.Device.NotificationPermission);
         Assert.NotNull(result.Device.LastSeenAt);
         Assert.Null(typeof(DeviceResponse).GetProperty("PushToken"));
         Assert.Null(typeof(DeviceResponse).GetProperty("UserId"));
         Assert.Equal("fcm-token", fixture.Devices.Items[0].PushToken);
+        Assert.Equal(fixture.Devices.Items[0].Id, fixture.Sessions.Items[0].DeviceId);
+        Assert.Single(fixture.Preferences.Items);
+        Assert.Equal(userId, fixture.Preferences.Items[0].UserId);
+        Assert.True(fixture.Preferences.Items[0].PushEnabled);
         Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.DeviceRegistered);
     }
 
@@ -42,17 +47,85 @@ public class DeviceServiceTests
     {
         var fixture = DeviceFixture.Create();
         var userId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(userId, NewRegisterRequest());
+        var sessionId = fixture.AddSession(userId);
+        await fixture.Service.RegisterAsync(userId, NewRegisterRequest(), sessionId);
 
         var result = await fixture.Service.RegisterAsync(
             userId,
-            NewRegisterRequest(pushToken: "new-token", appVersion: "1.1.0"));
+            NewRegisterRequest(pushToken: "new-token", appVersion: "1.1.0"),
+            sessionId);
 
         Assert.False(result.Created);
         Assert.Single(fixture.Devices.Items);
         Assert.Equal("new-token", fixture.Devices.Items[0].PushToken);
-        Assert.Equal("1.1.0", result.Device.AppVersion);
+        Assert.Equal("1.1.0", fixture.Devices.Items[0].AppVersion);
         Assert.True(result.Device.IsActive);
+        Assert.Equal(fixture.Devices.Items[0].Id, fixture.Sessions.Items[0].DeviceId);
+        Assert.Single(fixture.Preferences.Items);
+    }
+
+    [Fact]
+    public async Task Register_GrantedWithPushToken_CreatesNotificationPreferences()
+    {
+        var fixture = DeviceFixture.Create();
+        var userId = Guid.NewGuid();
+        var sessionId = fixture.AddSession(userId);
+
+        await fixture.Service.RegisterAsync(userId, NewRegisterRequest(), sessionId);
+
+        Assert.Single(fixture.Preferences.Items);
+        Assert.Equal(userId, fixture.Preferences.Items[0].UserId);
+        Assert.True(fixture.Preferences.Items[0].PushEnabled);
+        Assert.True(fixture.Preferences.Items[0].PollActivityEnabled);
+        Assert.True(fixture.Preferences.Items[0].OffersEnabled);
+        Assert.True(fixture.Preferences.Items[0].AlertsEnabled);
+        Assert.True(fixture.Preferences.Items[0].NormalEnabled);
+    }
+
+    [Fact]
+    public async Task Register_GrantedTwice_DoesNotDuplicateNotificationPreferences()
+    {
+        var fixture = DeviceFixture.Create();
+        var userId = Guid.NewGuid();
+        var sessionId = fixture.AddSession(userId);
+        await fixture.Service.RegisterAsync(userId, NewRegisterRequest(), sessionId);
+
+        await fixture.Service.RegisterAsync(
+            userId,
+            NewRegisterRequest(pushToken: "another-token"),
+            sessionId);
+
+        Assert.Single(fixture.Preferences.Items);
+    }
+
+    [Fact]
+    public async Task Register_DeniedPermission_DoesNotCreateNotificationPreferences()
+    {
+        var fixture = DeviceFixture.Create();
+        var userId = Guid.NewGuid();
+        var sessionId = fixture.AddSession(userId);
+
+        await fixture.Service.RegisterAsync(
+            userId,
+            NewRegisterRequest(pushToken: "should-clear", permission: "denied"),
+            sessionId);
+
+        Assert.Empty(fixture.Preferences.Items);
+    }
+
+    [Fact]
+    public async Task Register_MissingPushToken_DoesNotCreateNotificationPreferences()
+    {
+        var fixture = DeviceFixture.Create();
+        var userId = Guid.NewGuid();
+        var sessionId = fixture.AddSession(userId);
+
+        await fixture.Service.RegisterAsync(
+            userId,
+            NewRegisterRequest(pushToken: null),
+            sessionId);
+
+        Assert.Empty(fixture.Preferences.Items);
     }
 
     [Fact]
@@ -61,32 +134,17 @@ public class DeviceServiceTests
         var fixture = DeviceFixture.Create();
         var firstUser = Guid.NewGuid();
         var secondUser = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(firstUser, NewRegisterRequest());
+        var firstSessionId = fixture.AddSession(firstUser);
+        var secondSessionId = fixture.AddSession(secondUser);
+        await fixture.Service.RegisterAsync(firstUser, NewRegisterRequest(), firstSessionId);
 
-        var result = await fixture.Service.RegisterAsync(secondUser, NewRegisterRequest());
+        var result = await fixture.Service.RegisterAsync(secondUser, NewRegisterRequest(), secondSessionId);
 
         Assert.False(result.Created);
         Assert.Single(fixture.Devices.Items);
         Assert.Equal(secondUser, fixture.Devices.Items[0].UserId);
+        Assert.Equal(fixture.Devices.Items[0].Id, fixture.Sessions.Items.Single(s => s.Id == secondSessionId).DeviceId);
         Assert.Null(typeof(DeviceResponse).GetProperty("UserId"));
-    }
-
-    [Fact]
-    public async Task Register_AfterDeactivate_ReactivatesAndRestoresToken()
-    {
-        var fixture = DeviceFixture.Create();
-        var userId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(userId, NewRegisterRequest());
-        await fixture.Service.UnregisterAsync(userId, "install-1");
-
-        var result = await fixture.Service.RegisterAsync(
-            userId,
-            NewRegisterRequest(pushToken: "restored-token"));
-
-        Assert.False(result.Created);
-        Assert.True(result.Device.IsActive);
-        Assert.Equal("restored-token", fixture.Devices.Items[0].PushToken);
-        Assert.Single(fixture.Devices.Items);
     }
 
     [Fact]
@@ -94,158 +152,91 @@ public class DeviceServiceTests
     {
         var fixture = DeviceFixture.Create();
         var userId = Guid.NewGuid();
+        var sessionId = fixture.AddSession(userId);
 
         var result = await fixture.Service.RegisterAsync(
             userId,
-            NewRegisterRequest(pushToken: "should-clear", permission: "denied"));
+            NewRegisterRequest(pushToken: "should-clear", permission: "denied"),
+            sessionId);
 
         Assert.True(result.Device.IsActive);
         Assert.Equal("denied", result.Device.NotificationPermission);
         Assert.Null(fixture.Devices.Items[0].PushToken);
         Assert.Null(typeof(DeviceResponse).GetProperty("PushToken"));
+        Assert.Empty(fixture.Preferences.Items);
     }
 
     [Fact]
-    public async Task Update_SuppliedFieldsOnly_LeavesOthersUnchanged()
+    public async Task Register_WithSessionId_AssignsDeviceToSession()
     {
         var fixture = DeviceFixture.Create();
         var userId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(userId, NewRegisterRequest());
+        var sessionId = fixture.AddSession(userId);
 
-        var result = await fixture.Service.UpdateAsync(
+        var result = await fixture.Service.RegisterAsync(
             userId,
-            "install-1",
-            new UpdateDeviceRequest { AppVersion = "2.0.0" });
+            NewRegisterRequest(),
+            sessionId);
 
-        Assert.Equal("2.0.0", result.AppVersion);
-        Assert.Equal("1", result.AppBuild);
-        Assert.Equal("Pixel 8", result.DeviceModel);
-        Assert.Equal("android", result.Platform);
-        Assert.Equal("fcm-token", fixture.Devices.Items[0].PushToken);
-        Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.DeviceUpdated);
+        Assert.True(result.Created);
+        Assert.Equal(fixture.Devices.Items[0].Id, fixture.Sessions.Items[0].DeviceId);
     }
 
     [Fact]
-    public async Task Update_EmptyPushToken_ClearsToken()
+    public async Task Register_UnknownSessionId_ReturnsUnauthorized()
     {
         var fixture = DeviceFixture.Create();
         var userId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(userId, NewRegisterRequest());
-
-        await fixture.Service.UpdateAsync(
-            userId,
-            "install-1",
-            new UpdateDeviceRequest { PushToken = "" });
-
-        Assert.Null(fixture.Devices.Items[0].PushToken);
-        Assert.True(fixture.Devices.Items[0].IsActive);
-    }
-
-    [Fact]
-    public async Task Update_DeniedPermission_ClearsPushToken()
-    {
-        var fixture = DeviceFixture.Create();
-        var userId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(userId, NewRegisterRequest());
-
-        var result = await fixture.Service.UpdateAsync(
-            userId,
-            "install-1",
-            new UpdateDeviceRequest { NotificationPermission = "denied" });
-
-        Assert.True(result.IsActive);
-        Assert.Equal("denied", result.NotificationPermission);
-        Assert.Null(fixture.Devices.Items[0].PushToken);
-    }
-
-    [Fact]
-    public async Task Update_AnotherUsersDevice_ReturnsNotFound()
-    {
-        var fixture = DeviceFixture.Create();
-        var ownerId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(ownerId, NewRegisterRequest());
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
-            fixture.Service.UpdateAsync(
-                Guid.NewGuid(),
-                "install-1",
-                new UpdateDeviceRequest { AppVersion = "9.9.9" }));
+            fixture.Service.RegisterAsync(userId, NewRegisterRequest(), Guid.NewGuid()));
 
-        Assert.Equal(404, exception.StatusCode);
-        Assert.Equal(ApiErrorCodes.NotFound, exception.ErrorCode);
-        Assert.Equal("1.0.0", fixture.Devices.Items[0].AppVersion);
+        Assert.Equal(401, exception.StatusCode);
+        Assert.Equal(ApiErrorCodes.Unauthorized, exception.ErrorCode);
+        Assert.Empty(fixture.Devices.Items);
     }
 
     [Fact]
-    public async Task Update_MissingDevice_ReturnsNotFound()
+    public async Task Register_ForeignSessionId_ReturnsUnauthorized()
+    {
+        var fixture = DeviceFixture.Create();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var foreignSessionId = fixture.AddSession(otherUserId);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.Service.RegisterAsync(userId, NewRegisterRequest(), foreignSessionId));
+
+        Assert.Equal(401, exception.StatusCode);
+        Assert.Equal(ApiErrorCodes.Unauthorized, exception.ErrorCode);
+        Assert.Empty(fixture.Devices.Items);
+        Assert.Null(fixture.Sessions.Items[0].DeviceId);
+    }
+
+    [Fact]
+    public async Task Register_EmptySessionId_ReturnsUnauthorized()
     {
         var fixture = DeviceFixture.Create();
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
-            fixture.Service.UpdateAsync(
-                Guid.NewGuid(),
-                "missing",
-                new UpdateDeviceRequest { AppVersion = "1.0.1" }));
+            fixture.Service.RegisterAsync(Guid.NewGuid(), NewRegisterRequest(), Guid.Empty));
 
-        Assert.Equal(404, exception.StatusCode);
-        Assert.Equal(ApiErrorCodes.NotFound, exception.ErrorCode);
-    }
-
-    [Fact]
-    public async Task Unregister_DeactivatesAndClearsPushToken()
-    {
-        var fixture = DeviceFixture.Create();
-        var userId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(userId, NewRegisterRequest());
-
-        await fixture.Service.UnregisterAsync(userId, "install-1");
-
-        var device = fixture.Devices.Items[0];
-        Assert.False(device.IsActive);
-        Assert.Null(device.PushToken);
-        Assert.Equal(userId, device.UserId);
-        Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.DeviceUnregistered);
-    }
-
-    [Fact]
-    public async Task Unregister_AlreadyInactive_Succeeds()
-    {
-        var fixture = DeviceFixture.Create();
-        var userId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(userId, NewRegisterRequest());
-        await fixture.Service.UnregisterAsync(userId, "install-1");
-
-        await fixture.Service.UnregisterAsync(userId, "install-1");
-
-        Assert.Single(fixture.Devices.Items);
-        Assert.False(fixture.Devices.Items[0].IsActive);
-    }
-
-    [Fact]
-    public async Task Unregister_AnotherUsersDevice_ReturnsNotFound()
-    {
-        var fixture = DeviceFixture.Create();
-        var ownerId = Guid.NewGuid();
-        await fixture.Service.RegisterAsync(ownerId, NewRegisterRequest());
-
-        var exception = await Assert.ThrowsAsync<AppException>(() =>
-            fixture.Service.UnregisterAsync(Guid.NewGuid(), "install-1"));
-
-        Assert.Equal(404, exception.StatusCode);
-        Assert.Equal(ApiErrorCodes.NotFound, exception.ErrorCode);
-        Assert.True(fixture.Devices.Items[0].IsActive);
-        Assert.Equal("fcm-token", fixture.Devices.Items[0].PushToken);
+        Assert.Equal(401, exception.StatusCode);
+        Assert.Equal(ApiErrorCodes.Unauthorized, exception.ErrorCode);
     }
 
     [Fact]
     public async Task Register_InvalidPlatform_ThrowsValidationException()
     {
         var fixture = DeviceFixture.Create();
+        var userId = Guid.NewGuid();
+        var sessionId = fixture.AddSession(userId);
 
         await Assert.ThrowsAsync<ValidationException>(() =>
             fixture.Service.RegisterAsync(
-                Guid.NewGuid(),
-                NewRegisterRequest(platform: "windows")));
+                userId,
+                NewRegisterRequest(platform: "windows"),
+                sessionId));
     }
 
     private static RegisterDeviceRequest NewRegisterRequest(
@@ -274,23 +265,97 @@ public class DeviceServiceTests
     {
         public required DeviceService Service { get; init; }
         public required FakeDeviceRepository Devices { get; init; }
+        public required FakeUserSessionRepository Sessions { get; init; }
+        public required FakeNotificationPreferenceRepository Preferences { get; init; }
         public required FakeSystemLogWriter Logs { get; init; }
+
+        public Guid AddSession(Guid userId)
+        {
+            var session = new UserSession(
+                userId,
+                $"hash-{Guid.NewGuid():N}",
+                DateTime.UtcNow.AddDays(7));
+            Sessions.Items.Add(session);
+            return session.Id;
+        }
 
         public static DeviceFixture Create()
         {
             var devices = new FakeDeviceRepository();
+            var sessions = new FakeUserSessionRepository();
+            var preferences = new FakeNotificationPreferenceRepository();
             var logs = new FakeSystemLogWriter();
 
             return new DeviceFixture
             {
                 Service = new DeviceService(
                     devices,
+                    sessions,
+                    preferences,
                     logs,
-                    new RegisterDeviceValidator(),
-                    new UpdateDeviceValidator()),
+                    new RegisterDeviceValidator()),
                 Devices = devices,
+                Sessions = sessions,
+                Preferences = preferences,
                 Logs = logs
             };
+        }
+    }
+
+    private sealed class FakeNotificationPreferenceRepository
+        : Yakku.Application.NotificationPreferences.Interfaces.INotificationPreferenceRepository
+    {
+        public List<NotificationPreference> Items { get; } = [];
+
+        public Task<NotificationPreference?> GetByUserIdAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Items.FirstOrDefault(preference => preference.UserId == userId));
+        }
+
+        public Task AddAsync(NotificationPreference preference, CancellationToken cancellationToken = default)
+        {
+            Items.Add(preference);
+            return Task.CompletedTask;
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeUserSessionRepository : Yakku.Application.Auth.Interfaces.IUserSessionRepository
+    {
+        public List<UserSession> Items { get; } = [];
+
+        public Task AddAsync(UserSession session, CancellationToken cancellationToken = default)
+        {
+            Items.Add(session);
+            return Task.CompletedTask;
+        }
+
+        public Task<UserSession?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Items.FirstOrDefault(session => session.Id == id));
+        }
+
+        public Task DeleteAsync(UserSession session, CancellationToken cancellationToken = default)
+        {
+            Items.Remove(session);
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAllByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            Items.RemoveAll(session => session.UserId == userId);
+            return Task.CompletedTask;
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 
@@ -303,16 +368,6 @@ public class DeviceServiceTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(Items.FirstOrDefault(device => device.InstallationId == installationId));
-        }
-
-        public Task<Device?> GetByInstallationIdAndUserIdAsync(
-            string installationId,
-            Guid userId,
-            CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(
-                Items.FirstOrDefault(device =>
-                    device.InstallationId == installationId && device.UserId == userId));
         }
 
         public Task AddAsync(Device device, CancellationToken cancellationToken = default)

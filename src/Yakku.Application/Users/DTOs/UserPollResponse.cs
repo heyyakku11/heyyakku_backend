@@ -7,6 +7,7 @@ namespace Yakku.Application.Users.DTOs
         public string Status { get; set; } = string.Empty;
         public DateTime? ExpiresAt { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int TotalVoteCount { get; set; }
         public List<UserPollOptionResponse> PollOptions { get; set; } = [];
     }
 
@@ -14,5 +15,7 @@ namespace Yakku.Application.Users.DTOs
     {
         public Guid Id { get; set; }
         public string Text { get; set; } = string.Empty;
+        public int VoteCount { get; set; }
+        public decimal Percentage { get; set; }
     }
 }

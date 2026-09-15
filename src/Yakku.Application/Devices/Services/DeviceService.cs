@@ -1,9 +1,11 @@
 using FluentValidation;
+using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Devices.DTOs;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Devices.Mapper;
+using Yakku.Application.NotificationPreferences.Interfaces;
 using Yakku.Application.System;
 using Yakku.Application.System.DTOs;
 using Yakku.Application.System.Interfaces;
@@ -15,28 +17,33 @@ namespace Yakku.Application.Devices.Services
     public class DeviceService : IDeviceService
     {
         private readonly IDeviceRepository _devices;
+        private readonly IUserSessionRepository _sessions;
+        private readonly INotificationPreferenceRepository _preferences;
         private readonly ISystemLogWriter _systemLogWriter;
         private readonly IValidator<RegisterDeviceRequest> _registerValidator;
-        private readonly IValidator<UpdateDeviceRequest> _updateValidator;
 
         public DeviceService(
             IDeviceRepository devices,
+            IUserSessionRepository sessions,
+            INotificationPreferenceRepository preferences,
             ISystemLogWriter systemLogWriter,
-            IValidator<RegisterDeviceRequest> registerValidator,
-            IValidator<UpdateDeviceRequest> updateValidator)
+            IValidator<RegisterDeviceRequest> registerValidator)
         {
             _devices = devices;
+            _sessions = sessions;
+            _preferences = preferences;
             _systemLogWriter = systemLogWriter;
             _registerValidator = registerValidator;
-            _updateValidator = updateValidator;
         }
 
         public async Task<RegisterDeviceResult> RegisterAsync(
             Guid userId,
             RegisterDeviceRequest request,
+            Guid sessionId,
             CancellationToken cancellationToken = default)
         {
             await _registerValidator.ValidateAndThrowAsync(request, cancellationToken);
+            EnsureSessionId(sessionId);
 
             var installationId = request.InstallationId.Trim();
             DeviceFieldParser.TryParsePlatform(request.Platform, out var platform);
@@ -56,6 +63,8 @@ namespace Yakku.Application.Devices.Services
                     request.Locale,
                     request.Timezone,
                     permission);
+                await LinkSessionAsync(userId, sessionId, existing.Id, cancellationToken);
+                await EnsureNotificationPreferencesAsync(userId, existing, cancellationToken);
                 await _devices.SaveChangesAsync(cancellationToken);
                 await LogAsync(
                     SystemLogEventTypes.DeviceRegistered,
@@ -84,6 +93,8 @@ namespace Yakku.Application.Devices.Services
                 request.Timezone,
                 permission);
 
+            await LinkSessionAsync(userId, sessionId, device.Id, cancellationToken);
+            await EnsureNotificationPreferencesAsync(userId, device, cancellationToken);
             await _devices.AddAsync(device, cancellationToken);
             try
             {
@@ -108,6 +119,8 @@ namespace Yakku.Application.Devices.Services
                     request.Locale,
                     request.Timezone,
                     permission);
+                await LinkSessionAsync(userId, sessionId, raced.Id, cancellationToken);
+                await EnsureNotificationPreferencesAsync(userId, raced, cancellationToken);
                 await _devices.SaveChangesAsync(cancellationToken);
                 await LogAsync(
                     SystemLogEventTypes.DeviceRegistered,
@@ -137,90 +150,58 @@ namespace Yakku.Application.Devices.Services
             };
         }
 
-        public async Task<DeviceResponse> UpdateAsync(
+        private async Task EnsureNotificationPreferencesAsync(
             Guid userId,
-            string installationId,
-            UpdateDeviceRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            EnsureInstallationId(installationId);
-            await _updateValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-            var device = await GetOwnedDeviceAsync(userId, installationId.Trim(), cancellationToken);
-            DevicePlatform? platform = null;
-            if (!string.IsNullOrWhiteSpace(request.Platform))
-            {
-                DeviceFieldParser.TryParsePlatform(request.Platform, out var parsedPlatform);
-                platform = parsedPlatform;
-            }
-
-            var permission = ParseOptionalPermission(request.NotificationPermission);
-
-            device.Update(
-                platform,
-                request.PushToken,
-                updatePushToken: request.PushToken is not null,
-                request.DeviceModel,
-                request.OsVersion,
-                request.AppVersion,
-                request.AppBuild,
-                request.Locale,
-                request.Timezone,
-                permission,
-                request.IsActive);
-
-            await _devices.SaveChangesAsync(cancellationToken);
-            await LogAsync(
-                SystemLogEventTypes.DeviceUpdated,
-                "Device updated.",
-                userId,
-                device,
-                cancellationToken);
-
-            return device.ToResponse();
-        }
-
-        public async Task UnregisterAsync(
-            Guid userId,
-            string installationId,
-            CancellationToken cancellationToken = default)
-        {
-            EnsureInstallationId(installationId);
-
-            var device = await GetOwnedDeviceAsync(userId, installationId.Trim(), cancellationToken);
-            if (device.IsActive || device.PushToken is not null)
-            {
-                device.Deactivate();
-                await _devices.SaveChangesAsync(cancellationToken);
-            }
-
-            await LogAsync(
-                SystemLogEventTypes.DeviceUnregistered,
-                "Device unregistered.",
-                userId,
-                device,
-                cancellationToken);
-        }
-
-        private async Task<Device> GetOwnedDeviceAsync(
-            Guid userId,
-            string installationId,
+            Device device,
             CancellationToken cancellationToken)
         {
-            var device = await _devices.GetByInstallationIdAndUserIdAsync(
-                installationId,
-                userId,
-                cancellationToken);
-
-            if (device is null)
+            if (device.NotificationPermission != NotificationPermissionStatus.Granted
+                || string.IsNullOrWhiteSpace(device.PushToken))
             {
-                throw new AppException(
-                    404,
-                    ApiErrorCodes.NotFound,
-                    "Device not found");
+                return;
             }
 
-            return device;
+            var existing = await _preferences.GetByUserIdAsync(userId, cancellationToken);
+            if (existing is not null)
+            {
+                return;
+            }
+
+            await _preferences.AddAsync(new NotificationPreference(userId), cancellationToken);
+        }
+
+        private async Task LinkSessionAsync(
+            Guid userId,
+            Guid sessionId,
+            Guid deviceId,
+            CancellationToken cancellationToken)
+        {
+            var session = await _sessions.GetByIdAsync(sessionId, cancellationToken);
+            if (session is null || session.UserId != userId)
+            {
+                throw new AppException(
+                    401,
+                    ApiErrorCodes.Unauthorized,
+                    "Invalid or expired session.");
+            }
+
+            if (session.DeviceId == deviceId)
+            {
+                return;
+            }
+
+            session.AssignDevice(deviceId);
+        }
+
+        private static void EnsureSessionId(Guid sessionId)
+        {
+            if (sessionId == Guid.Empty)
+            {
+                throw new AppException(
+                    401,
+                    ApiErrorCodes.Unauthorized,
+                    "Unauthorized.");
+            }
         }
 
         private Task LogAsync(
@@ -256,27 +237,6 @@ namespace Yakku.Application.Devices.Services
 
             DeviceFieldParser.TryParseNotificationPermission(value, out var permission);
             return permission;
-        }
-
-        private static void EnsureInstallationId(string installationId)
-        {
-            if (string.IsNullOrWhiteSpace(installationId))
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "Installation id is required.",
-                    "installationId");
-            }
-
-            if (installationId.Length > 100)
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "Installation id must be at most 100 characters.",
-                    "installationId");
-            }
         }
     }
 }

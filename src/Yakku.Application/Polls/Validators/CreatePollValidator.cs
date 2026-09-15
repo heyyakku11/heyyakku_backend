@@ -25,6 +25,18 @@ namespace Yakku.Application.Polls.Validators
                 .Must(options => options.Count <= 10)
                 .WithMessage("A poll can have at most 10 options.");
 
+            RuleFor(x => x.SelectedOptionIndex)
+                .GreaterThanOrEqualTo(0)
+                .WithMessage("Selected option index must be 0 or greater.");
+
+            RuleFor(x => x)
+                .Must(request =>
+                    request.Options is null
+                    || request.Options.Count == 0
+                    || request.SelectedOptionIndex < request.Options.Count)
+                .WithMessage("Selected option index must refer to one of the provided options.")
+                .OverridePropertyName("selectedOptionIndex");
+
             RuleFor(x => x)
                 .Custom(ValidateOptionsByType);
 

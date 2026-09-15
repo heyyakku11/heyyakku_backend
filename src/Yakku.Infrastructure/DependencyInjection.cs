@@ -1,8 +1,11 @@
+using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Categories.Interfaces;
 using Yakku.Application.Devices.Interfaces;
+using Yakku.Application.Email;
+using Yakku.Application.Email.Interfaces;
 using Yakku.Application.Guests.Interfaces;
 using Yakku.Application.Images.Interfaces;
 using Yakku.Application.NotificationPreferences.Interfaces;
@@ -36,6 +39,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<IDeviceRepository, DeviceRepository>();
             services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
+            services.AddScoped<IEmailLogRepository, EmailLogRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
             services.AddScoped<ISystemHealthService, SystemHealthService>();
             services.AddSingleton<ISystemLogWriter, SystemLogWriter>();
@@ -55,6 +59,16 @@ namespace Yakku.Infrastructure
                 var token = EnvFile.GetRequired("UPSTASH_REDIS_REST_TOKEN");
                 return UpstashRedisClient.Create(url, token);
             });
+
+            var emailChannel = Channel.CreateBounded<EmailJob>(new BoundedChannelOptions(OtpEmailQueueOptions.Capacity)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
+            services.AddSingleton(emailChannel);
+            services.AddSingleton<IOtpEmailQueue, OtpEmailQueue>();
+            services.AddHostedService<OtpEmailWorker>();
 
             return services;
         }

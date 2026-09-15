@@ -12,7 +12,7 @@ using Yakku.Application.System;
 using Yakku.Application.Tests.Fakes;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
-using PollEntity = Yakku.Domain.Entities.Polls;
+using PollEntity = Yakku.Domain.Entities.Poll;
 using Xunit;
 
 namespace Yakku.Application.Tests.Polls;
@@ -37,6 +37,16 @@ public class PollServiceTests
         Assert.Equal(2, result.Options.Count);
         Assert.Equal(1, result.Options[0].SortOrder);
         Assert.Equal(2, result.Options[1].SortOrder);
+        Assert.Equal(result.Options[0].Id, result.SelectedOptionId);
+        Assert.Equal(1, result.TotalVoteCount);
+        Assert.Equal(1, result.Options[0].VoteCount);
+        Assert.Equal(100m, result.Options[0].Percentage);
+        Assert.Equal(0, result.Options[1].VoteCount);
+        Assert.Equal(0, result.Options[1].Percentage);
+        Assert.Single(fixture.Polls.Items[0].Votes);
+        Assert.Equal(creatorId, fixture.Polls.Items[0].Votes.First().UserId);
+        Assert.Equal(result.Options[0].Id, fixture.Polls.Items[0].Votes.First().PollOptionId);
+        Assert.Null(fixture.Polls.Items[0].Votes.First().Reason);
         Assert.DoesNotContain(result.Options, option => option.Text == "Something else");
         Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.PollCreated);
     }
@@ -55,6 +65,7 @@ public class PollServiceTests
             {
                 Question = "Which outfit?",
                 OptionType = "image",
+                SelectedOptionIndex = 1,
                 Options =
                 [
                     new CreatePollOptionRequest { ImageId = image1 },
@@ -66,6 +77,9 @@ public class PollServiceTests
         Assert.Equal("image", result.OptionType);
         Assert.Equal(image1, result.Options[0].ImageId);
         Assert.Equal(image2, result.Options[1].ImageId);
+        Assert.Equal(result.Options[1].Id, result.SelectedOptionId);
+        Assert.Equal(1, result.TotalVoteCount);
+        Assert.Equal(1, result.Options[1].VoteCount);
         Assert.All(result.Options, option => Assert.Null(option.Text));
     }
 
@@ -80,6 +94,7 @@ public class PollServiceTests
                 {
                     Question = "Mixed?",
                     OptionType = "text",
+                    SelectedOptionIndex = 0,
                     Options =
                     [
                         new CreatePollOptionRequest { Text = "Yes", ImageId = Guid.NewGuid() },
@@ -100,6 +115,7 @@ public class PollServiceTests
                 {
                     Question = "Only one?",
                     OptionType = "text",
+                    SelectedOptionIndex = 0,
                     Options = [new CreatePollOptionRequest { Text = "Only" }]
                 },
                 Guid.NewGuid()));
@@ -116,6 +132,7 @@ public class PollServiceTests
                 {
                     Question = "Outfit?",
                     OptionType = "image",
+                    SelectedOptionIndex = 0,
                     Options =
                     [
                         new CreatePollOptionRequest { ImageId = Guid.NewGuid() },
@@ -140,6 +157,7 @@ public class PollServiceTests
                     Question = "Category?",
                     CategoryId = Guid.NewGuid(),
                     OptionType = "text",
+                    SelectedOptionIndex = 0,
                     Options =
                     [
                         new CreatePollOptionRequest { Text = "A" },
@@ -152,7 +170,28 @@ public class PollServiceTests
     }
 
     [Fact]
-    public async Task GetPollDetails_OwnerOnly_ReturnsOptionsWithoutSomethingElse()
+    public async Task Create_SelectedOptionIndexOutOfRange_ThrowsValidation()
+    {
+        var fixture = PollFixture.Create();
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.CreateAsync(
+                new CreatePollRequest
+                {
+                    Question = "Out of range?",
+                    OptionType = "text",
+                    SelectedOptionIndex = 2,
+                    Options =
+                    [
+                        new CreatePollOptionRequest { Text = "A" },
+                        new CreatePollOptionRequest { Text = "B" }
+                    ]
+                },
+                Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task GetPollDetails_ReturnsOptionsWithoutSomethingElse()
     {
         var fixture = PollFixture.Create();
         var creatorId = Guid.NewGuid();
@@ -160,7 +199,7 @@ public class PollServiceTests
             TextRequest("Which option do you prefer?", "Option A", "Option B"),
             creatorId);
 
-        var result = await fixture.Service.GetPollDetailsAsync(created.Id, creatorId);
+        var result = await fixture.Service.GetPollDetailsAsync(created.Id);
 
         Assert.Equal(2, result.Options.Count);
         Assert.Equal("Option A", result.Options[0].Text);
@@ -168,17 +207,108 @@ public class PollServiceTests
     }
 
     [Fact]
-    public async Task GetPollDetails_OtherUser_ThrowsNotFound()
+    public async Task GetPollDetails_UnknownId_ThrowsNotFound()
     {
         var fixture = PollFixture.Create();
-        var created = await fixture.Service.CreateAsync(
-            TextRequest("Owned poll", "A", "B"),
-            Guid.NewGuid());
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
-            fixture.Service.GetPollDetailsAsync(created.Id, Guid.NewGuid()));
+            fixture.Service.GetPollDetailsAsync(Guid.NewGuid()));
 
         Assert.Equal(404, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetSharedPollByToken_ActivePoll_ReturnsDetailsAndAcceptsVotes()
+    {
+        var fixture = PollFixture.Create();
+        var category = new Category("Sports", "sports");
+        var created = await fixture.Service.CreateAsync(
+            TextRequest("Share me?", "Yes", "No"),
+            Guid.NewGuid());
+        var poll = fixture.Polls.Items[0];
+        typeof(PollEntity)
+            .GetProperty(nameof(PollEntity.Category))!
+            .SetValue(poll, category);
+
+        var result = await fixture.Service.GetSharedPollByTokenAsync(created.ShareToken);
+
+        Assert.Equal("Share me?", result.Question);
+        Assert.Equal("text", result.OptionType);
+        Assert.Equal("active", result.Status);
+        Assert.True(result.IsAcceptingVotes);
+        Assert.Null(result.ExpiresAt);
+        Assert.Equal(2, result.Options.Count);
+        Assert.Equal("Yes", result.Options[0].Text);
+        Assert.Equal("No", result.Options[1].Text);
+        Assert.NotNull(result.Category);
+        Assert.Equal(category.Id, result.Category!.Id);
+        Assert.Equal("Sports", result.Category.Name);
+    }
+
+    [Fact]
+    public async Task GetSharedPollByToken_ExpiredPoll_ThrowsNotAvailable()
+    {
+        var fixture = PollFixture.Create();
+        var expired = new PollEntity(
+            Guid.NewGuid(),
+            "Already expired?",
+            OptionType.Text,
+            expiresAt: DateTime.UtcNow.AddMinutes(-1));
+        expired.AddTextOption("A", 1);
+        expired.AddTextOption("B", 2);
+        fixture.Polls.Items.Add(expired);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.Service.GetSharedPollByTokenAsync(expired.ShareToken));
+
+        Assert.Equal(404, exception.StatusCode);
+        Assert.Equal(ApiErrorCodes.NotFound, exception.ErrorCode);
+        Assert.Equal("Poll is not available.", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetSharedPollByToken_ClosedPoll_ThrowsNotAvailable()
+    {
+        var fixture = PollFixture.Create();
+        var creatorId = Guid.NewGuid();
+        var created = await fixture.Service.CreateAsync(TextRequest("Close share", "A", "B"), creatorId);
+        await fixture.Service.ClosePollAsync(created.Id, creatorId);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.Service.GetSharedPollByTokenAsync(created.ShareToken));
+
+        Assert.Equal(404, exception.StatusCode);
+        Assert.Equal(ApiErrorCodes.NotFound, exception.ErrorCode);
+        Assert.Equal("Poll is not available.", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetSharedPollByToken_UnknownToken_ThrowsNotAvailable()
+    {
+        var fixture = PollFixture.Create();
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.Service.GetSharedPollByTokenAsync("missing-token"));
+
+        Assert.Equal(404, exception.StatusCode);
+        Assert.Equal(ApiErrorCodes.NotFound, exception.ErrorCode);
+        Assert.Equal("Poll is not available.", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetSharedPollByToken_DeletedPoll_ThrowsNotAvailable()
+    {
+        var fixture = PollFixture.Create();
+        var creatorId = Guid.NewGuid();
+        var created = await fixture.Service.CreateAsync(TextRequest("Delete share", "A", "B"), creatorId);
+        await fixture.Service.DeletePollAsync(created.Id, creatorId);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.Service.GetSharedPollByTokenAsync(created.ShareToken));
+
+        Assert.Equal(404, exception.StatusCode);
+        Assert.Equal(ApiErrorCodes.NotFound, exception.ErrorCode);
+        Assert.Equal("Poll is not available.", exception.Message);
     }
 
     [Fact]
@@ -223,12 +353,12 @@ public class PollServiceTests
         Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.PollDeleted);
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
-            fixture.Service.GetPollDetailsAsync(created.Id, creatorId));
+            fixture.Service.GetPollDetailsAsync(created.Id));
         Assert.Equal(404, exception.StatusCode);
     }
 
     [Fact]
-    public async Task GetCreatorPolls_ExcludesDeleted()
+    public async Task GetPolls_ExcludesDeletedAndIncludesShareToken()
     {
         var fixture = PollFixture.Create();
         var creatorId = Guid.NewGuid();
@@ -236,10 +366,14 @@ public class PollServiceTests
         var remove = await fixture.Service.CreateAsync(TextRequest("Remove", "A", "B"), creatorId);
         await fixture.Service.DeletePollAsync(remove.Id, creatorId);
 
-        var page = await fixture.Service.GetCreatorPollsAsync(creatorId, null);
+        var page = await fixture.Service.GetPollsAsync(null);
 
         Assert.Single(page.Items);
         Assert.Equal(keep.Id, page.Items[0].Id);
+        Assert.False(string.IsNullOrWhiteSpace(page.Items[0].ShareToken));
+        Assert.Equal(keep.ShareToken, page.Items[0].ShareToken);
+        Assert.Equal(2, page.Items[0].Options.Count);
+        Assert.Equal(keep.Options.Select(o => o.Id), page.Items[0].Options.Select(o => o.Id));
     }
 
     private static CreatePollRequest TextRequest(string question, params string[] options)
@@ -248,6 +382,7 @@ public class PollServiceTests
         {
             Question = question,
             OptionType = "text",
+            SelectedOptionIndex = 0,
             Options = options
                 .Select(text => new CreatePollOptionRequest { Text = text })
                 .ToList()
@@ -298,6 +433,14 @@ public class PollServiceTests
             return Task.FromResult(Items.FirstOrDefault(poll => poll.Id == id));
         }
 
+        public Task<PollEntity?> GetByShareTokenAsync(
+            string shareToken,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                Items.FirstOrDefault(poll => poll.ShareToken == shareToken));
+        }
+
         public Task<PollEntity?> GetByIdAndCreatorAsync(
             Guid id,
             Guid creatorId,
@@ -316,6 +459,29 @@ public class PollServiceTests
         {
             IEnumerable<PollEntity> query = Items.Where(poll =>
                 poll.CreatorId == userId && poll.Status != PollStatus.Deleted);
+            if (cursorCreatedAt is not null && cursorId is not null)
+            {
+                query = query.Where(poll =>
+                    poll.CreatedAt < cursorCreatedAt.Value
+                    || (poll.CreatedAt == cursorCreatedAt.Value && poll.Id < cursorId.Value));
+            }
+
+            IReadOnlyList<PollEntity> page = query
+                .OrderByDescending(poll => poll.CreatedAt)
+                .ThenByDescending(poll => poll.Id)
+                .Take(take)
+                .ToList();
+
+            return Task.FromResult(page);
+        }
+
+        public Task<IReadOnlyList<PollEntity>> GetVisiblePollsAsync(
+            DateTime? cursorCreatedAt,
+            Guid? cursorId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            IEnumerable<PollEntity> query = Items.Where(poll => poll.Status != PollStatus.Deleted);
             if (cursorCreatedAt is not null && cursorId is not null)
             {
                 query = query.Where(poll =>

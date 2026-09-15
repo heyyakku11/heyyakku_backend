@@ -15,9 +15,15 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasMaxLength(255);
 
+            builder.Property(x => x.ExpiresAt)
+                .IsRequired();
+
             builder.HasIndex(x => x.GuestTokenHash)
                 .IsUnique()
                 .HasDatabaseName("IX_Guests_GuestTokenHash");
+
+            builder.HasIndex(x => x.ExpiresAt)
+                .HasDatabaseName("IX_Guests_ExpiresAt");
         }
     }
 }

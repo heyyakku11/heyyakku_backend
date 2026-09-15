@@ -6,6 +6,7 @@ namespace Yakku.Application.Polls.DTOs
         public Guid? CategoryId { get; set; }
         public string OptionType { get; set; } = string.Empty;
         public List<CreatePollOptionRequest> Options { get; set; } = [];
+        public int SelectedOptionIndex { get; set; }
         public DateTime? ExpiresAt { get; set; }
     }
 }

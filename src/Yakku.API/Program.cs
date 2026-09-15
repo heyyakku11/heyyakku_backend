@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Yakku.API.Configuration;
 using Yakku.API.Middleware;
+using Yakku.API.Swagger;
 using Yakku.Application;
 using Yakku.Application.Common.Responses;
 using Yakku.Infrastructure;
@@ -84,10 +85,7 @@ builder.Services.AddSwaggerGen(options =>
         In = ParameterLocation.Header,
         Description = "Access token from POST /api/v1/auth/verify-otp"
     });
-    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-    {
-        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-    });
+    options.OperationFilter<AuthorizeCheckOperationFilter>();
 });
 
 builder.Services.AddApplication();

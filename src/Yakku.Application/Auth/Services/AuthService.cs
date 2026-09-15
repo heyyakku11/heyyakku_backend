@@ -4,6 +4,8 @@ using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Models;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Email;
+using Yakku.Application.Email.Interfaces;
 using Yakku.Application.System;
 using Yakku.Application.System.DTOs;
 using Yakku.Application.System.Interfaces;
@@ -20,7 +22,8 @@ namespace Yakku.Application.Auth.Services
         private readonly IOtpChallengeStore _otpChallengeStore;
         private readonly IOtpGenerator _otpGenerator;
         private readonly IDisplayNameGenerator _displayNameGenerator;
-        private readonly IEmailSender _emailSender;
+        private readonly IEmailLogRepository _emailLogRepository;
+        private readonly IOtpEmailQueue _otpEmailQueue;
         private readonly ISessionService _sessionService;
         private readonly ISystemLogWriter _systemLogWriter;
         private readonly IValidator<RequestOtpRequest> _requestOtpValidator;
@@ -31,7 +34,8 @@ namespace Yakku.Application.Auth.Services
             IOtpChallengeStore otpChallengeStore,
             IOtpGenerator otpGenerator,
             IDisplayNameGenerator displayNameGenerator,
-            IEmailSender emailSender,
+            IEmailLogRepository emailLogRepository,
+            IOtpEmailQueue otpEmailQueue,
             ISessionService sessionService,
             ISystemLogWriter systemLogWriter,
             IValidator<RequestOtpRequest> requestOtpValidator,
@@ -41,7 +45,8 @@ namespace Yakku.Application.Auth.Services
             _otpChallengeStore = otpChallengeStore;
             _otpGenerator = otpGenerator;
             _displayNameGenerator = displayNameGenerator;
-            _emailSender = emailSender;
+            _emailLogRepository = emailLogRepository;
+            _otpEmailQueue = otpEmailQueue;
             _sessionService = sessionService;
             _systemLogWriter = systemLogWriter;
             _requestOtpValidator = requestOtpValidator;
@@ -69,12 +74,14 @@ namespace Yakku.Application.Auth.Services
             }
 
             var otp = _otpGenerator.Generate();
+            var challengeId = Guid.NewGuid();
             var displayName = purpose == OtpPurpose.Registration
                 ? existing?.DisplayName ?? await CreateUniqueDisplayNameAsync(cancellationToken)
                 : null;
 
             var challenge = new OtpChallenge
             {
+                ChallengeId = challengeId,
                 OtpHash = OtpHasher.Hash(email, otp),
                 Purpose = purpose,
                 DisplayName = displayName,
@@ -83,20 +90,33 @@ namespace Yakku.Application.Auth.Services
             };
 
             await _otpChallengeStore.SetAsync(email, challenge, OtpOptions.Ttl, cancellationToken);
-            try
-            {
-                await _emailSender.SendOtpAsync(email, otp, cancellationToken);
-            }
-            catch
-            {
-                await _otpChallengeStore.DeleteAsync(email, cancellationToken);
-                throw;
-            }
+
+            var emailLog = new EmailLog(
+                email,
+                EmailType.Otp,
+                challengeId,
+                OtpEmailQueueOptions.ProviderName,
+                OtpEmailQueueOptions.MaxAttempts,
+                user?.Id);
+
+            await _emailLogRepository.AddAsync(emailLog, cancellationToken);
+            await _emailLogRepository.SaveChangesAsync(cancellationToken);
+
+            await _otpEmailQueue.EnqueueAsync(
+                new EmailJob(emailLog.Id, challengeId, email, otp),
+                cancellationToken);
+
             await LogAsync(
                 SystemLogLevel.Information,
                 SystemLogEventTypes.OtpRequested,
                 "OTP requested.",
-                new { email, purpose = purpose.ToString() },
+                new
+                {
+                    email,
+                    purpose = purpose.ToString(),
+                    emailLogId = emailLog.Id,
+                    challengeId
+                },
                 user?.Id,
                 cancellationToken);
 
@@ -253,8 +273,6 @@ namespace Yakku.Application.Auth.Services
 
             return new VerifyOtpResponse
             {
-                Id = user.Id,
-                Email = user.Email,
                 DisplayName = user.Profile?.DisplayName ?? string.Empty,
                 Purpose = purpose.ToString(),
                 AccessToken = tokens.AccessToken,

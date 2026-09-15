@@ -2,8 +2,8 @@ namespace Yakku.Domain.Enums
 {
     public enum NotificationPermissionStatus
     {
-        Unknown,
-        Granted,
-        Denied
+        Unknown = 0,
+        Granted = 1,
+        Denied = 2
     }
 }

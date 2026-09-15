@@ -2,7 +2,7 @@ namespace Yakku.Domain.Enums
 {
     public enum UserStatus
     {
-        Active,
-        Disabled
+        Active = 0,
+        Disabled = 1
     }
 }

@@ -8,5 +8,9 @@ namespace Yakku.Application.Auth.Interfaces
         Task SetAsync(string email, OtpChallenge challenge, TimeSpan ttl, CancellationToken cancellationToken = default);
         Task<bool> ReplaceKeepingTtlAsync(string email, OtpChallenge challenge, CancellationToken cancellationToken = default);
         Task DeleteAsync(string email, CancellationToken cancellationToken = default);
+        Task<bool> DeleteIfChallengeMatchesAsync(
+            string email,
+            Guid challengeId,
+            CancellationToken cancellationToken = default);
     }
 }

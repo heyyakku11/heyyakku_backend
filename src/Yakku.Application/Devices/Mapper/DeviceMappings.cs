@@ -9,15 +9,8 @@ namespace Yakku.Application.Devices.Mapper
         {
             return new DeviceResponse
             {
-                Id = device.Id,
                 InstallationId = device.InstallationId,
                 Platform = device.Platform.ToString().ToLowerInvariant(),
-                DeviceModel = device.DeviceModel,
-                OsVersion = device.OsVersion,
-                AppVersion = device.AppVersion,
-                AppBuild = device.AppBuild,
-                Locale = device.Locale,
-                Timezone = device.Timezone,
                 NotificationPermission = device.NotificationPermission?.ToString().ToLowerInvariant(),
                 IsActive = device.IsActive,
                 LastSeenAt = device.LastSeenAt

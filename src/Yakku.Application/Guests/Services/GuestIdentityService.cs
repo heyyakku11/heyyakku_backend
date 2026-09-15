@@ -32,7 +32,7 @@ namespace Yakku.Application.Guests.Services
                 {
                     existing.Touch();
                     await _guestRepository.SaveChangesAsync(cancellationToken);
-                    return new GuestEstablishResult { GuestId = existing.Id };
+                    return ToResult(existing);
                 }
             }
 
@@ -41,10 +41,16 @@ namespace Yakku.Application.Guests.Services
             await _guestRepository.AddAsync(guest, cancellationToken);
             await _guestRepository.SaveChangesAsync(cancellationToken);
 
+            return ToResult(guest, token);
+        }
+
+        private static GuestEstablishResult ToResult(Guest guest, string? rawTokenToSet = null)
+        {
             return new GuestEstablishResult
             {
                 GuestId = guest.Id,
-                RawTokenToSet = token
+                ExpiresAt = guest.ExpiresAt,
+                RawTokenToSet = rawTokenToSet
             };
         }
     }

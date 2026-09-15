@@ -16,8 +16,6 @@ using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Polls.Services;
 using Yakku.Application.Users.Interfaces;
 using Yakku.Application.Users.Services;
-using Yakku.Application.System.Interfaces;
-using Yakku.Application.System.Services;
 using Yakku.Application.Votes.Interfaces;
 using Yakku.Application.Votes.Services;
 
@@ -33,7 +31,6 @@ namespace Yakku.Application
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ISessionService, SessionService>();
             services.AddScoped<IUserService, UserService>();
-            services.AddScoped<ISystemService, SystemService>();
             services.AddScoped<IGuestIdentityService, GuestIdentityService>();
             services.AddScoped<IVoteService, VoteService>();
             services.AddScoped<IDeviceService, DeviceService>();

@@ -4,6 +4,8 @@ namespace Yakku.Application.System
     {
         public const string OtpRequested = "OtpRequested";
         public const string OtpInvalid = "OtpInvalid";
+        public const string OtpEmailPermanentlyFailed = "OtpEmailPermanentlyFailed";
+        public const string OtpEmailWorkerFault = "OtpEmailWorkerFault";
         public const string UserRegistered = "UserRegistered";
         public const string UserLoggedIn = "UserLoggedIn";
         public const string SessionRefreshed = "SessionRefreshed";
@@ -14,8 +16,6 @@ namespace Yakku.Application.System
         public const string VoteCast = "VoteCast";
         public const string VoteRejectedAlreadyVoted = "VoteRejectedAlreadyVoted";
         public const string DeviceRegistered = "DeviceRegistered";
-        public const string DeviceUpdated = "DeviceUpdated";
-        public const string DeviceUnregistered = "DeviceUnregistered";
         public const string UnhandledException = "UnhandledException";
     }
 }

@@ -1,3 +1,4 @@
+using Yakku.Application.Guests.DTOs;
 using Yakku.Application.Guests.Interfaces;
 
 namespace Yakku.API.Guests
@@ -6,7 +7,7 @@ namespace Yakku.API.Guests
     {
         public const string CookieName = "yakku_guest";
 
-        private static readonly TimeSpan Lifetime = TimeSpan.FromDays(365);
+        private static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
 
         private readonly IGuestIdentityService _guestIdentityService;
 
@@ -15,7 +16,9 @@ namespace Yakku.API.Guests
             _guestIdentityService = guestIdentityService;
         }
 
-        public async Task<Guid> EnsureAsync(HttpContext httpContext, CancellationToken cancellationToken = default)
+        public async Task<GuestEstablishResult> EnsureAsync(
+            HttpContext httpContext,
+            CancellationToken cancellationToken = default)
         {
             httpContext.Request.Cookies.TryGetValue(CookieName, out var rawToken);
             var result = await _guestIdentityService.EstablishAsync(rawToken, cancellationToken);
@@ -28,7 +31,7 @@ namespace Yakku.API.Guests
                     CreateOptions(httpContext.Request));
             }
 
-            return result.GuestId;
+            return result;
         }
 
         internal static CookieOptions CreateOptions(HttpRequest request)

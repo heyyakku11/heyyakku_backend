@@ -1,17 +1,18 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.Auth.Interfaces;
-using Yakku.Application.Common.Exceptions;
-using Yakku.Application.Common.Responses;
+using Yakku.Application.Auth.Models;
 
 namespace Yakku.Infrastructure.Email
 {
     public class ResendEmailSender : IEmailSender
     {
         private const string ExpiryTime = "5 minutes";
+        private const int MaxErrorBodyLength = 1000;
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -55,7 +56,10 @@ namespace Yakku.Infrastructure.Email
             return new ResendEmailSender(httpClient, fromEmail, fromName, templateId, logger);
         }
 
-        public async Task SendOtpAsync(string email, string otp, CancellationToken cancellationToken = default)
+        public async Task<EmailSendResult> SendOtpAsync(
+            string email,
+            string otp,
+            CancellationToken cancellationToken = default)
         {
             var payload = new ResendEmailRequest
             {
@@ -78,31 +82,83 @@ namespace Yakku.Infrastructure.Email
             {
                 response = await _httpClient.PostAsJsonAsync("emails", payload, JsonOptions, cancellationToken);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
             {
                 _logger.LogError(exception, "Failed to reach Resend while sending OTP email.");
-                throw new AppException(
-                    502,
-                    ApiErrorCodes.InternalServerError,
-                    "Failed to send OTP email. Please try again.");
+                return EmailSendResult.TransientFailure("NetworkError", "Failed to reach email provider.");
             }
 
             if (response.IsSuccessStatusCode)
             {
+                var providerMessageId = await TryReadProviderMessageIdAsync(response, cancellationToken);
                 _logger.LogInformation("OTP email dispatched via Resend.");
-                return;
+                return EmailSendResult.Success(providerMessageId);
             }
 
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var errorBody = Truncate(await response.Content.ReadAsStringAsync(cancellationToken));
+            var statusCode = (int)response.StatusCode;
             _logger.LogError(
                 "Resend rejected OTP email with status {StatusCode}: {Error}",
-                (int)response.StatusCode,
+                statusCode,
                 errorBody);
 
-            throw new AppException(
-                502,
-                ApiErrorCodes.InternalServerError,
-                "Failed to send OTP email. Please try again.");
+            var errorCode = $"Http{statusCode}";
+            if (IsTransientStatus(response.StatusCode))
+            {
+                return EmailSendResult.TransientFailure(errorCode, errorBody);
+            }
+
+            return EmailSendResult.PermanentFailure(errorCode, errorBody);
+        }
+
+        private static bool IsTransientStatus(HttpStatusCode statusCode)
+        {
+            var code = (int)statusCode;
+            if (code is 408 or 429)
+            {
+                return true;
+            }
+
+            return code >= 500;
+        }
+
+        private static async Task<string?> TryReadProviderMessageIdAsync(
+            HttpResponseMessage response,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                if (document.RootElement.TryGetProperty("id", out var idProperty)
+                    && idProperty.ValueKind == JsonValueKind.String)
+                {
+                    return idProperty.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+                // Provider accepted the email; missing id is non-fatal.
+            }
+
+            return null;
+        }
+
+        private static string? Truncate(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var trimmed = value.Trim();
+            return trimmed.Length <= MaxErrorBodyLength
+                ? trimmed
+                : trimmed[..MaxErrorBodyLength];
         }
 
         private sealed class ResendEmailRequest

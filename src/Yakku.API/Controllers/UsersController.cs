@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Yakku.API.Auth;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Polls.DTOs;
+using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Users.DTOs;
 using Yakku.Application.Users.Interfaces;
 
@@ -13,10 +15,12 @@ namespace Yakku.API.Controllers
     public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly IPollService _pollService;
 
-        public UsersController(IUserService userService)
+        public UsersController(IUserService userService, IPollService pollService)
         {
             _userService = userService;
+            _pollService = pollService;
         }
 
         [HttpGet("me")]
@@ -59,6 +63,35 @@ namespace Yakku.API.Controllers
                 cancellationToken);
 
             return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
+        }
+
+        [HttpPost("me/polls/{id:guid}/close")]
+        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> ClosePoll(Guid id, CancellationToken cancellationToken)
+        {
+            var poll = await _pollService.ClosePollAsync(
+                id,
+                User.GetRequiredUserId(),
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(poll, "Poll closed successfully"));
+        }
+
+        [HttpDelete("me/polls/{id:guid}")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeletePoll(Guid id, CancellationToken cancellationToken)
+        {
+            await _pollService.DeletePollAsync(
+                id,
+                User.GetRequiredUserId(),
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok<object?>(null, "Poll deleted successfully"));
         }
     }
 }

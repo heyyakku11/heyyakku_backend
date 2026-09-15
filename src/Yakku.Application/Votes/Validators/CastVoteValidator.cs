@@ -7,9 +7,14 @@ namespace Yakku.Application.Votes.Validators
     {
         public CastVoteValidator()
         {
+            RuleFor(x => x.PollId)
+                .NotEmpty()
+                .WithMessage("Poll id is required.");
+
             RuleFor(x => x)
                 .Must(HaveExactlyOneChoice)
-                .WithMessage("Provide exactly one of optionId, customOption, or imageId.");
+                .WithMessage("Provide exactly one of optionId, customOption, or imageId.")
+                .OverridePropertyName("choice");
 
             When(x => x.OptionId is not null, () =>
             {

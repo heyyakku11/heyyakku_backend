@@ -36,6 +36,12 @@ public class SessionServiceTests
             string.Empty,
             secret,
             fixture.Sessions.Items[0].RefreshTokenHash));
+        Assert.Contains(
+            new global::System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler()
+                .ReadJwtToken(result.AccessToken)
+                .Claims,
+            claim => claim.Type == AuthClaimTypes.SessionId
+                && claim.Value == sessionId.ToString());
     }
 
     [Fact]

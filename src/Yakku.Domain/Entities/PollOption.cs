@@ -1,6 +1,6 @@
 ﻿namespace Yakku.Domain.Entities
 {
-    public class PollOptions
+    public class PollOption
     {
         public Guid Id { get; private set; }
         public Guid PollId { get; private set; }
@@ -9,17 +9,19 @@
         public int SortOrder { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
+        public int VoteCount { get; private set; }
 
-        public Polls Poll { get; private set; } = null!;
+        public Poll Poll { get; private set; } = null!;
         public Image? Image { get; private set; }
+        public ICollection<Vote> Votes { get; private set; } = new List<Vote>();
 
-        private PollOptions()
+        private PollOption()
         {
         }
 
-        public static PollOptions CreateText(Guid pollId, string text, int sortOrder)
+        public static PollOption CreateText(Guid pollId, string text, int sortOrder)
         {
-            return new PollOptions
+            return new PollOption
             {
                 Id = Guid.NewGuid(),
                 PollId = pollId,
@@ -27,13 +29,14 @@
                 ImageId = null,
                 SortOrder = sortOrder,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                VoteCount = 0
             };
         }
 
-        public static PollOptions CreateImage(Guid pollId, Guid imageId, int sortOrder)
+        public static PollOption CreateImage(Guid pollId, Guid imageId, int sortOrder)
         {
-            return new PollOptions
+            return new PollOption
             {
                 Id = Guid.NewGuid(),
                 PollId = pollId,
@@ -41,7 +44,8 @@
                 ImageId = imageId,
                 SortOrder = sortOrder,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                VoteCount = 0
             };
         }
     }

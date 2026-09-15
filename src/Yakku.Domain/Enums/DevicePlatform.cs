@@ -2,7 +2,7 @@ namespace Yakku.Domain.Enums
 {
     public enum DevicePlatform
     {
-        Android,
-        Ios
+        Android = 0,
+        iOS = 1
     }
 }

@@ -2,9 +2,9 @@
 {
     public enum PollStatus
     {
-        Draft,
-        Active,
-        Closed,
-        Deleted
+        Draft = 0,
+        Active = 1,
+        Closed = 2,
+        Deleted = 3  // Soft delete
     }
 }

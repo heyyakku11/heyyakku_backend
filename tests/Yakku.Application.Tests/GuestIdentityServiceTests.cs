@@ -17,6 +17,8 @@ public class GuestIdentityServiceTests
         Assert.Single(fixture.Guests.Items);
         Assert.Equal(fixture.Guests.Items[0].Id, result.GuestId);
         Assert.Equal("guest-token-1", result.RawTokenToSet);
+        Assert.Equal(fixture.Guests.Items[0].ExpiresAt, result.ExpiresAt);
+        Assert.Equal(fixture.Guests.Items[0].CreatedAt.AddDays(7), result.ExpiresAt);
         Assert.NotEqual(result.RawTokenToSet, fixture.Guests.Items[0].GuestTokenHash);
         Assert.Equal(
             fixture.Hasher.Hash("guest-token-1"),
@@ -35,6 +37,7 @@ public class GuestIdentityServiceTests
         Assert.Single(fixture.Guests.Items);
         Assert.Equal(first.GuestId, second.GuestId);
         Assert.Null(second.RawTokenToSet);
+        Assert.Equal(first.ExpiresAt, second.ExpiresAt);
         Assert.True(fixture.Guests.Items[0].LastSeenAt >= createdAt);
         Assert.Equal(2, fixture.Guests.SaveChangesCalls);
     }

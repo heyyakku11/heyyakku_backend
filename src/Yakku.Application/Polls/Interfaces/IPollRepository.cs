@@ -1,4 +1,4 @@
-﻿using PollEntity = Yakku.Domain.Entities.Polls;
+﻿using PollEntity = Yakku.Domain.Entities.Poll;
 
 namespace Yakku.Application.Polls.Interfaces
 {
@@ -8,6 +8,10 @@ namespace Yakku.Application.Polls.Interfaces
 
         Task<PollEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+        Task<PollEntity?> GetByShareTokenAsync(
+            string shareToken,
+            CancellationToken cancellationToken = default);
+
         Task<PollEntity?> GetByIdAndCreatorAsync(
             Guid id,
             Guid creatorId,
@@ -15,6 +19,12 @@ namespace Yakku.Application.Polls.Interfaces
 
         Task<IReadOnlyList<PollEntity>> GetCreatedByUserAsync(
             Guid userId,
+            DateTime? cursorCreatedAt,
+            Guid? cursorId,
+            int take,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<PollEntity>> GetVisiblePollsAsync(
             DateTime? cursorCreatedAt,
             Guid? cursorId,
             int take,

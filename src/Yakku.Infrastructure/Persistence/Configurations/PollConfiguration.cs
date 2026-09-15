@@ -4,9 +4,9 @@ using Yakku.Domain.Entities;
 
 namespace Yakku.Infrastructure.Persistence.Configurations
 {
-    internal class PollConfiguration : IEntityTypeConfiguration<Polls>
+    internal class PollConfiguration : IEntityTypeConfiguration<Poll>
     {
-        public void Configure(EntityTypeBuilder<Polls> builder)
+        public void Configure(EntityTypeBuilder<Poll> builder)
         {
             builder.ToTable("Polls");
             builder.HasKey(x => x.Id);
@@ -30,14 +30,18 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasConversion<string>()
                 .HasMaxLength(32);
 
+            builder.Property(x => x.TotalVoteCount)
+                .IsRequired()
+                .HasDefaultValue(0);
+
             builder.HasIndex(x => x.CreatorId)
                 .HasDatabaseName("IX_Polls_CreatorId");
 
-            builder.HasIndex(x => x.CategoryId)
-                .HasDatabaseName("IX_Polls_CategoryId");
+            builder.HasIndex(x => new { x.CategoryId, x.Status, x.CreatedAt })
+                .HasDatabaseName("IX_Polls_CategoryId_Status_CreatedAt");
 
-            builder.HasIndex(x => x.Status)
-                .HasDatabaseName("IX_Polls_Status");
+            builder.HasIndex(x => new { x.Status, x.ExpiresAt })
+                .HasDatabaseName("IX_Polls_Status_ExpiresAt");
 
             builder.HasIndex(x => x.ShareToken)
                 .IsUnique()

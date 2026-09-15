@@ -15,10 +15,11 @@ public class GuestCookieServiceTests
         var fixture = CookieFixture.Create();
         var context = HttpsContext();
 
-        var guestId = await fixture.Cookies.EnsureAsync(context);
+        var result = await fixture.Cookies.EnsureAsync(context);
 
         var header = context.Response.Headers.SetCookie.ToString();
-        Assert.Equal(fixture.Guests.Items[0].Id, guestId);
+        Assert.Equal(fixture.Guests.Items[0].Id, result.GuestId);
+        Assert.Equal(fixture.Guests.Items[0].ExpiresAt, result.ExpiresAt);
         Assert.Contains($"{GuestCookieService.CookieName}={fixture.Generator.Tokens[0]}", header);
         Assert.Contains("httponly", header, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("samesite=lax", header, StringComparison.OrdinalIgnoreCase);
@@ -32,14 +33,15 @@ public class GuestCookieServiceTests
     {
         var fixture = CookieFixture.Create();
         var first = HttpsContext();
-        var guestId = await fixture.Cookies.EnsureAsync(first);
+        var created = await fixture.Cookies.EnsureAsync(first);
         var token = fixture.Generator.Tokens[0];
 
         var second = HttpsContext();
         second.Request.Headers.Cookie = $"{GuestCookieService.CookieName}={token}";
         var again = await fixture.Cookies.EnsureAsync(second);
 
-        Assert.Equal(guestId, again);
+        Assert.Equal(created.GuestId, again.GuestId);
+        Assert.Null(again.RawTokenToSet);
         Assert.Single(fixture.Guests.Items);
         Assert.Equal(0, second.Response.Headers.SetCookie.Count);
     }
@@ -49,14 +51,14 @@ public class GuestCookieServiceTests
     {
         var fixture = CookieFixture.Create();
         var first = HttpsContext();
-        var originalId = await fixture.Cookies.EnsureAsync(first);
+        var original = await fixture.Cookies.EnsureAsync(first);
 
         var second = HttpsContext();
         second.Request.Headers.Cookie = $"{GuestCookieService.CookieName}=unknown-token";
-        var replacementId = await fixture.Cookies.EnsureAsync(second);
+        var replacement = await fixture.Cookies.EnsureAsync(second);
 
         var header = second.Response.Headers.SetCookie.ToString();
-        Assert.NotEqual(originalId, replacementId);
+        Assert.NotEqual(original.GuestId, replacement.GuestId);
         Assert.Equal(2, fixture.Guests.Items.Count);
         Assert.Contains($"{GuestCookieService.CookieName}={fixture.Generator.Tokens[1]}", header);
         Assert.DoesNotContain("unknown-token", header);
@@ -73,7 +75,7 @@ public class GuestCookieServiceTests
         Assert.True(options.HttpOnly);
         Assert.False(options.Secure);
         Assert.Equal(SameSiteMode.Lax, options.SameSite);
-        Assert.Equal(TimeSpan.FromDays(365), options.MaxAge);
+        Assert.Equal(TimeSpan.FromDays(7), options.MaxAge);
         Assert.Equal("/", options.Path);
     }
 

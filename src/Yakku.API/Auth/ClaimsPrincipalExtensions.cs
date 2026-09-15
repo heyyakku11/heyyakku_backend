@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Yakku.Application.Auth;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 
@@ -28,6 +29,31 @@ namespace Yakku.API.Auth
             if (!Guid.TryParse(value, out userId) || userId == Guid.Empty)
             {
                 userId = Guid.Empty;
+                return false;
+            }
+
+            return true;
+        }
+
+        public static Guid GetRequiredSessionId(this ClaimsPrincipal user)
+        {
+            if (!user.TryGetSessionId(out var sessionId))
+            {
+                throw new AppException(
+                    StatusCodes.Status401Unauthorized,
+                    ApiErrorCodes.Unauthorized,
+                    "Unauthorized.");
+            }
+
+            return sessionId;
+        }
+
+        public static bool TryGetSessionId(this ClaimsPrincipal user, out Guid sessionId)
+        {
+            var value = user.FindFirstValue(AuthClaimTypes.SessionId);
+            if (!Guid.TryParse(value, out sessionId) || sessionId == Guid.Empty)
+            {
+                sessionId = Guid.Empty;
                 return false;
             }
 

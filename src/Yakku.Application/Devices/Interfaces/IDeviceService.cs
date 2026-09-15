@@ -7,17 +7,7 @@ namespace Yakku.Application.Devices.Interfaces
         Task<RegisterDeviceResult> RegisterAsync(
             Guid userId,
             RegisterDeviceRequest request,
-            CancellationToken cancellationToken = default);
-
-        Task<DeviceResponse> UpdateAsync(
-            Guid userId,
-            string installationId,
-            UpdateDeviceRequest request,
-            CancellationToken cancellationToken = default);
-
-        Task UnregisterAsync(
-            Guid userId,
-            string installationId,
+            Guid sessionId,
             CancellationToken cancellationToken = default);
     }
 }
