@@ -1,5 +1,6 @@
 using Yakku.Application.Polls.DTOs;
 using Yakku.Application.Users.DTOs;
+using Yakku.Domain.Entities;
 using PollEntity = Yakku.Domain.Entities.Poll;
 
 namespace Yakku.Application.Polls.Mapper
@@ -104,6 +105,69 @@ namespace Yakku.Application.Polls.Mapper
                         Percentage = ToPercentage(option.VoteCount, totalVotes)
                     })
                     .ToList()
+            };
+        }
+
+        public static UserPollDetailResponse ToUserPollDetailResponse(
+            this PollEntity poll,
+            Vote? creatorVote)
+        {
+            var totalVotes = poll.TotalVoteCount;
+            var pollOptions = poll.Options
+                .OrderBy(option => option.SortOrder)
+                .Select(option => new UserPollDetailOptionResponse
+                {
+                    Id = option.Id,
+                    Text = option.Text,
+                    ImageId = option.ImageId,
+                    SecureUrl = option.Image?.SecureUrl,
+                    SortOrder = option.SortOrder,
+                    VoteCount = option.VoteCount,
+                    Percentage = ToPercentage(option.VoteCount, totalVotes)
+                })
+                .ToList();
+
+            var crowdLeader = poll.Options
+                .OrderByDescending(option => option.VoteCount)
+                .ThenBy(option => option.SortOrder)
+                .FirstOrDefault();
+
+            UserPollDetailOptionResponse? crowdLeaderResponse = null;
+            if (crowdLeader is not null)
+            {
+                crowdLeaderResponse = pollOptions.First(option => option.Id == crowdLeader.Id);
+            }
+
+            var yourOptionId = creatorVote?.PollOptionId;
+            UserPollDetailOptionResponse? yourOptionResponse = null;
+            if (yourOptionId is not null)
+            {
+                yourOptionResponse = pollOptions.FirstOrDefault(option => option.Id == yourOptionId);
+            }
+
+            return new UserPollDetailResponse
+            {
+                PollId = poll.Id,
+                Question = poll.Question,
+                Status = ToStatusString(poll.Status),
+                ShareToken = poll.ShareToken,
+                OptionType = ToOptionTypeString(poll.OptionType),
+                ExpiresAt = poll.ExpiresAt,
+                CreatedAt = poll.CreatedAt,
+                TotalVoteCount = totalVotes,
+                PollOptions = pollOptions,
+                YouVsCrowd = new YouVsCrowdResponse
+                {
+                    YourOptionId = yourOptionId,
+                    YourOptionText = yourOptionResponse?.Text,
+                    YourOptionPercentage = yourOptionResponse?.Percentage,
+                    CrowdLeadingOptionId = crowdLeaderResponse?.Id,
+                    CrowdLeadingOptionText = crowdLeaderResponse?.Text,
+                    CrowdLeadingPercentage = crowdLeaderResponse?.Percentage,
+                    AgreesWithCrowd = yourOptionId is null || crowdLeaderResponse is null
+                        ? null
+                        : yourOptionId == crowdLeaderResponse.Id
+                }
             };
         }
 

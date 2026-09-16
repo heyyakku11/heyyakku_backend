@@ -33,7 +33,7 @@ public class PollServiceTests
         Assert.Equal(result.Id, fixture.Polls.Items[0].Id);
         Assert.False(string.IsNullOrWhiteSpace(result.ShareToken));
         Assert.Equal("text", result.OptionType);
-        Assert.Equal("active", result.Status);
+        Assert.Equal(PollStatus.Active, fixture.Polls.Items[0].Status);
         Assert.Equal(2, result.Options.Count);
         Assert.Equal(1, result.Options[0].SortOrder);
         Assert.Equal(2, result.Options[1].SortOrder);
@@ -320,8 +320,8 @@ public class PollServiceTests
 
         var result = await fixture.Service.ClosePollAsync(created.Id, creatorId);
 
-        Assert.Equal("closed", result.Status);
-        Assert.NotNull(result.ClosedAt);
+        Assert.Equal(PollStatus.Closed, fixture.Polls.Items[0].Status);
+        Assert.NotNull(fixture.Polls.Items[0].ClosedAt);
         Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.PollClosed);
     }
 

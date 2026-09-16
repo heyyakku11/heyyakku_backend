@@ -641,6 +641,15 @@ public class VoteServiceTests
             return Task.FromResult(Items.Any(vote => vote.UserId == userId && vote.PollId == pollId));
         }
 
+        public Task<Vote?> GetByUserAndPollAsync(
+            Guid userId,
+            Guid pollId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                Items.FirstOrDefault(vote => vote.UserId == userId && vote.PollId == pollId));
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             var guestDuplicates = Items

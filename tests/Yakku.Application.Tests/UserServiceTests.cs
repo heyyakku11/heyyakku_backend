@@ -1,7 +1,10 @@
+using System.Reflection;
 using Yakku.Application.Auth.Interfaces;
+using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Polls;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Users.Services;
+using Yakku.Application.Votes.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 using PollEntity = Yakku.Domain.Entities.Poll;
@@ -160,16 +163,117 @@ public class UserServiceTests
         Assert.Null(result.Meta.NextCursor);
     }
 
+    [Fact]
+    public async Task GetOwnedPollDetails_WhenOwned_ReturnsDetailWithYouVsCrowd()
+    {
+        var fixture = UserFixture.Create();
+        var userId = Guid.NewGuid();
+        var poll = new PollEntity(userId, "Pick one?", OptionType.Text);
+        poll.AddTextOption("Crowd favorite", 1);
+        poll.AddTextOption("My pick", 2);
+        var optionA = poll.Options.First(option => option.SortOrder == 1);
+        var optionB = poll.Options.First(option => option.SortOrder == 2);
+        SetVoteCount(optionA, 8);
+        SetVoteCount(optionB, 2);
+        SetTotalVoteCount(poll, 10);
+        fixture.Polls.Items.Add(poll);
+        fixture.Votes.Items.Add(Vote.ForUser(userId, poll.Id, optionB.Id, null, null));
+
+        var result = await fixture.Service.GetOwnedPollDetailsAsync(userId, poll.Id);
+
+        Assert.Equal(poll.Id, result.PollId);
+        Assert.Equal("Pick one?", result.Question);
+        Assert.Equal(2, result.PollOptions.Count);
+        Assert.Equal(80m, result.PollOptions[0].Percentage);
+        Assert.Equal(20m, result.PollOptions[1].Percentage);
+        Assert.Equal(optionB.Id, result.YouVsCrowd.YourOptionId);
+        Assert.Equal("My pick", result.YouVsCrowd.YourOptionText);
+        Assert.Equal(20m, result.YouVsCrowd.YourOptionPercentage);
+        Assert.Equal(optionA.Id, result.YouVsCrowd.CrowdLeadingOptionId);
+        Assert.Equal("Crowd favorite", result.YouVsCrowd.CrowdLeadingOptionText);
+        Assert.Equal(80m, result.YouVsCrowd.CrowdLeadingPercentage);
+        Assert.False(result.YouVsCrowd.AgreesWithCrowd);
+    }
+
+    [Fact]
+    public async Task GetOwnedPollDetails_WhenCreatorMatchesCrowd_AgreesWithCrowdTrue()
+    {
+        var fixture = UserFixture.Create();
+        var userId = Guid.NewGuid();
+        var poll = new PollEntity(userId, "Same pick?", OptionType.Text);
+        poll.AddTextOption("Winner", 1);
+        poll.AddTextOption("Other", 2);
+        var winner = poll.Options.First(option => option.SortOrder == 1);
+        SetVoteCount(winner, 5);
+        SetVoteCount(poll.Options.First(option => option.SortOrder == 2), 1);
+        SetTotalVoteCount(poll, 6);
+        fixture.Polls.Items.Add(poll);
+        fixture.Votes.Items.Add(Vote.ForUser(userId, poll.Id, winner.Id, null, null));
+
+        var result = await fixture.Service.GetOwnedPollDetailsAsync(userId, poll.Id);
+
+        Assert.True(result.YouVsCrowd.AgreesWithCrowd);
+    }
+
+    [Fact]
+    public async Task GetOwnedPollDetails_WhenNotOwner_ThrowsNotFound()
+    {
+        var fixture = UserFixture.Create();
+        var ownerId = Guid.NewGuid();
+        var poll = new PollEntity(ownerId, "Mine", OptionType.Text);
+        poll.AddTextOption("A", 1);
+        fixture.Polls.Items.Add(poll);
+
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.Service.GetOwnedPollDetailsAsync(Guid.NewGuid(), poll.Id));
+
+        Assert.Equal(404, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetOwnedPollDetails_WhenDeleted_ThrowsNotFound()
+    {
+        var fixture = UserFixture.Create();
+        var userId = Guid.NewGuid();
+        var poll = new PollEntity(userId, "Gone", OptionType.Text);
+        poll.AddTextOption("A", 1);
+        poll.TrySoftDelete();
+        fixture.Polls.Items.Add(poll);
+
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.Service.GetOwnedPollDetailsAsync(userId, poll.Id));
+
+        Assert.Equal(404, ex.StatusCode);
+    }
+
+    private static void SetVoteCount(PollOption option, int voteCount)
+    {
+        typeof(PollOption).GetProperty(nameof(PollOption.VoteCount), BindingFlags.Public | BindingFlags.Instance)!
+            .SetValue(option, voteCount);
+    }
+
+    private static void SetTotalVoteCount(PollEntity poll, int totalVoteCount)
+    {
+        typeof(PollEntity).GetProperty(nameof(PollEntity.TotalVoteCount), BindingFlags.Public | BindingFlags.Instance)!
+            .SetValue(poll, totalVoteCount);
+    }
+
     private sealed class UserFixture
     {
         public FakeUserRepository Users { get; }
         public FakePollRepository Polls { get; }
+        public FakeVoteRepository Votes { get; }
         public UserService Service { get; }
 
-        private UserFixture(FakeUserRepository users, FakePollRepository polls, UserService service)
+        private UserFixture(
+            FakeUserRepository users,
+            FakePollRepository polls,
+            FakeVoteRepository votes,
+            UserService service)
         {
             Users = users;
             Polls = polls;
+            Votes = votes;
             Service = service;
         }
 
@@ -177,9 +281,10 @@ public class UserServiceTests
         {
             var users = new FakeUserRepository();
             var polls = new FakePollRepository();
-            var service = new UserService(users, polls);
+            var votes = new FakeVoteRepository();
+            var service = new UserService(users, polls, votes);
 
-            return new UserFixture(users, polls, service);
+            return new UserFixture(users, polls, votes, service);
         }
     }
 
@@ -306,6 +411,47 @@ public class UserServiceTests
                 .ToList();
 
             return Task.FromResult(page);
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeVoteRepository : IVoteRepository
+    {
+        public List<Vote> Items { get; } = [];
+
+        public Task AddAsync(Vote vote, CancellationToken cancellationToken = default)
+        {
+            Items.Add(vote);
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ExistsForGuestAsync(
+            Guid guestId,
+            Guid pollId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Items.Any(vote => vote.GuestId == guestId && vote.PollId == pollId));
+        }
+
+        public Task<bool> ExistsForUserAsync(
+            Guid userId,
+            Guid pollId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Items.Any(vote => vote.UserId == userId && vote.PollId == pollId));
+        }
+
+        public Task<Vote?> GetByUserAndPollAsync(
+            Guid userId,
+            Guid pollId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                Items.FirstOrDefault(vote => vote.UserId == userId && vote.PollId == pollId));
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)

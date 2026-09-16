@@ -16,6 +16,11 @@ namespace Yakku.Application.Votes.Interfaces
             Guid pollId,
             CancellationToken cancellationToken = default);
 
+        Task<Vote?> GetByUserAndPollAsync(
+            Guid userId,
+            Guid pollId,
+            CancellationToken cancellationToken = default);
+
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

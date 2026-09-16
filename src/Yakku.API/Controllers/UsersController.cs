@@ -65,6 +65,20 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
         }
 
+        [HttpGet("me/polls/{id:guid}")]
+        [ProducesResponseType(typeof(ApiResponse<UserPollDetailResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetPollDetails(Guid id, CancellationToken cancellationToken)
+        {
+            var poll = await _userService.GetOwnedPollDetailsAsync(
+                User.GetRequiredUserId(),
+                id,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
+        }
+
         [HttpPost("me/polls/{id:guid}/close")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]

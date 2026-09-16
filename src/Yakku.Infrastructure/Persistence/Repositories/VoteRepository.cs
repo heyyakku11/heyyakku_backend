@@ -40,6 +40,19 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 cancellationToken);
         }
 
+        public async Task<Vote?> GetByUserAndPollAsync(
+            Guid userId,
+            Guid pollId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.Votes
+                .AsNoTracking()
+                .Include(vote => vote.PollOption)
+                .FirstOrDefaultAsync(
+                    vote => vote.UserId == userId && vote.PollId == pollId,
+                    cancellationToken);
+        }
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             try

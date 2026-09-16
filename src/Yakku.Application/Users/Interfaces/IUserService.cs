@@ -15,5 +15,10 @@ namespace Yakku.Application.Users.Interfaces
             Guid userId,
             string? cursor,
             CancellationToken cancellationToken = default);
+
+        Task<UserPollDetailResponse> GetOwnedPollDetailsAsync(
+            Guid userId,
+            Guid pollId,
+            CancellationToken cancellationToken = default);
     }
 }
