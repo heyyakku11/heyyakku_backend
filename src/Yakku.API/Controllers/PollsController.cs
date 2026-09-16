@@ -32,7 +32,7 @@ namespace Yakku.API.Controllers
         }
 
         [Authorize]
-        [HttpPost]
+        [HttpPost()]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -100,7 +100,7 @@ namespace Yakku.API.Controllers
         }
 
         [Authorize]
-        [HttpPost("votes")]
+        [HttpPost("vote")]
         [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -130,7 +130,7 @@ namespace Yakku.API.Controllers
         }
 
         [AllowAnonymous]
-        [HttpPost("guest-votes")]
+        [HttpPost("guest-vote")]
         [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]

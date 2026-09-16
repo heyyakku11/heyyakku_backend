@@ -6,7 +6,7 @@ using Yakku.Application.System.Interfaces;
 namespace Yakku.API.Controllers
 {
     [ApiController]
-    [Route("api/system")]
+    [Route("api/v1/system")]
     public class SystemController : ControllerBase
     {
         private readonly ISystemHealthService _systemHealthService;

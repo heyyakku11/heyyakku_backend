@@ -23,7 +23,7 @@ namespace Yakku.API.Controllers
             _pollService = pollService;
         }
 
-        [HttpGet("me")]
+        [HttpGet()]
         [ProducesResponseType(typeof(ApiResponse<UserProfileResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -35,7 +35,7 @@ namespace Yakku.API.Controllers
                 : Ok(ApiResponse.Ok(user, "User retrieved successfully"));
         }
 
-        [HttpGet("me/asked-polls")]
+        [HttpGet("asked-polls")]
         [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetAskedPolls(
@@ -50,7 +50,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
         }
 
-        [HttpGet("me/answered-polls")]
+        [HttpGet("answered-polls")]
         [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetAnsweredPolls(
@@ -65,7 +65,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
         }
 
-        [HttpGet("me/polls/{id:guid}")]
+        [HttpGet("view-poll/{id:guid}")]
         [ProducesResponseType(typeof(ApiResponse<UserPollDetailResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -79,7 +79,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
         }
 
-        [HttpPost("me/polls/{id:guid}/close")]
+        [HttpPost("close-poll/{id:guid}/close")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -94,7 +94,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(poll, "Poll closed successfully"));
         }
 
-        [HttpDelete("me/polls/{id:guid}")]
+        [HttpDelete("delete-poll/{id:guid}")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
