@@ -2,6 +2,15 @@ namespace Yakku.Infrastructure.Configuration
 {
     public static class EnvFile
     {
+        private static string? _loadedEnvPath;
+
+        /// <summary>
+        /// Directory that contains the loaded .env file, if any.
+        /// Useful for resolving relative paths from env values.
+        /// </summary>
+        public static string? DirectoryPath =>
+            _loadedEnvPath is null ? null : Path.GetDirectoryName(_loadedEnvPath);
+
         public static void Load()
         {
             var envPath = Find();
@@ -9,6 +18,8 @@ namespace Yakku.Infrastructure.Configuration
             {
                 return;
             }
+
+            _loadedEnvPath = envPath;
 
             foreach (var rawLine in File.ReadAllLines(envPath))
             {
@@ -47,6 +58,37 @@ namespace Yakku.Infrastructure.Configuration
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// Resolves a path that may be relative to the .env file directory or the process CWD.
+        /// </summary>
+        public static string ResolvePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException("Path is required.", nameof(path));
+            }
+
+            path = path.Trim().Trim('"').Trim('\'');
+
+            if (Path.IsPathRooted(path))
+            {
+                return Path.GetFullPath(path);
+            }
+
+            Load();
+
+            if (DirectoryPath is not null)
+            {
+                var fromEnv = Path.GetFullPath(Path.Combine(DirectoryPath, path));
+                if (File.Exists(fromEnv) || Directory.Exists(fromEnv))
+                {
+                    return fromEnv;
+                }
+            }
+
+            return Path.GetFullPath(path);
         }
 
         private static string? Find()

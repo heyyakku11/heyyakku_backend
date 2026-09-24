@@ -21,29 +21,21 @@ namespace Yakku.Infrastructure.Email
         };
 
         private readonly HttpClient _httpClient;
-        private readonly string _fromEmail;
-        private readonly string _fromName;
         private readonly string _templateId;
         private readonly ILogger<ResendEmailSender> _logger;
 
         public ResendEmailSender(
             HttpClient httpClient,
-            string fromEmail,
-            string fromName,
             string templateId,
             ILogger<ResendEmailSender> logger)
         {
             _httpClient = httpClient;
-            _fromEmail = fromEmail;
-            _fromName = fromName;
             _templateId = templateId;
             _logger = logger;
         }
 
         public static ResendEmailSender Create(
             string apiKey,
-            string fromEmail,
-            string fromName,
             string templateId,
             ILogger<ResendEmailSender> logger)
         {
@@ -53,7 +45,7 @@ namespace Yakku.Infrastructure.Email
             };
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-            return new ResendEmailSender(httpClient, fromEmail, fromName, templateId, logger);
+            return new ResendEmailSender(httpClient, templateId, logger);
         }
 
         public async Task<EmailSendResult> SendOtpAsync(
@@ -63,7 +55,6 @@ namespace Yakku.Infrastructure.Email
         {
             var payload = new ResendEmailRequest
             {
-                From = $"{_fromName} <{_fromEmail}>",
                 To = [email],
                 Subject = "Your Yakku verification code",
                 Template = new ResendTemplate
@@ -163,7 +154,6 @@ namespace Yakku.Infrastructure.Email
 
         private sealed class ResendEmailRequest
         {
-            public string From { get; init; } = string.Empty;
             public string[] To { get; init; } = [];
             public string Subject { get; init; } = string.Empty;
             public ResendTemplate Template { get; init; } = null!;

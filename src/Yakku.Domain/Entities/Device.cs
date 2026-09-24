@@ -68,6 +68,18 @@ namespace Yakku.Domain.Entities
             Touch();
         }
 
+        public void Deactivate()
+        {
+            if (!IsActive && PushToken is null)
+            {
+                return;
+            }
+
+            IsActive = false;
+            PushToken = null;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
         private void Touch()
         {
             var now = DateTime.UtcNow;

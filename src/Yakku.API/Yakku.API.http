@@ -61,7 +61,40 @@ Content-Type: application/json
 GET {{Yakku.API_HostAddress}}/api/polls/00000000-0000-0000-0000-000000000000
 
 ### System health
-GET {{Yakku.API_HostAddress}}/api/system/health
+GET {{Yakku.API_HostAddress}}/api/v1/system/health
+
+### Test push notification to a specific device (unauthenticated)
+POST {{Yakku.API_HostAddress}}/api/v1/system/test-notification/device
+Content-Type: application/json
+
+{
+  "installationId": "device-installation-id",
+  "platform": "android",
+  "notification": {
+    "title": "Test Notification",
+    "body": "Testing a specific device.",
+    "data": {
+      "type": "system_test",
+      "screen": "home"
+    }
+  }
+}
+
+### Test push notification to all active devices for a user (unauthenticated)
+POST {{Yakku.API_HostAddress}}/api/v1/system/test-notification/user
+Content-Type: application/json
+
+{
+  "userId": "00000000-0000-0000-0000-000000000000",
+  "notification": {
+    "title": "Multi Device Test",
+    "body": "This should arrive on all active devices.",
+    "data": {
+      "type": "system_test",
+      "screen": "home"
+    }
+  }
+}
 
 ### Decrypt OTP from Redis challenge
 POST {{Yakku.API_HostAddress}}/api/system/otp/decrypt

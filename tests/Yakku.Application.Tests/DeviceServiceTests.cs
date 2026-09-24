@@ -8,6 +8,7 @@ using Yakku.Application.Devices.Validators;
 using Yakku.Application.System;
 using Yakku.Application.Tests.Fakes;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 using Xunit;
 
 namespace Yakku.Application.Tests.Devices;
@@ -368,6 +369,25 @@ public class DeviceServiceTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(Items.FirstOrDefault(device => device.InstallationId == installationId));
+        }
+
+        public Task<Device?> GetByInstallationIdAndPlatformAsync(
+            string installationId,
+            DevicePlatform platform,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Items.FirstOrDefault(
+                device => device.InstallationId == installationId && device.Platform == platform));
+        }
+
+        public Task<IReadOnlyList<Device>> GetByUserIdAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<Device> matches = Items
+                .Where(device => device.UserId == userId)
+                .ToList();
+            return Task.FromResult(matches);
         }
 
         public Task AddAsync(Device device, CancellationToken cancellationToken = default)

@@ -1,4 +1,5 @@
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Devices.Interfaces
 {
@@ -6,6 +7,15 @@ namespace Yakku.Application.Devices.Interfaces
     {
         Task<Device?> GetByInstallationIdAsync(
             string installationId,
+            CancellationToken cancellationToken = default);
+
+        Task<Device?> GetByInstallationIdAndPlatformAsync(
+            string installationId,
+            DevicePlatform platform,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<Device>> GetByUserIdAsync(
+            Guid userId,
             CancellationToken cancellationToken = default);
 
         Task AddAsync(Device device, CancellationToken cancellationToken = default);
