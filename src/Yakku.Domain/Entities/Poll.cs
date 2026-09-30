@@ -7,21 +7,27 @@ namespace Yakku.Domain.Entities
     {
         public Guid Id { get; private set; }
         public Guid CreatorId { get; private set; }
-        public Guid? CategoryId { get; private set; }
         public string ShareToken { get; private set; } = string.Empty;
         public string Question { get; private set; } = string.Empty;
         public OptionType OptionType { get; private set; }
         public PollStatus Status { get; private set; }
         public DateTime? ExpiresAt { get; private set; }
+        public bool AllowComments { get; private set; }
         public DateTime? ClosedAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
+        public DateTime? DeletedAt { get; private set; }
+        public Guid? DeletedBy { get; private set; }
+        public string? DeletedReason { get; private set; }
         public int TotalVoteCount { get; private set; }
 
         public User Creator { get; private set; } = null!;
-        public Category? Category { get; private set; }
+        public ICollection<PollCategory> PollCategories { get; private set; } = new List<PollCategory>();
         public ICollection<PollOption> Options { get; private set; } = new List<PollOption>();
         public ICollection<Vote> Votes { get; private set; } = new List<Vote>();
+        public ICollection<Comment> Comments { get; private set; } = new List<Comment>();
+        public ICollection<SavedPoll> SavedPolls { get; private set; } = new List<SavedPoll>();
+        public PollAnalytics? PollAnalytics { get; private set; }
 
         private Poll()
         {
@@ -31,17 +37,17 @@ namespace Yakku.Domain.Entities
             Guid creatorId,
             string question,
             OptionType optionType,
-            Guid? categoryId = null,
-            DateTime? expiresAt = null)
+            DateTime? expiresAt = null,
+            bool allowComments = false)
         {
             Id = Guid.NewGuid();
             CreatorId = creatorId;
-            CategoryId = categoryId;
             ShareToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
             Question = question;
             OptionType = optionType;
             Status = PollStatus.Active;
             ExpiresAt = ToUtc(expiresAt);
+            AllowComments = allowComments;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
             TotalVoteCount = 0;
@@ -60,6 +66,11 @@ namespace Yakku.Domain.Entities
                 DateTimeKind.Local => value.Value.ToUniversalTime(),
                 _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
             };
+        }
+
+        public void AddCategory(Guid categoryId)
+        {
+            PollCategories.Add(new PollCategory(Id, categoryId));
         }
 
         public void AddTextOption(string text, int sortOrder)
@@ -95,7 +106,7 @@ namespace Yakku.Domain.Entities
             return true;
         }
 
-        public bool TrySoftDelete()
+        public bool TrySoftDelete(Guid? deletedBy = null, string? deletedReason = null)
         {
             if (Status == PollStatus.Deleted)
             {
@@ -103,7 +114,10 @@ namespace Yakku.Domain.Entities
             }
 
             Status = PollStatus.Deleted;
-            UpdatedAt = DateTime.UtcNow;
+            DeletedAt = DateTime.UtcNow;
+            DeletedBy = deletedBy;
+            DeletedReason = deletedReason;
+            UpdatedAt = DeletedAt.Value;
             return true;
         }
     }

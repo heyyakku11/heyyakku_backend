@@ -5,8 +5,11 @@ namespace Yakku.Domain.Enums
         PollAnswered = 0,
         PollExpiring = 1,
         PollClosed = 2,
-        AccountSecurity = 3,
-        SpecialOffer = 4,
-        SystemUpdate = 5
+        CommentAdded = 3,
+        CommentReplyAdded = 4,
+        AccountSecurity = 5,
+        SpecialOffer = 6,
+        SystemUpdate = 7,
+        ContentFlagged = 8
     }
 }

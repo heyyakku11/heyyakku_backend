@@ -31,26 +31,6 @@ namespace Yakku.API.Controllers
             _guestCookieService = guestCookieService;
         }
 
-        [Authorize]
-        [HttpPost()]
-        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status201Created)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Create(
-            [FromBody] CreatePollRequest request,
-            CancellationToken cancellationToken)
-        {
-            var result = await _pollService.CreateAsync(
-                request,
-                User.GetRequiredUserId(),
-                cancellationToken);
-
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = result.Id },
-                ApiResponse.Ok(result, "Poll created successfully"));
-        }
-
         [AllowAnonymous]
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<List<PollResponse>>), StatusCodes.Status200OK)]

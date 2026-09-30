@@ -8,6 +8,7 @@ namespace Yakku.Application.Auth.Models
         public string OtpHash { get; set; } = string.Empty;
         public OtpPurpose Purpose { get; set; }
         public string? DisplayName { get; set; }
+        public string? PasswordHash { get; set; }
         public int AttemptCount { get; set; }
         public DateTime CreatedAt { get; set; }
     }

@@ -10,12 +10,12 @@ namespace Yakku.API.Controllers
 {
     [ApiController]
     [Route("api/auth")]
-    public class AuthController : ControllerBase
+    public class UserAuthController : ControllerBase
     {
         private readonly IAuthService _authService;
         private readonly ISessionService _sessionService;
 
-        public AuthController(IAuthService authService, ISessionService sessionService)
+        public UserAuthController(IAuthService authService, ISessionService sessionService)
         {
             _authService = authService;
             _sessionService = sessionService;

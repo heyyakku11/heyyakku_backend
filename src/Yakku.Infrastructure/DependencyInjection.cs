@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Categories.Interfaces;
 using Yakku.Application.Devices.Interfaces;
@@ -30,12 +31,16 @@ namespace Yakku.Infrastructure
         {
             EnvFile.Load();
 
+            services.AddHttpContextAccessor();
             services.AddScoped<IPollRepository, PollRepository>();
+            services.AddScoped<ISavedPollRepository, SavedPollRepository>();
             services.AddScoped<IImageRepository, ImageRepository>();
             services.AddScoped<ICategoryRepository, CategoryRepository>();
             services.AddScoped<ICloudinaryImageUploader, CloudinaryImageUploader>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IUserSessionRepository, UserSessionRepository>();
+            services.AddScoped<IAdminRepository, AdminRepository>();
+            services.AddScoped<IAdminSessionRepository, AdminSessionRepository>();
             services.AddScoped<IGuestRepository, GuestRepository>();
             services.AddScoped<IVoteRepository, VoteRepository>();
             services.AddScoped<IDeviceRepository, DeviceRepository>();
@@ -43,6 +48,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IEmailLogRepository, EmailLogRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
+            services.AddScoped<IAdminOtpChallengeStore, RedisAdminOtpChallengeStore>();
             services.AddScoped<ISystemHealthService, SystemHealthService>();
             services.AddSingleton<IFirebaseNotificationProvider, FirebaseNotificationProvider>();
             services.AddSingleton<ISystemLogWriter, SystemLogWriter>();

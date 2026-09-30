@@ -85,8 +85,12 @@ namespace Yakku.Application.Polls.Services
                 creatorId,
                 request.Question.Trim(),
                 optionType,
-                request.CategoryId,
                 request.ExpiresAt);
+
+            if (request.CategoryId is not null)
+            {
+                poll.AddCategory(request.CategoryId.Value);
+            }
 
             for (var i = 0; i < request.Options.Count; i++)
             {

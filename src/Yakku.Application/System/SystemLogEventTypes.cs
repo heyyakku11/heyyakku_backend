@@ -9,6 +9,9 @@ namespace Yakku.Application.System
         public const string UserRegistered = "UserRegistered";
         public const string UserLoggedIn = "UserLoggedIn";
         public const string SessionRefreshed = "SessionRefreshed";
+        public const string AdminRegistered = "AdminRegistered";
+        public const string AdminLoggedIn = "AdminLoggedIn";
+        public const string AdminSessionRefreshed = "AdminSessionRefreshed";
         public const string SessionRevoked = "SessionRevoked";
         public const string PollCreated = "PollCreated";
         public const string PollClosed = "PollClosed";

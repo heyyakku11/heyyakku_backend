@@ -36,11 +36,12 @@ namespace Yakku.Application.Polls.Mapper
 
         public static PollSummaryResponse ToSummaryResponse(this PollEntity poll)
         {
+            var firstCategory = poll.PollCategories.FirstOrDefault()?.Category;
             return new PollSummaryResponse
             {
                 Id = poll.Id,
                 Question = poll.Question,
-                CategoryId = poll.CategoryId,
+                CategoryId = firstCategory?.Id,
                 ShareToken = poll.ShareToken,
                 OptionType = ToOptionTypeString(poll.OptionType),
                 Status = ToStatusString(poll.Status),
@@ -54,6 +55,7 @@ namespace Yakku.Application.Polls.Mapper
         {
             var totalVotes = poll.TotalVoteCount;
             var effectiveStatus = ToEffectiveShareStatus(poll);
+            var firstCategory = poll.PollCategories.FirstOrDefault()?.Category;
             return new SharedPollResponse
             {
                 Question = poll.Question,
@@ -61,12 +63,12 @@ namespace Yakku.Application.Polls.Mapper
                 ExpiresAt = poll.ExpiresAt,
                 Status = effectiveStatus,
                 IsAcceptingVotes = effectiveStatus == "active",
-                Category = poll.Category is null
+                Category = firstCategory is null
                     ? null
                     : new SharedPollCategoryResponse
                     {
-                        Id = poll.Category.Id,
-                        Name = poll.Category.Name
+                        Id = firstCategory.Id,
+                        Name = firstCategory.Name
                     },
                 Options = poll.Options
                     .OrderBy(option => option.SortOrder)

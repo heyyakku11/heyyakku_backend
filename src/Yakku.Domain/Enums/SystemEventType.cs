@@ -8,6 +8,8 @@ namespace Yakku.Domain.Enums
         Device = 3,
         Notification = 4,
         Security = 5,
-        System = 6
+        System = 6,
+        Comment = 7,
+        Report = 8
     }
 }

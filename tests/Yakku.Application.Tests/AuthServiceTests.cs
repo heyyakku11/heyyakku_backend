@@ -328,6 +328,11 @@ public class AuthServiceTests
             return Task.FromResult(Users.Any(user => user.Profile.DisplayName == displayName));
         }
 
+        public Task<IReadOnlyList<User>> ListAsync(UserStatus? status, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<User>>([]);
+        }
+
         public Task AddAsync(User user, CancellationToken cancellationToken = default)
         {
             _pending = user;

@@ -307,6 +307,11 @@ public class UserServiceTests
             return Task.FromResult(Users.Any(user => user.Profile.DisplayName == displayName));
         }
 
+        public Task<IReadOnlyList<User>> ListAsync(UserStatus? status, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<User>>([]);
+        }
+
         public Task AddAsync(User user, CancellationToken cancellationToken = default)
         {
             Users.Add(user);
@@ -411,6 +416,13 @@ public class UserServiceTests
                 .ToList();
 
             return Task.FromResult(page);
+        }
+
+        public Task<IReadOnlyList<PollEntity>> ListByStatusAsync(
+            PollStatus? status,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<PollEntity>>([]);
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)

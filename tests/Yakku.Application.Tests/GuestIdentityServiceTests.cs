@@ -121,6 +121,14 @@ public class GuestIdentityServiceTests
             return Task.FromResult(Items.FirstOrDefault(guest => guest.GuestTokenHash == tokenHash));
         }
 
+        public Task<IReadOnlyList<Guest>> ListAsync(
+            bool? active,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Guest>>([]);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             SaveChangesCalls++;

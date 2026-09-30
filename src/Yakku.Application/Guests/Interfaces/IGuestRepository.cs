@@ -6,6 +6,7 @@ namespace Yakku.Application.Guests.Interfaces
     {
         Task AddAsync(Guest guest, CancellationToken cancellationToken = default);
         Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<Guest>> ListAsync(bool? active, DateTime utcNow, CancellationToken cancellationToken = default);
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

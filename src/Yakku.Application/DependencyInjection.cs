@@ -1,5 +1,11 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Yakku.Application.AdminAuth.Interfaces;
+using Yakku.Application.AdminAuth.Services;
+using Yakku.Application.YakkuDirectory.Interfaces;
+using Yakku.Application.YakkuDirectory.Services;
+using Yakku.Application.Categories.Interfaces;
+using Yakku.Application.Categories.Services;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Services;
 using Yakku.Application.Devices.Interfaces;
@@ -29,10 +35,15 @@ namespace Yakku.Application
         {
             services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
             services.AddScoped<IPollService, PollService>();
+            services.AddScoped<ISavedPollService, SavedPollService>();
             services.AddScoped<IImageService, ImageService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ISessionService, SessionService>();
+            services.AddScoped<IAdminAuthService, AdminAuthService>();
+            services.AddScoped<IAdminSessionService, AdminSessionService>();
             services.AddScoped<IUserService, UserService>();
+            services.AddScoped<IYakkuDirectoryService, YakkuDirectoryService>();
+            services.AddScoped<ICategoryService, CategoryService>();
             services.AddScoped<IGuestIdentityService, GuestIdentityService>();
             services.AddScoped<IVoteService, VoteService>();
             services.AddScoped<IDeviceService, DeviceService>();

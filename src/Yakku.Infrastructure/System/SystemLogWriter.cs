@@ -1,4 +1,6 @@
+using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.System;
@@ -18,11 +20,16 @@ namespace Yakku.Infrastructure.System
         };
 
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<SystemLogWriter> _logger;
 
-        public SystemLogWriter(IServiceScopeFactory scopeFactory, ILogger<SystemLogWriter> logger)
+        public SystemLogWriter(
+            IServiceScopeFactory scopeFactory,
+            IHttpContextAccessor httpContextAccessor,
+            ILogger<SystemLogWriter> logger)
         {
             _scopeFactory = scopeFactory;
+            _httpContextAccessor = httpContextAccessor;
             _logger = logger;
         }
 
@@ -40,7 +47,9 @@ namespace Yakku.Infrastructure.System
                     request.Message,
                     SerializeDetails(request.Details),
                     request.UserId,
-                    request.GuestId));
+                    request.GuestId,
+                    ResolveIpAddress(request),
+                    ResolveUserAgent(request)));
                 await context.SaveChangesAsync(cancellationToken);
             }
             catch (Exception exception)
@@ -50,6 +59,28 @@ namespace Yakku.Infrastructure.System
                     "Failed to persist system log {EventType}",
                     request.EventType);
             }
+        }
+
+        private IPAddress? ResolveIpAddress(SystemLogWriteRequest request)
+        {
+            if (!string.IsNullOrWhiteSpace(request.IpAddress)
+                && IPAddress.TryParse(request.IpAddress.Trim(), out var parsed))
+            {
+                return parsed;
+            }
+
+            return _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress;
+        }
+
+        private string? ResolveUserAgent(SystemLogWriteRequest request)
+        {
+            if (!string.IsNullOrWhiteSpace(request.UserAgent))
+            {
+                return request.UserAgent.Trim();
+            }
+
+            var header = _httpContextAccessor.HttpContext?.Request.Headers.UserAgent.ToString();
+            return string.IsNullOrWhiteSpace(header) ? null : header;
         }
 
         private static LogSeverity MapSeverity(SystemLogLevel level)
@@ -74,6 +105,8 @@ namespace Yakku.Infrastructure.System
                 SystemLogEventTypes.UserRegistered => SystemEventType.Authentication,
                 SystemLogEventTypes.UserLoggedIn => SystemEventType.Authentication,
                 SystemLogEventTypes.SessionRefreshed => SystemEventType.Authentication,
+                SystemLogEventTypes.AdminRegistered => SystemEventType.Authentication,
+                SystemLogEventTypes.AdminSessionRefreshed => SystemEventType.Authentication,
                 SystemLogEventTypes.SessionRevoked => SystemEventType.Authentication,
                 SystemLogEventTypes.PollCreated => SystemEventType.Poll,
                 SystemLogEventTypes.PollClosed => SystemEventType.Poll,

@@ -1,4 +1,5 @@
-﻿using PollEntity = Yakku.Domain.Entities.Poll;
+﻿using Yakku.Domain.Enums;
+using PollEntity = Yakku.Domain.Entities.Poll;
 
 namespace Yakku.Application.Polls.Interfaces
 {
@@ -28,6 +29,10 @@ namespace Yakku.Application.Polls.Interfaces
             DateTime? cursorCreatedAt,
             Guid? cursorId,
             int take,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<PollEntity>> ListByStatusAsync(
+            PollStatus? status,
             CancellationToken cancellationToken = default);
 
         Task<IReadOnlyList<AnsweredPollEntry>> GetAnsweredByUserAsync(

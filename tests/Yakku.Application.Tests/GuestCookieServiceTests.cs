@@ -135,6 +135,14 @@ public class GuestCookieServiceTests
             return Task.FromResult(Items.FirstOrDefault(guest => guest.GuestTokenHash == tokenHash));
         }
 
+        public Task<IReadOnlyList<Guest>> ListAsync(
+            bool? active,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Guest>>([]);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;

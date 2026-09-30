@@ -10,6 +10,7 @@ namespace Yakku.Domain.Entities
 
         public ICollection<Vote> Votes { get; private set; } = new List<Vote>();
         public ICollection<SystemLog> SystemLogs { get; private set; } = new List<SystemLog>();
+        public ICollection<Report> Reports { get; private set; } = new List<Report>();
 
         private Guest()
         {

@@ -23,6 +23,210 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Yakku.Domain.Entities.Admin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<bool>("IsVerified")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Active");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Admins_Email");
+
+                    b.ToTable("Admins", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<IPAddress>("IpAddress")
+                        .HasColumnType("inet");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RefreshTokenHash")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdminId")
+                        .HasDatabaseName("IX_AdminSessions_AdminId");
+
+                    b.HasIndex("RefreshTokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AdminSessions_RefreshTokenHash");
+
+                    b.ToTable("AdminSessions", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AnalyticsMetric", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateOnly>("MetricDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("MetricType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Value")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("IX_AnalyticsMetrics_CategoryId");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_AnalyticsMetrics_UserId");
+
+                    b.HasIndex("MetricType", "MetricDate")
+                        .HasDatabaseName("IX_AnalyticsMetrics_MetricType_MetricDate");
+
+                    b.ToTable("AnalyticsMetrics", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("AdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<IPAddress>("IpAddress")
+                        .HasColumnType("inet");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("NewValue")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OldValue")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResourceName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdminId")
+                        .HasDatabaseName("IX_AuditLogs_AdminId");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_AuditLogs_CreatedAt");
+
+                    b.HasIndex("ResourceType", "ResourceId")
+                        .HasDatabaseName("IX_AuditLogs_ResourceType_ResourceId");
+
+                    b.ToTable("AuditLogs", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -31,6 +235,12 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Icon")
                         .HasMaxLength(200)
@@ -56,6 +266,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DeletedBy")
+                        .HasDatabaseName("IX_Categories_DeletedBy");
+
                     b.HasIndex("Icon")
                         .IsUnique()
                         .HasDatabaseName("IX_Categories_Icon")
@@ -73,6 +286,63 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_Categories_Slug");
 
                     b.ToTable("Categories", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.Comment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EditedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsEdited")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid?>("ParentCommentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PollId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId")
+                        .HasDatabaseName("IX_Comments_AuthorId");
+
+                    b.HasIndex("ParentCommentId")
+                        .HasDatabaseName("IX_Comments_ParentCommentId");
+
+                    b.HasIndex("PollId")
+                        .HasDatabaseName("IX_Comments_PollId");
+
+                    b.HasIndex("PollId", "CreatedAt")
+                        .HasDatabaseName("IX_Comments_PollId_CreatedAt");
+
+                    b.ToTable("Comments", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
@@ -435,8 +705,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("CategoryId")
-                        .HasColumnType("uuid");
+                    b.Property<bool>("AllowComments")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTime?>("ClosedAt")
                         .HasColumnType("timestamp with time zone");
@@ -446,6 +718,16 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeletedReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
@@ -487,13 +769,111 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Polls_ShareToken");
 
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("IX_Polls_Status_CreatedAt");
+
                     b.HasIndex("Status", "ExpiresAt")
                         .HasDatabaseName("IX_Polls_Status_ExpiresAt");
 
-                    b.HasIndex("CategoryId", "Status", "CreatedAt")
-                        .HasDatabaseName("IX_Polls_CategoryId_Status_CreatedAt");
-
                     b.ToTable("Polls", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PollAnalytics", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("AverageTimeToVote")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CalculatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CommentCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<decimal?>("CompletionRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<int>("GuestVotesCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<Guid>("PollId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ReportCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Shares")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("TotalVotes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("UniqueVoters")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserVotesCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Views")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PollId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PollAnalytics_PollId");
+
+                    b.ToTable("PollAnalytics", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PollCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PollId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("IX_PollCategories_CategoryId");
+
+                    b.HasIndex("PollId", "CategoryId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PollCategories_PollId_CategoryId");
+
+                    b.ToTable("PollCategories", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.PollOption", b =>
@@ -540,10 +920,119 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("PollOptions", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.Report", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("ActionTakenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("ReportedByGuestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ReportedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Pending");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportedByGuestId")
+                        .HasDatabaseName("IX_Reports_ReportedByGuestId");
+
+                    b.HasIndex("ReportedByUserId")
+                        .HasDatabaseName("IX_Reports_ReportedByUserId");
+
+                    b.HasIndex("ReviewedBy")
+                        .HasDatabaseName("IX_Reports_ReviewedBy");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_Reports_Status");
+
+                    b.HasIndex("ResourceType", "ResourceId")
+                        .HasDatabaseName("IX_Reports_ResourceType_ResourceId");
+
+                    b.ToTable("Reports", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Reports_OneReporter", "(\"ReportedByUserId\" IS NOT NULL AND \"ReportedByGuestId\" IS NULL) OR (\"ReportedByUserId\" IS NULL AND \"ReportedByGuestId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PollId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PollId")
+                        .HasDatabaseName("IX_SavedPolls_PollId");
+
+                    b.HasIndex("UserId", "PollId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SavedPolls_UserId_PollId");
+
+                    b.ToTable("SavedPolls", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.SystemLog", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AdminId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -566,6 +1055,13 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<string>("Metadata")
                         .HasColumnType("jsonb");
 
+                    b.Property<Guid?>("ResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResourceType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("Severity")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -578,6 +1074,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AdminId")
+                        .HasDatabaseName("IX_SystemLogs_AdminId");
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("IX_SystemLogs_CreatedAt");
@@ -821,6 +1320,81 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Admin", "Admin")
+                        .WithMany("Sessions")
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AnalyticsMetric", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Category", "Category")
+                        .WithMany("AnalyticsMetrics")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithMany("AnalyticsMetrics")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Category");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AuditLog", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Admin", "Admin")
+                        .WithMany("AuditLogs")
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.Category", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Admin", "DeletedByAdmin")
+                        .WithMany("DeletedCategories")
+                        .HasForeignKey("DeletedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("DeletedByAdmin");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.Comment", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", "Author")
+                        .WithMany("Comments")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.Comment", "ParentComment")
+                        .WithMany("Replies")
+                        .HasForeignKey("ParentCommentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Yakku.Domain.Entities.Poll", "Poll")
+                        .WithMany("Comments")
+                        .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("ParentComment");
+
+                    b.Navigation("Poll");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.User", "User")
@@ -865,20 +1439,43 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.Poll", b =>
                 {
-                    b.HasOne("Yakku.Domain.Entities.Category", "Category")
-                        .WithMany("Polls")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Yakku.Domain.Entities.User", "Creator")
                         .WithMany("Polls")
                         .HasForeignKey("CreatorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Creator");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PollAnalytics", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Poll", "Poll")
+                        .WithOne("PollAnalytics")
+                        .HasForeignKey("Yakku.Domain.Entities.PollAnalytics", "PollId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Poll");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PollCategory", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Category", "Category")
+                        .WithMany("PollCategories")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.Poll", "Poll")
+                        .WithMany("PollCategories")
+                        .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Category");
 
-                    b.Navigation("Creator");
+                    b.Navigation("Poll");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.PollOption", b =>
@@ -899,8 +1496,56 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Poll");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.Report", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Guest", "ReportedByGuest")
+                        .WithMany("Reports")
+                        .HasForeignKey("ReportedByGuestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Yakku.Domain.Entities.User", "ReportedByUser")
+                        .WithMany("Reports")
+                        .HasForeignKey("ReportedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Yakku.Domain.Entities.Admin", "ReviewedByAdmin")
+                        .WithMany("ReviewedReports")
+                        .HasForeignKey("ReviewedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ReportedByGuest");
+
+                    b.Navigation("ReportedByUser");
+
+                    b.Navigation("ReviewedByAdmin");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Poll", "Poll")
+                        .WithMany("SavedPolls")
+                        .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithMany("SavedPolls")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Poll");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.SystemLog", b =>
                 {
+                    b.HasOne("Yakku.Domain.Entities.Admin", "Admin")
+                        .WithMany("SystemLogs")
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Yakku.Domain.Entities.Guest", "Guest")
                         .WithMany("SystemLogs")
                         .HasForeignKey("GuestId")
@@ -910,6 +1555,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .WithMany("SystemLogs")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Admin");
 
                     b.Navigation("Guest");
 
@@ -991,9 +1638,29 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.Admin", b =>
+                {
+                    b.Navigation("AuditLogs");
+
+                    b.Navigation("DeletedCategories");
+
+                    b.Navigation("ReviewedReports");
+
+                    b.Navigation("Sessions");
+
+                    b.Navigation("SystemLogs");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Category", b =>
                 {
-                    b.Navigation("Polls");
+                    b.Navigation("AnalyticsMetrics");
+
+                    b.Navigation("PollCategories");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.Comment", b =>
+                {
+                    b.Navigation("Replies");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
@@ -1003,6 +1670,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.Guest", b =>
                 {
+                    b.Navigation("Reports");
+
                     b.Navigation("SystemLogs");
 
                     b.Navigation("Votes");
@@ -1017,7 +1686,15 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.Poll", b =>
                 {
+                    b.Navigation("Comments");
+
                     b.Navigation("Options");
+
+                    b.Navigation("PollAnalytics");
+
+                    b.Navigation("PollCategories");
+
+                    b.Navigation("SavedPolls");
 
                     b.Navigation("Votes");
                 });
@@ -1029,6 +1706,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.User", b =>
                 {
+                    b.Navigation("AnalyticsMetrics");
+
+                    b.Navigation("Comments");
+
                     b.Navigation("Devices");
 
                     b.Navigation("EmailLogs");
@@ -1041,6 +1722,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Profile")
                         .IsRequired();
+
+                    b.Navigation("Reports");
+
+                    b.Navigation("SavedPolls");
 
                     b.Navigation("Sessions");
 

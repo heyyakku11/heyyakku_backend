@@ -4,6 +4,7 @@ using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Persistence.Repositories
 {
@@ -28,6 +29,26 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return await _context.Users
                 .Include(user => user.Profile)
                 .FirstOrDefaultAsync(user => user.Email == email, cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<User>> ListAsync(
+            UserStatus? status,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.Users
+                .AsNoTracking()
+                .Include(user => user.Profile)
+                .AsQueryable();
+
+            if (status is UserStatus selected)
+            {
+                query = query.Where(user => user.Status == selected);
+            }
+
+            return await query
+                .OrderByDescending(user => user.CreatedAt)
+                .ThenByDescending(user => user.Id)
+                .ToListAsync(cancellationToken);
         }
 
         public async Task<bool> DisplayNameExistsAsync(string displayName, CancellationToken cancellationToken = default)

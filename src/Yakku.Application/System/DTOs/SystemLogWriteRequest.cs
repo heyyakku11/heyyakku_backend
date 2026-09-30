@@ -11,5 +11,7 @@ namespace Yakku.Application.System.DTOs
         public Guid? UserId { get; init; }
         public Guid? GuestId { get; init; }
         public string? Path { get; init; }
+        public string? IpAddress { get; init; }
+        public string? UserAgent { get; init; }
     }
 }

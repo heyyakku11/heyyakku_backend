@@ -26,6 +26,27 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(guest => guest.GuestTokenHash == tokenHash, cancellationToken);
         }
 
+        public async Task<IReadOnlyList<Guest>> ListAsync(
+            bool? active,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.Guests.AsNoTracking().AsQueryable();
+            if (active == true)
+            {
+                query = query.Where(guest => guest.ExpiresAt > utcNow);
+            }
+            else if (active == false)
+            {
+                query = query.Where(guest => guest.ExpiresAt <= utcNow);
+            }
+
+            return await query
+                .OrderByDescending(guest => guest.CreatedAt)
+                .ThenByDescending(guest => guest.Id)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await _context.SaveChangesAsync(cancellationToken);

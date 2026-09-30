@@ -21,6 +21,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasMaxLength(32)
                 .IsRequired();
 
+            builder.Property(x => x.ResourceType)
+                .HasMaxLength(50);
+
             builder.Property(x => x.Message)
                 .HasColumnType("text");
 
@@ -36,6 +39,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.UserId)
                 .HasDatabaseName("IX_SystemLogs_UserId");
 
+            builder.HasIndex(x => x.AdminId)
+                .HasDatabaseName("IX_SystemLogs_AdminId");
+
             builder.HasIndex(x => x.GuestId)
                 .HasDatabaseName("IX_SystemLogs_GuestId");
 
@@ -48,6 +54,12 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasOne(x => x.User)
                 .WithMany(x => x.SystemLogs)
                 .HasForeignKey(x => x.UserId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(x => x.Admin)
+                .WithMany(x => x.SystemLogs)
+                .HasForeignKey(x => x.AdminId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 

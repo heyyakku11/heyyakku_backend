@@ -30,6 +30,13 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasConversion<string>()
                 .HasMaxLength(32);
 
+            builder.Property(x => x.AllowComments)
+                .IsRequired()
+                .HasDefaultValue(false);
+
+            builder.Property(x => x.DeletedReason)
+                .HasMaxLength(500);
+
             builder.Property(x => x.TotalVoteCount)
                 .IsRequired()
                 .HasDefaultValue(0);
@@ -37,8 +44,8 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.CreatorId)
                 .HasDatabaseName("IX_Polls_CreatorId");
 
-            builder.HasIndex(x => new { x.CategoryId, x.Status, x.CreatedAt })
-                .HasDatabaseName("IX_Polls_CategoryId_Status_CreatedAt");
+            builder.HasIndex(x => new { x.Status, x.CreatedAt })
+                .HasDatabaseName("IX_Polls_Status_CreatedAt");
 
             builder.HasIndex(x => new { x.Status, x.ExpiresAt })
                 .HasDatabaseName("IX_Polls_Status_ExpiresAt");
@@ -51,12 +58,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .WithMany(x => x.Polls)
                 .HasForeignKey(x => x.CreatorId)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.Category)
-                .WithMany(x => x.Polls)
-                .HasForeignKey(x => x.CategoryId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.SetNull);
 
             builder.HasMany(x => x.Options)
                 .WithOne(x => x.Poll)

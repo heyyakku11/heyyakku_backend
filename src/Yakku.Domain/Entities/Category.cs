@@ -9,8 +9,12 @@ namespace Yakku.Domain.Entities
         public bool IsActive { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
+        public DateTime? DeletedAt { get; private set; }
+        public Guid? DeletedBy { get; private set; }
 
-        public ICollection<Poll> Polls { get; private set; } = new List<Poll>();
+        public Admin? DeletedByAdmin { get; private set; }
+        public ICollection<PollCategory> PollCategories { get; private set; } = new List<PollCategory>();
+        public ICollection<AnalyticsMetric> AnalyticsMetrics { get; private set; } = new List<AnalyticsMetric>();
 
         private Category()
         {

@@ -7,6 +7,7 @@ using Yakku.API.Configuration;
 using Yakku.API.Middleware;
 using Yakku.API.Swagger;
 using Yakku.Application;
+using Yakku.Application.Auth;
 using Yakku.Application.Common.Responses;
 using Yakku.Infrastructure;
 using Yakku.Infrastructure.Persistence;
@@ -65,10 +66,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                                 Message = "Unauthorized."
                             }
                         ]));
+            },
+            OnForbidden = async context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(
+                    ApiResponse.Fail(
+                        "Forbidden.",
+                        [
+                            new ApiError
+                            {
+                                Code = ApiErrorCodes.Forbidden,
+                                Message = "Forbidden."
+                            }
+                        ]));
             }
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Admin", policy =>
+        policy.RequireClaim(AuthClaimTypes.Actor, AuthClaimTypes.AdminActor));
+});
 
 builder.Services.AddDbContext<YakkuDbContext>(options =>
     options.UseNpgsql(PostgresConnection.Normalize(EnvLoader.GetRequired("DB_CONNECTION_STRING"))));

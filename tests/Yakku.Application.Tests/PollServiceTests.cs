@@ -226,9 +226,10 @@ public class PollServiceTests
             TextRequest("Share me?", "Yes", "No"),
             Guid.NewGuid());
         var poll = fixture.Polls.Items[0];
-        typeof(PollEntity)
-            .GetProperty(nameof(PollEntity.Category))!
-            .SetValue(poll, category);
+        poll.AddCategory(category.Id);
+        typeof(PollCategory)
+            .GetProperty(nameof(PollCategory.Category))!
+            .SetValue(poll.PollCategories.First(), category);
 
         var result = await fixture.Service.GetSharedPollByTokenAsync(created.ShareToken);
 
@@ -509,6 +510,13 @@ public class PollServiceTests
             return Task.FromResult(page);
         }
 
+        public Task<IReadOnlyList<PollEntity>> ListByStatusAsync(
+            PollStatus? status,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<PollEntity>>([]);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -549,6 +557,26 @@ public class PollServiceTests
         public Task<Category?> GetActiveByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Category?>(null);
+        }
+
+        public Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> ExistsBySlugAsync(string slug, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
+
+        public Task AddAsync(Category category, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 }

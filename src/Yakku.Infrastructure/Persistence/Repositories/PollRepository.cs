@@ -33,7 +33,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             CancellationToken cancellationToken = default)
         {
             return await _context.Polls
-                .Include(p => p.Category)
+                .Include(p => p.PollCategories)
+                .ThenInclude(pc => pc.Category)
                 .Include(p => p.Options)
                 .ThenInclude(o => o.Image)
                 .FirstOrDefaultAsync(p => p.ShareToken == shareToken, cancellationToken);
@@ -101,6 +102,22 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .OrderByDescending(poll => poll.CreatedAt)
                 .ThenByDescending(poll => poll.Id)
                 .Take(take)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Poll>> ListByStatusAsync(
+            PollStatus? status,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.Polls.AsNoTracking().AsQueryable();
+            if (status is PollStatus selected)
+            {
+                query = query.Where(poll => poll.Status == selected);
+            }
+
+            return await query
+                .OrderByDescending(poll => poll.CreatedAt)
+                .ThenByDescending(poll => poll.Id)
                 .ToListAsync(cancellationToken);
         }
 

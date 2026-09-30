@@ -14,10 +14,17 @@ namespace Yakku.Infrastructure.Redis
         };
 
         private readonly UpstashRedisClient _redis;
+        private readonly string _keyPrefix;
 
         public RedisOtpChallengeStore(UpstashRedisClient redis)
+            : this(redis, "auth:otp")
+        {
+        }
+
+        public RedisOtpChallengeStore(UpstashRedisClient redis, string keyPrefix)
         {
             _redis = redis;
+            _keyPrefix = keyPrefix;
         }
 
         public async Task<OtpChallenge?> GetAsync(string email, CancellationToken cancellationToken = default)
@@ -78,9 +85,9 @@ namespace Yakku.Infrastructure.Redis
             return true;
         }
 
-        private static string Key(string email)
+        private string Key(string email)
         {
-            return $"auth:otp:{email}";
+            return $"{_keyPrefix}:{email}";
         }
     }
 }

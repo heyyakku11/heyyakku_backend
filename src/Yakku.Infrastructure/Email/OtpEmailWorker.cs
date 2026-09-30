@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Email;
 using Yakku.Application.Email.Interfaces;
@@ -64,6 +65,7 @@ namespace Yakku.Infrastructure.Email
             using var scope = _scopeFactory.CreateScope();
             var emailLogs = scope.ServiceProvider.GetRequiredService<IEmailLogRepository>();
             var otpStore = scope.ServiceProvider.GetRequiredService<IOtpChallengeStore>();
+            var adminOtpStore = scope.ServiceProvider.GetRequiredService<IAdminOtpChallengeStore>();
             var systemLogs = scope.ServiceProvider.GetRequiredService<ISystemLogWriter>();
 
             var emailLog = await emailLogs.GetByIdAsync(job.EmailLogId, stoppingToken);
@@ -73,7 +75,7 @@ namespace Yakku.Infrastructure.Email
                 return;
             }
 
-            if (!await IsChallengeCurrentAsync(otpStore, job, stoppingToken))
+            if (!await IsChallengeCurrentAsync(otpStore, adminOtpStore, job, stoppingToken))
             {
                 emailLog.MarkCancelled("Superseded", "OTP challenge was replaced before send.");
                 await emailLogs.SaveChangesAsync(stoppingToken);
@@ -87,7 +89,7 @@ namespace Yakku.Infrastructure.Email
             {
                 stoppingToken.ThrowIfCancellationRequested();
 
-                if (!await IsChallengeCurrentAsync(otpStore, job, stoppingToken))
+                if (!await IsChallengeCurrentAsync(otpStore, adminOtpStore, job, stoppingToken))
                 {
                     emailLog.MarkCancelled("Superseded", "OTP challenge was replaced during send.");
                     await emailLogs.SaveChangesAsync(stoppingToken);
@@ -118,10 +120,7 @@ namespace Yakku.Infrastructure.Email
                         result.ErrorMessage);
                     await emailLogs.SaveChangesAsync(stoppingToken);
 
-                    await otpStore.DeleteIfChallengeMatchesAsync(
-                        job.RecipientEmail,
-                        job.ChallengeId,
-                        stoppingToken);
+                    await DeleteMatchingChallengeAsync(otpStore, adminOtpStore, job, stoppingToken);
 
                     await systemLogs.WriteAsync(
                         new SystemLogWriteRequest
@@ -145,11 +144,33 @@ namespace Yakku.Infrastructure.Email
 
         private static async Task<bool> IsChallengeCurrentAsync(
             IOtpChallengeStore otpStore,
+            IAdminOtpChallengeStore adminOtpStore,
             EmailJob job,
             CancellationToken cancellationToken)
         {
-            var challenge = await otpStore.GetAsync(job.RecipientEmail, cancellationToken);
-            return challenge is not null && challenge.ChallengeId == job.ChallengeId;
+            var userChallenge = await otpStore.GetAsync(job.RecipientEmail, cancellationToken);
+            if (userChallenge is not null && userChallenge.ChallengeId == job.ChallengeId)
+            {
+                return true;
+            }
+
+            var adminChallenge = await adminOtpStore.GetAsync(job.RecipientEmail, cancellationToken);
+            return adminChallenge is not null && adminChallenge.ChallengeId == job.ChallengeId;
+        }
+
+        private static async Task DeleteMatchingChallengeAsync(
+            IOtpChallengeStore otpStore,
+            IAdminOtpChallengeStore adminOtpStore,
+            EmailJob job,
+            CancellationToken cancellationToken)
+        {
+            await otpStore.DeleteIfChallengeMatchesAsync(job.RecipientEmail, job.ChallengeId, cancellationToken);
+
+            var adminChallenge = await adminOtpStore.GetAsync(job.RecipientEmail, cancellationToken);
+            if (adminChallenge is not null && adminChallenge.ChallengeId == job.ChallengeId)
+            {
+                await adminOtpStore.DeleteAsync(job.RecipientEmail, cancellationToken);
+            }
         }
 
         private static TimeSpan WithJitter(TimeSpan delay)

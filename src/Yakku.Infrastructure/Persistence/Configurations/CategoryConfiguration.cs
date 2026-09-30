@@ -41,6 +41,15 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsUnique()
                 .HasFilter("\"Icon\" IS NOT NULL")
                 .HasDatabaseName("IX_Categories_Icon");
+
+            builder.HasIndex(x => x.DeletedBy)
+                .HasDatabaseName("IX_Categories_DeletedBy");
+
+            builder.HasOne(x => x.DeletedByAdmin)
+                .WithMany(x => x.DeletedCategories)
+                .HasForeignKey(x => x.DeletedBy)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

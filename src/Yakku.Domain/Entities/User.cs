@@ -15,11 +15,15 @@ namespace Yakku.Domain.Entities
         public NotificationPreference? NotificationPreference { get; private set; }
         public ICollection<UserSession> Sessions { get; private set; } = new List<UserSession>();
         public ICollection<Poll> Polls { get; private set; } = new List<Poll>();
+        public ICollection<SavedPoll> SavedPolls { get; private set; } = new List<SavedPoll>();
         public ICollection<Vote> Votes { get; private set; } = new List<Vote>();
         public ICollection<Device> Devices { get; private set; } = new List<Device>();
         public ICollection<Notification> Notifications { get; private set; } = new List<Notification>();
         public ICollection<SystemLog> SystemLogs { get; private set; } = new List<SystemLog>();
         public ICollection<EmailLog> EmailLogs { get; private set; } = new List<EmailLog>();
+        public ICollection<Comment> Comments { get; private set; } = new List<Comment>();
+        public ICollection<Report> Reports { get; private set; } = new List<Report>();
+        public ICollection<AnalyticsMetric> AnalyticsMetrics { get; private set; } = new List<AnalyticsMetric>();
 
         private User()
         {

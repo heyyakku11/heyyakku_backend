@@ -263,6 +263,11 @@ public class PushNotificationServiceTests
             return Task.FromResult(Items.Any(user => user.Profile.DisplayName == displayName));
         }
 
+        public Task<IReadOnlyList<User>> ListAsync(UserStatus? status, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<User>>([]);
+        }
+
         public Task AddAsync(User user, CancellationToken cancellationToken = default)
         {
             Items.Add(user);
