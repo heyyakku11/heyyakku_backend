@@ -7,5 +7,8 @@ namespace Yakku.Application.Categories.Interfaces
         Task<CategoryResponse> CreateAsync(
             CreateCategoryRequest request,
             CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<CategoryResponse>> ListAsync(
+            CancellationToken cancellationToken = default);
     }
 }

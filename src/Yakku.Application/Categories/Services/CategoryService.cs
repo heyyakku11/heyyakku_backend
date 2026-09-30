@@ -64,6 +64,22 @@ namespace Yakku.Application.Categories.Services
             };
         }
 
+        public async Task<IReadOnlyList<CategoryResponse>> ListAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var categories = await _categories.ListAllAsync(cancellationToken);
+            return categories
+                .Select(category => new CategoryResponse
+                {
+                    Id = category.Id,
+                    Name = category.Name,
+                    Slug = category.Slug,
+                    IsActive = category.IsActive,
+                    CreatedAt = category.CreatedAt
+                })
+                .ToList();
+        }
+
         private static string ToSlug(string name)
         {
             var builder = new StringBuilder(name.Length);

@@ -85,6 +85,23 @@ namespace Yakku.API.Controllers
             }
         }
 
+        [HttpGet("categories")]
+        [ProducesResponseType(typeof(ApiResponse<List<CategoryResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetCategories(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await _categoryService.ListAsync(cancellationToken);
+                return Ok(ApiResponse.Ok(result, "Categories retrieved successfully"));
+            }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
+        }
+
         [HttpPost("categories")]
         [ProducesResponseType(typeof(ApiResponse<CategoryResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]

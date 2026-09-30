@@ -24,6 +24,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
+        public async Task<IReadOnlyList<Category>> ListAllAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.Categories
+                .AsNoTracking()
+                .OrderBy(category => category.Name)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<bool> ExistsByNameAsync(
             string name,
             CancellationToken cancellationToken = default)
