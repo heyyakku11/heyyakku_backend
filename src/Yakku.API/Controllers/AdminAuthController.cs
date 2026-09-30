@@ -1,5 +1,7 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Yakku.API.Auth;
 using Yakku.API.Middleware;
 using Yakku.Application.AdminAuth.DTOs;
 using Yakku.Application.AdminAuth.Interfaces;
@@ -106,6 +108,41 @@ namespace Yakku.API.Controllers
             {
                 var result = await _adminSessionService.RefreshAsync(request.RefreshToken, cancellationToken);
                 return Ok(ApiResponse.Ok(result, "Token refreshed successfully"));
+            }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
+        }
+
+        [HttpPost("logout")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> Logout(
+            [FromBody] RefreshTokenRequest request,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _adminSessionService.RevokeAsync(request.RefreshToken, cancellationToken);
+                return Ok(ApiResponse.Ok<object?>(null, "Logged out successfully"));
+            }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
+        }
+
+        [Authorize(Policy = "Admin")]
+        [HttpPost("logout-all")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> LogoutAll(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _adminSessionService.RevokeAllAsync(User.GetRequiredUserId(), cancellationToken);
+                return Ok(ApiResponse.Ok<object?>(null, "Logged out from all sessions successfully"));
             }
             catch (AppException ex)
             {

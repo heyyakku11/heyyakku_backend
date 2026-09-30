@@ -111,10 +111,7 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
 builder.Services.AddScoped<Yakku.API.Guests.GuestCookieService>();
 
-var corsOriginsRaw = Environment.GetEnvironmentVariable("CORS_ORIGINS")?.Trim()?.Trim('"');
-var corsOrigins = string.IsNullOrWhiteSpace(corsOriginsRaw)
-    ? []
-    : corsOriginsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+var corsOrigins = ParseCorsOrigins(Environment.GetEnvironmentVariable("CORS_ORIGINS"));
 if (corsOrigins.Length > 0)
 {
     builder.Services.AddCors(options =>
@@ -151,3 +148,38 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static string[] ParseCorsOrigins(string? raw)
+{
+    if (string.IsNullOrWhiteSpace(raw))
+    {
+        return [];
+    }
+
+    return raw
+        .Trim()
+        .Trim('"')
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(StripTrailingComment)
+        .Where(origin => origin.Length > 0)
+        .ToArray();
+}
+
+static string StripTrailingComment(string value)
+{
+    // Require a preceding space so "https://" is not treated as a comment.
+    var hash = value.IndexOf(" #", StringComparison.Ordinal);
+    var slashSlash = value.IndexOf(" //", StringComparison.Ordinal);
+    var cutAt = -1;
+    if (hash >= 0)
+    {
+        cutAt = hash;
+    }
+
+    if (slashSlash >= 0 && (cutAt < 0 || slashSlash < cutAt))
+    {
+        cutAt = slashSlash;
+    }
+
+    return (cutAt >= 0 ? value[..cutAt] : value).Trim().Trim('"');
+}

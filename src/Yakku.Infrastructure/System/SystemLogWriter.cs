@@ -107,6 +107,7 @@ namespace Yakku.Infrastructure.System
                 SystemLogEventTypes.SessionRefreshed => SystemEventType.Authentication,
                 SystemLogEventTypes.AdminRegistered => SystemEventType.Authentication,
                 SystemLogEventTypes.AdminSessionRefreshed => SystemEventType.Authentication,
+                SystemLogEventTypes.AdminSessionRevoked => SystemEventType.Authentication,
                 SystemLogEventTypes.SessionRevoked => SystemEventType.Authentication,
                 SystemLogEventTypes.PollCreated => SystemEventType.Poll,
                 SystemLogEventTypes.PollClosed => SystemEventType.Poll,

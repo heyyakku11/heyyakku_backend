@@ -12,5 +12,13 @@ namespace Yakku.Application.AdminAuth.Interfaces
         Task<TokenResponse> RefreshAsync(
             string refreshToken,
             CancellationToken cancellationToken = default);
+
+        Task RevokeAsync(
+            string refreshToken,
+            CancellationToken cancellationToken = default);
+
+        Task RevokeAllAsync(
+            Guid adminId,
+            CancellationToken cancellationToken = default);
     }
 }

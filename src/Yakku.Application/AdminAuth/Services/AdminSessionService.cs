@@ -83,6 +83,43 @@ namespace Yakku.Application.AdminAuth.Services
             return ToResponse(admin.Id, admin.Email, session.Id, secret);
         }
 
+        public async Task RevokeAsync(
+            string refreshToken,
+            CancellationToken cancellationToken = default)
+        {
+            var session = await LoadValidSessionAsync(refreshToken, cancellationToken);
+            var adminId = session.AdminId;
+            var sessionId = session.Id;
+            await _sessions.DeleteAsync(session, cancellationToken);
+            await _sessions.SaveChangesAsync(cancellationToken);
+            await _systemLogWriter.WriteAsync(
+                new SystemLogWriteRequest
+                {
+                    Level = SystemLogLevel.Information,
+                    EventType = SystemLogEventTypes.AdminSessionRevoked,
+                    Message = "Admin session revoked.",
+                    Details = new { sessionId, adminId }
+                },
+                cancellationToken);
+        }
+
+        public async Task RevokeAllAsync(
+            Guid adminId,
+            CancellationToken cancellationToken = default)
+        {
+            await _sessions.DeleteAllByAdminIdAsync(adminId, cancellationToken);
+            await _sessions.SaveChangesAsync(cancellationToken);
+            await _systemLogWriter.WriteAsync(
+                new SystemLogWriteRequest
+                {
+                    Level = SystemLogLevel.Information,
+                    EventType = SystemLogEventTypes.AdminSessionRevoked,
+                    Message = "All admin sessions revoked.",
+                    Details = new { adminId }
+                },
+                cancellationToken);
+        }
+
         private async Task<AdminSession> LoadValidSessionAsync(
             string refreshToken,
             CancellationToken cancellationToken)

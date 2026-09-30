@@ -29,6 +29,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return Task.CompletedTask;
         }
 
+        public async Task DeleteAllByAdminIdAsync(Guid adminId, CancellationToken cancellationToken = default)
+        {
+            var sessions = await _context.AdminSessions
+                .Where(session => session.AdminId == adminId)
+                .ToListAsync(cancellationToken);
+            _context.AdminSessions.RemoveRange(sessions);
+        }
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await _context.SaveChangesAsync(cancellationToken);

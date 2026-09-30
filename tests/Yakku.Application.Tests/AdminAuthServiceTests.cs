@@ -214,6 +214,49 @@ public class AdminAuthServiceTests
         Assert.Equal(401, exception.StatusCode);
     }
 
+    [Fact]
+    public async Task Revoke_ThenRefresh_ReturnsUnauthorized()
+    {
+        var fixture = AdminAuthFixture.Create();
+        await fixture.AuthService.RegisterAsync(new AdminRegisterRequest
+        {
+            Email = "admin@heyyakku.com",
+            Password = "password1"
+        });
+        var created = await fixture.AuthService.VerifyOtpAsync(new AdminVerifyOtpRequest
+        {
+            Email = "admin@heyyakku.com",
+            Otp = "123456"
+        });
+
+        await fixture.SessionService.RevokeAsync(created.RefreshToken);
+        Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.AdminSessionRevoked);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            fixture.SessionService.RefreshAsync(created.RefreshToken));
+
+        Assert.Equal(ApiErrorCodes.Unauthorized, exception.ErrorCode);
+        Assert.Empty(fixture.Sessions.Items);
+    }
+
+    [Fact]
+    public async Task RevokeAll_RemovesOnlyThatAdminsSessions()
+    {
+        var fixture = AdminAuthFixture.Create();
+        var adminId = Guid.NewGuid();
+        var otherAdminId = Guid.NewGuid();
+        await fixture.SessionService.CreateAsync(adminId, "admin@heyyakku.com");
+        await fixture.SessionService.CreateAsync(adminId, "admin@heyyakku.com");
+        var other = await fixture.SessionService.CreateAsync(otherAdminId, "other@heyyakku.com");
+
+        await fixture.SessionService.RevokeAllAsync(adminId);
+
+        Assert.Single(fixture.Sessions.Items);
+        Assert.True(RefreshTokenHasher.TryParse(other.RefreshToken, out var otherSessionId, out _));
+        Assert.Equal(otherSessionId, fixture.Sessions.Items[0].Id);
+        Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.AdminSessionRevoked);
+    }
+
     private sealed class AdminAuthFixture
     {
         public FakeAdminRepository Admins { get; }
@@ -334,6 +377,12 @@ public class AdminAuthServiceTests
         public Task DeleteAsync(AdminSession session, CancellationToken cancellationToken = default)
         {
             Items.Remove(session);
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAllByAdminIdAsync(Guid adminId, CancellationToken cancellationToken = default)
+        {
+            Items.RemoveAll(session => session.AdminId == adminId);
             return Task.CompletedTask;
         }
 
