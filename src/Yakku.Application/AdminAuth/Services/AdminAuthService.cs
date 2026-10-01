@@ -134,7 +134,7 @@ namespace Yakku.Application.AdminAuth.Services
             };
         }
 
-        public async Task<TokenResponse> VerifyOtpAsync(
+        public async Task<AdminAuthResponse> VerifyOtpAsync(
             AdminVerifyOtpRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -240,10 +240,12 @@ namespace Yakku.Application.AdminAuth.Services
                 },
                 cancellationToken);
 
-            return await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken);
+            return ToAuthResponse(
+                await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken),
+                admin);
         }
 
-        public async Task<TokenResponse> LoginAsync(
+        public async Task<AdminAuthResponse> LoginAsync(
             AdminLoginRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -291,7 +293,22 @@ namespace Yakku.Application.AdminAuth.Services
                 },
                 cancellationToken);
 
-            return await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken);
+            return ToAuthResponse(
+                await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken),
+                admin);
+        }
+
+        private static AdminAuthResponse ToAuthResponse(TokenResponse tokens, Admin admin)
+        {
+            return new AdminAuthResponse
+            {
+                AccessToken = tokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
+                AccessTokenExpiresInSeconds = tokens.AccessTokenExpiresInSeconds,
+                RefreshTokenExpiresInSeconds = tokens.RefreshTokenExpiresInSeconds,
+                Email = admin.Email,
+                Role = admin.Role.ToString()
+            };
         }
 
         private Task LogOtpInvalidAsync(string email, string reason, CancellationToken cancellationToken)

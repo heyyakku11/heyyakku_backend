@@ -9,11 +9,11 @@ namespace Yakku.Application.AdminAuth.Interfaces
             AdminRegisterRequest request,
             CancellationToken cancellationToken = default);
 
-        Task<TokenResponse> VerifyOtpAsync(
+        Task<AdminAuthResponse> VerifyOtpAsync(
             AdminVerifyOtpRequest request,
             CancellationToken cancellationToken = default);
 
-        Task<TokenResponse> LoginAsync(
+        Task<AdminAuthResponse> LoginAsync(
             AdminLoginRequest request,
             CancellationToken cancellationToken = default);
     }

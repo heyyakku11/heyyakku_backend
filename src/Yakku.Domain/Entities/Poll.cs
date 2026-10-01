@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Buffers.Text;
+using System.Security.Cryptography;
 using Yakku.Domain.Enums;
 
 namespace Yakku.Domain.Entities
@@ -42,7 +43,8 @@ namespace Yakku.Domain.Entities
         {
             Id = Guid.NewGuid();
             CreatorId = creatorId;
-            ShareToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+            ShareToken = Base64Url.EncodeToString(
+                SHA256.HashData(RandomNumberGenerator.GetBytes(32)));
             Question = question;
             OptionType = optionType;
             Status = PollStatus.Active;

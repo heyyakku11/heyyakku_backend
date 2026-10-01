@@ -128,7 +128,7 @@ public class AdminAuthServiceTests
             Password = "password2"
         });
 
-        await fixture.AuthService.VerifyOtpAsync(new AdminVerifyOtpRequest
+        var result = await fixture.AuthService.VerifyOtpAsync(new AdminVerifyOtpRequest
         {
             Email = "admin@heyyakku.com",
             Otp = "123456"
@@ -136,6 +136,8 @@ public class AdminAuthServiceTests
 
         Assert.Single(fixture.Admins.Admins);
         Assert.Equal(AdminRole.Admin, admin.Role);
+        Assert.Equal("admin@heyyakku.com", result.Email);
+        Assert.Equal(AdminRole.Admin.ToString(), result.Role);
         Assert.True(admin.IsVerified);
         Assert.Equal(AdminStatus.Active, admin.Status);
         Assert.True(AdminPasswordHasher.Verify("password2", admin.PasswordHash));
@@ -173,12 +175,34 @@ public class AdminAuthServiceTests
         Assert.False(string.IsNullOrWhiteSpace(result.RefreshToken));
         Assert.Equal(900, result.AccessTokenExpiresInSeconds);
         Assert.Equal(604800, result.RefreshTokenExpiresInSeconds);
+        Assert.Equal("admin@heyyakku.com", result.Email);
+        Assert.Equal(AdminRole.SuperAdmin.ToString(), result.Role);
         Assert.Contains(fixture.Logs.Entries, entry => entry.EventType == SystemLogEventTypes.AdminRegistered);
 
         var claims = new JwtSecurityTokenHandler().ReadJwtToken(result.AccessToken).Claims;
         Assert.Contains(claims, claim => claim.Type == AuthClaimTypes.Actor && claim.Value == AuthClaimTypes.AdminActor);
         Assert.Contains(claims, claim => claim.Type == JwtRegisteredClaimNames.Email && claim.Value == admin.Email);
         Assert.Contains(claims, claim => claim.Type == JwtRegisteredClaimNames.Sub && claim.Value == admin.Id.ToString());
+    }
+
+    [Fact]
+    public async Task Login_VerifiedAdmin_ReturnsTokensEmailAndRole()
+    {
+        var fixture = AdminAuthFixture.Create();
+        var admin = new Admin("admin@heyyakku.com", AdminPasswordHasher.Hash("password1"), AdminRole.Admin);
+        admin.MarkVerified();
+        fixture.Admins.Admins.Add(admin);
+
+        var result = await fixture.AuthService.LoginAsync(new AdminLoginRequest
+        {
+            Email = "admin@heyyakku.com",
+            Password = "password1"
+        });
+
+        Assert.False(string.IsNullOrWhiteSpace(result.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(result.RefreshToken));
+        Assert.Equal("admin@heyyakku.com", result.Email);
+        Assert.Equal(AdminRole.Admin.ToString(), result.Role);
     }
 
     [Fact]

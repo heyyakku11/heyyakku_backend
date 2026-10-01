@@ -31,7 +31,9 @@ public class PollServiceTests
 
         Assert.Equal(creatorId, fixture.Polls.Items[0].CreatorId);
         Assert.Equal(result.Id, fixture.Polls.Items[0].Id);
-        Assert.False(string.IsNullOrWhiteSpace(result.ShareToken));
+        Assert.Equal(43, result.ShareToken.Length);
+        Assert.Matches("^[A-Za-z0-9_-]+$", result.ShareToken);
+        Assert.Equal(result.ShareToken, fixture.Polls.Items[0].ShareToken);
         Assert.Equal("text", result.OptionType);
         Assert.Equal(PollStatus.Active, fixture.Polls.Items[0].Status);
         Assert.Equal(2, result.Options.Count);
@@ -557,6 +559,11 @@ public class PollServiceTests
         public Task<Category?> GetActiveByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Category?>(null);
+        }
+
+        public Task<IReadOnlyList<Category>> ListAllAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Category>>([]);
         }
 
         public Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken = default)
