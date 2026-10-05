@@ -85,10 +85,9 @@ namespace Yakku.API.Controllers
             }
         }
 
+        [AllowAnonymous]
         [HttpGet("categories")]
         [ProducesResponseType(typeof(ApiResponse<List<CategoryResponse>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetCategories(CancellationToken cancellationToken)
         {
             try
