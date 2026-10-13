@@ -29,11 +29,12 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasDatabaseName("IX_AdminSessions_RefreshTokenHash");
 
             builder.HasIndex(x => x.AdminId)
+                .IsUnique()
                 .HasDatabaseName("IX_AdminSessions_AdminId");
 
             builder.HasOne(x => x.Admin)
-                .WithMany(x => x.Sessions)
-                .HasForeignKey(x => x.AdminId)
+                .WithOne(x => x.Session)
+                .HasForeignKey<AdminSession>(x => x.AdminId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

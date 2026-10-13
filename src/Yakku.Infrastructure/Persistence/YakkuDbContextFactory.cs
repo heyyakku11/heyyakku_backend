@@ -14,6 +14,7 @@ namespace Yakku.Infrastructure.Persistence
 
             var options = new DbContextOptionsBuilder<YakkuDbContext>()
                 .UseNpgsql(PostgresConnection.Normalize(connectionString))
+                .AddInterceptors(new PollAuditInterceptor())
                 .Options;
 
             return new YakkuDbContext(options);

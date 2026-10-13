@@ -27,7 +27,8 @@ namespace Yakku.API.Controllers
             var response = new GuestResponse
             {
                 GuestId = result.GuestId,
-                ExpiresAt = result.ExpiresAt
+                ExpiresAt = result.ExpiresAt,
+                GuestToken = result.RawTokenToSet
             };
 
             return Ok(ApiResponse.Ok(response, "Guest created successfully"));

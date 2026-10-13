@@ -34,6 +34,19 @@ namespace Yakku.API.Guests
             return result;
         }
 
+        public void Clear(HttpContext httpContext)
+        {
+            httpContext.Response.Cookies.Delete(
+                CookieName,
+                new CookieOptions
+                {
+                    Path = "/",
+                    Secure = httpContext.Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    HttpOnly = true
+                });
+        }
+
         internal static CookieOptions CreateOptions(HttpRequest request)
         {
             return new CookieOptions

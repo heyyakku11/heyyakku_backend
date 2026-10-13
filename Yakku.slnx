@@ -6,6 +6,6 @@
     <Project Path="src/Yakku.Infrastructure/Yakku.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Yakku.Application.Tests/Yakku.Application.Tests.csproj" />
+    <Project Path="tests/Yakku.Tests/Yakku.Tests.csproj" />
   </Folder>
 </Solution>

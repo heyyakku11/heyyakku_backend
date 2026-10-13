@@ -8,31 +8,52 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<PollOption> builder)
         {
-            builder.ToTable("PollOptions");
+            builder.ToTable("poll_options", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_poll_options_text_not_blank",
+                    "char_length(btrim(\"option_text\")) > 0");
+                table.HasCheckConstraint(
+                    "CK_poll_options_display_order_positive",
+                    "\"display_order\" > 0");
+            });
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.Text)
-                .HasMaxLength(500);
+            builder.Property(x => x.Id)
+                .HasColumnName("id");
 
-            builder.Property(x => x.SortOrder)
+            builder.Property(x => x.PollId)
+                .HasColumnName("poll_id")
                 .IsRequired();
 
-            builder.Property(x => x.VoteCount)
+            builder.Property(x => x.Text)
+                .HasColumnName("option_text")
+                .HasMaxLength(500)
+                .IsRequired();
+
+            builder.Property(x => x.SortOrder)
+                .HasColumnName("display_order")
+                .IsRequired();
+
+            builder.Property(x => x.CreatedAt)
+                .HasColumnName("created_at")
+                .IsRequired();
+
+            builder.Property(x => x.UpdatedAt)
+                .HasColumnName("updated_at")
                 .IsRequired()
-                .HasDefaultValue(0);
+                .HasDefaultValueSql("now()");
+
+            builder.HasAlternateKey(x => new { x.Id, x.PollId })
+                .HasName("AK_poll_options_id_poll_id");
 
             builder.HasIndex(x => new { x.PollId, x.SortOrder })
                 .IsUnique()
-                .HasDatabaseName("IX_PollOptions_PollId_SortOrder");
+                .HasDatabaseName("IX_poll_options_poll_id_display_order");
 
-            builder.HasIndex(x => x.PollId)
-                .HasDatabaseName("IX_PollOptions_PollId");
-
-            builder.HasOne(x => x.Image)
-                .WithMany(x => x.PollOptions)
-                .HasForeignKey(x => x.ImageId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.SetNull);
+            builder.HasIndex(x => new { x.PollId, x.Text })
+                .IsUnique()
+                .HasDatabaseName("IX_poll_options_poll_id_option_text");
         }
     }
 }

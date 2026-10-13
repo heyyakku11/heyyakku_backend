@@ -20,24 +20,17 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             await _context.Polls.AddAsync(poll, cancellationToken);
         }
 
+        public void Delete(Poll poll)
+        {
+            _context.Polls.Remove(poll);
+        }
+
         public async Task<Poll?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Polls
-                .Include(p => p.Options)
-                .ThenInclude(o => o.Image)
-                .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
-        }
-
-        public async Task<Poll?> GetByShareTokenAsync(
-            string shareToken,
-            CancellationToken cancellationToken = default)
-        {
-            return await _context.Polls
-                .Include(p => p.PollCategories)
-                .ThenInclude(pc => pc.Category)
-                .Include(p => p.Options)
-                .ThenInclude(o => o.Image)
-                .FirstOrDefaultAsync(p => p.ShareToken == shareToken, cancellationToken);
+                .Include(poll => poll.Options)
+                .Include(poll => poll.Media)
+                .FirstOrDefaultAsync(poll => poll.Id == id, cancellationToken);
         }
 
         public async Task<Poll?> GetByIdAndCreatorAsync(
@@ -46,10 +39,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             CancellationToken cancellationToken = default)
         {
             return await _context.Polls
-                .Include(p => p.Options)
-                .ThenInclude(o => o.Image)
+                .Include(poll => poll.Options)
+                .Include(poll => poll.Media)
                 .FirstOrDefaultAsync(
-                    p => p.Id == id && p.CreatorId == creatorId,
+                    poll => poll.Id == id && poll.CreatorId == creatorId,
                     cancellationToken);
         }
 
@@ -63,7 +56,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var query = _context.Polls
                 .AsNoTracking()
                 .Include(poll => poll.Options)
-                .Where(poll => poll.CreatorId == userId && poll.Status != PollStatus.Deleted);
+                .Where(poll => poll.CreatorId == userId);
 
             if (cursorCreatedAt is not null && cursorId is not null)
             {
@@ -83,13 +76,21 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             DateTime? cursorCreatedAt,
             Guid? cursorId,
             int take,
+            PollContentType? contentType,
             CancellationToken cancellationToken = default)
         {
             var query = _context.Polls
                 .AsNoTracking()
                 .Include(poll => poll.Options)
-                .ThenInclude(option => option.Image)
-                .Where(poll => poll.Status != PollStatus.Deleted);
+                .Include(poll => poll.Media)
+                .Where(poll =>
+                    poll.Status == PollStatus.Active
+                    && poll.Visibility == PollVisibility.Public);
+
+            if (contentType is PollContentType selectedType)
+            {
+                query = query.Where(poll => poll.ContentType == selectedType);
+            }
 
             if (cursorCreatedAt is not null && cursorId is not null)
             {
@@ -128,33 +129,106 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             int take,
             CancellationToken cancellationToken = default)
         {
-            var query =
-                from vote in _context.Votes.AsNoTracking()
-                join poll in _context.Polls.AsNoTracking().Include(p => p.Options)
-                    on vote.PollId equals poll.Id
-                where vote.UserId == userId && poll.Status != PollStatus.Deleted
-                select new { Poll = poll, VotedAt = vote.CreatedAt };
+            var voteQuery = _context.PollVotes
+                .AsNoTracking()
+                .Where(vote => vote.VoterId == userId);
 
             if (cursorVotedAt is not null && cursorPollId is not null)
             {
-                query = query.Where(row =>
-                    row.VotedAt < cursorVotedAt.Value
-                    || (row.VotedAt == cursorVotedAt.Value && row.Poll.Id < cursorPollId.Value));
+                voteQuery = voteQuery.Where(vote =>
+                    vote.CreatedAt < cursorVotedAt.Value
+                    || (vote.CreatedAt == cursorVotedAt.Value && vote.PollId < cursorPollId.Value));
             }
 
-            var rows = await query
-                .OrderByDescending(row => row.VotedAt)
-                .ThenByDescending(row => row.Poll.Id)
+            var votes = await voteQuery
+                .OrderByDescending(vote => vote.CreatedAt)
+                .ThenByDescending(vote => vote.PollId)
+                .Select(vote => new { vote.PollId, VotedAt = vote.CreatedAt })
                 .Take(take)
                 .ToListAsync(cancellationToken);
 
-            return rows
-                .Select(row => new AnsweredPollEntry
+            if (votes.Count == 0)
+            {
+                return [];
+            }
+
+            var pollIds = votes.Select(vote => vote.PollId).ToArray();
+            var polls = await _context.Polls
+                .AsNoTracking()
+                .Include(poll => poll.Options)
+                .Where(poll => pollIds.Contains(poll.Id))
+                .ToDictionaryAsync(poll => poll.Id, cancellationToken);
+
+            return votes
+                .Where(vote => polls.ContainsKey(vote.PollId))
+                .Select(vote => new AnsweredPollEntry
                 {
-                    Poll = row.Poll,
-                    VotedAt = row.VotedAt
+                    Poll = polls[vote.PollId],
+                    VotedAt = vote.VotedAt
                 })
                 .ToList();
+        }
+
+        public async Task<IReadOnlyDictionary<Guid, PollVoteCountSnapshot>> GetVoteCountsAsync(
+            IReadOnlyCollection<Guid> pollIds,
+            CancellationToken cancellationToken = default)
+        {
+            if (pollIds.Count == 0)
+            {
+                return new Dictionary<Guid, PollVoteCountSnapshot>();
+            }
+
+            var rows = await _context.PollVotes
+                .AsNoTracking()
+                .Where(vote => pollIds.Contains(vote.PollId))
+                .GroupBy(vote => new { vote.PollId, vote.PollOptionId })
+                .Select(group => new
+                {
+                    group.Key.PollId,
+                    group.Key.PollOptionId,
+                    Count = group.Count(),
+                    WhyCount = group.Count(vote => vote.Reason != null)
+                })
+                .ToListAsync(cancellationToken);
+
+            return PollVoteCountSnapshot.Combine(rows.Select(row =>
+                new PollVoteCountRow(row.PollId, row.PollOptionId, row.Count, row.WhyCount)));
+        }
+
+        public async Task<int> TryMarkActiveAsync(
+            Guid pollId,
+            Guid creatorId,
+            CancellationToken cancellationToken = default)
+        {
+            var utcNow = DateTime.UtcNow;
+            return await _context.Polls
+                .Where(poll =>
+                    poll.Id == pollId
+                    && poll.CreatorId == creatorId
+                    && poll.Status == PollStatus.Draft)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(poll => poll.Status, PollStatus.Active)
+                        .SetProperty(poll => poll.UpdatedAt, utcNow),
+                    cancellationToken);
+        }
+
+        public async Task ExecuteInTransactionAsync(
+            Func<CancellationToken, Task> action,
+            CancellationToken cancellationToken = default)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                await action(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _context.ChangeTracker.Clear();
+                throw;
+            }
         }
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)

@@ -23,6 +23,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return await _context.AdminSessions.FirstOrDefaultAsync(session => session.Id == id, cancellationToken);
         }
 
+        public async Task<AdminSession?> GetByAdminIdAsync(Guid adminId, CancellationToken cancellationToken = default)
+        {
+            return await _context.AdminSessions.FirstOrDefaultAsync(session => session.AdminId == adminId, cancellationToken);
+        }
+
         public Task DeleteAsync(AdminSession session, CancellationToken cancellationToken = default)
         {
             _context.AdminSessions.Remove(session);

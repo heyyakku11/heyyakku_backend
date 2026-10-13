@@ -13,40 +13,36 @@ namespace Yakku.Application.Votes.Validators
 
             RuleFor(x => x)
                 .Must(HaveExactlyOneChoice)
-                .WithMessage("Provide exactly one of optionId, customOption, or imageId.")
+                .WithMessage("Provide exactly one of pollOptionId or customAnswer.")
                 .OverridePropertyName("choice");
 
-            When(x => x.OptionId is not null, () =>
+            When(x => x.PollOptionId is not null, () =>
             {
-                RuleFor(x => x.OptionId)
+                RuleFor(x => x.PollOptionId)
                     .NotEqual(Guid.Empty)
                     .WithMessage("Option id is required.");
             });
 
-            When(x => !string.IsNullOrWhiteSpace(x.CustomOption), () =>
+            When(x => x.CustomAnswer is not null, () =>
             {
-                RuleFor(x => x.CustomOption)
-                    .MaximumLength(200);
+                RuleFor(x => x.CustomAnswer)
+                    .Must(value => !string.IsNullOrWhiteSpace(value))
+                    .WithMessage("Custom answer cannot be blank.");
             });
 
-            When(x => x.ImageId is not null, () =>
+            When(x => x.Reason is not null, () =>
             {
-                RuleFor(x => x.ImageId)
-                    .NotEqual(Guid.Empty)
-                    .WithMessage("Image id is required.");
+                RuleFor(x => x.Reason)
+                    .Must(value => !string.IsNullOrWhiteSpace(value))
+                    .WithMessage("Reason cannot be blank.");
             });
-
-            RuleFor(x => x.Reason)
-                .MaximumLength(500)
-                .When(x => x.Reason is not null);
         }
 
         private static bool HaveExactlyOneChoice(CastVoteRequest request)
         {
-            var hasOption = request.OptionId is not null;
-            var hasCustom = !string.IsNullOrWhiteSpace(request.CustomOption);
-            var hasImage = request.ImageId is not null;
-            var count = (hasOption ? 1 : 0) + (hasCustom ? 1 : 0) + (hasImage ? 1 : 0);
+            var hasOption = request.PollOptionId is not null;
+            var hasCustom = !string.IsNullOrWhiteSpace(request.CustomAnswer);
+            var count = (hasOption ? 1 : 0) + (hasCustom ? 1 : 0);
             return count == 1;
         }
     }

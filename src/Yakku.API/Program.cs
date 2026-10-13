@@ -1,5 +1,8 @@
+using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -89,8 +92,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim(AuthClaimTypes.Actor, AuthClaimTypes.AdminActor));
 });
 
-builder.Services.AddDbContext<YakkuDbContext>(options =>
-    options.UseNpgsql(PostgresConnection.Normalize(EnvLoader.GetRequired("DB_CONNECTION_STRING"))));
+builder.Services.AddSingleton<PollAuditInterceptor>();
+builder.Services.AddDbContext<YakkuDbContext>((serviceProvider, options) =>
+    options.UseNpgsql(PostgresConnection.Normalize(EnvLoader.GetRequired("DB_CONNECTION_STRING")))
+        .AddInterceptors(serviceProvider.GetRequiredService<PollAuditInterceptor>()));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -107,9 +112,32 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<AuthorizeCheckOperationFilter>();
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            ApiResponse.Fail(
+                "Too many requests.",
+                [
+                    new ApiError
+                    {
+                        Code = ApiErrorCodes.RateLimited,
+                        Message = "Too many requests."
+                    }
+                ]),
+            token);
+    };
+    options.AddPolicy("media-upload", httpContext => FixedWindow(httpContext, permitLimit: 20));
+    options.AddPolicy("poll-votes", httpContext => FixedWindow(httpContext, permitLimit: 30));
+});
+
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
 builder.Services.AddScoped<Yakku.API.Guests.GuestCookieService>();
+builder.Services.AddScoped<Yakku.API.Media.MediaCallerResolver>();
 
 var corsOrigins = ParseCorsOrigins(Environment.GetEnvironmentVariable("CORS_ORIGINS"));
 if (corsOrigins.Length > 0)
@@ -144,10 +172,29 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 
 app.Run();
+
+static RateLimitPartition<string> FixedWindow(HttpContext httpContext, int permitLimit)
+{
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? httpContext.User.FindFirstValue("sub");
+    var key = string.IsNullOrWhiteSpace(userId)
+        ? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous"
+        : userId;
+
+    return RateLimitPartition.GetFixedWindowLimiter(
+        key,
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+}
 
 static string[] ParseCorsOrigins(string? raw)
 {

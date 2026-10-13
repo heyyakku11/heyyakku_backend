@@ -3,24 +3,24 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Auth.Interfaces;
-using Yakku.Application.Categories.Interfaces;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Email;
 using Yakku.Application.Email.Interfaces;
 using Yakku.Application.Guests.Interfaces;
-using Yakku.Application.Images.Interfaces;
 using Yakku.Application.NotificationPreferences.Interfaces;
 using Yakku.Application.Notifications.Interfaces;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.System.Interfaces;
 using Yakku.Application.Votes.Interfaces;
-using Yakku.Infrastructure.Cloudinary;
 using Yakku.Infrastructure.Configuration;
 using Yakku.Infrastructure.Email;
 using Yakku.Infrastructure.Firebase;
+using Yakku.Infrastructure.Persistence;
 using Yakku.Infrastructure.Persistence.Repositories;
 using Yakku.Infrastructure.Redis;
+using Yakku.Application.Storage;
+using Yakku.Infrastructure.Storage;
 using Yakku.Infrastructure.System;
 
 namespace Yakku.Infrastructure
@@ -30,13 +30,17 @@ namespace Yakku.Infrastructure
         public static IServiceCollection AddInfrastructure(this IServiceCollection services)
         {
             EnvFile.Load();
+            MediaUploadPolicyFactory.ValidateStorageConfiguration();
 
             services.AddHttpContextAccessor();
             services.AddScoped<IPollRepository, PollRepository>();
+            services.AddScoped<IMediaUploadSessionRepository, MediaUploadSessionRepository>();
+            services.AddSingleton<IPollMediaBucketResolver, PollMediaBucketResolver>();
+            services.AddSingleton<IMediaUploadPolicy>(_ => MediaUploadPolicyFactory.Create());
+            services.AddSingleton<IObjectStorage, NeonObjectStorage>();
+            services.AddSingleton<IMediaInspector, TagLibMediaInspector>();
+            services.AddHostedService<MediaUploadCleanupWorker>();
             services.AddScoped<ISavedPollRepository, SavedPollRepository>();
-            services.AddScoped<IImageRepository, ImageRepository>();
-            services.AddScoped<ICategoryRepository, CategoryRepository>();
-            services.AddScoped<ICloudinaryImageUploader, CloudinaryImageUploader>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IUserSessionRepository, UserSessionRepository>();
             services.AddScoped<IAdminRepository, AdminRepository>();
@@ -46,12 +50,10 @@ namespace Yakku.Infrastructure
             services.AddScoped<IDeviceRepository, DeviceRepository>();
             services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
-            services.AddScoped<IEmailLogRepository, EmailLogRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
             services.AddScoped<IAdminOtpChallengeStore, RedisAdminOtpChallengeStore>();
             services.AddScoped<ISystemHealthService, SystemHealthService>();
             services.AddSingleton<IFirebaseNotificationProvider, FirebaseNotificationProvider>();
-            services.AddSingleton<ISystemLogWriter, SystemLogWriter>();
             services.AddSingleton<IEmailSender>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<ResendEmailSender>>();

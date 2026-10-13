@@ -47,6 +47,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public void Delete(Guest guest)
+        {
+            _context.Guests.Remove(guest);
+        }
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await _context.SaveChangesAsync(cancellationToken);

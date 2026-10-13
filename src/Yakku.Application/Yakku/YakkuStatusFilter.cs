@@ -58,7 +58,7 @@ namespace Yakku.Application.YakkuDirectory
                 "draft" => PollStatus.Draft,
                 "active" => PollStatus.Active,
                 "closed" => PollStatus.Closed,
-                "deleted" => PollStatus.Deleted,
+                "expired" => PollStatus.Expired,
                 _ => throw Invalid()
             };
         }

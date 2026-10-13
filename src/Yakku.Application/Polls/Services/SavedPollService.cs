@@ -1,11 +1,11 @@
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Polls;
 using Yakku.Application.Polls.DTOs;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Polls.Mapper;
 using Yakku.Application.Users;
 using Yakku.Domain.Entities;
-using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Polls.Services
 {
@@ -26,7 +26,7 @@ namespace Yakku.Application.Polls.Services
             CancellationToken cancellationToken = default)
         {
             var poll = await _polls.GetByIdAsync(pollId, cancellationToken);
-            if (poll is null || poll.Status == PollStatus.Deleted)
+            if (poll is null)
             {
                 throw NotFound();
             }
@@ -80,6 +80,9 @@ namespace Yakku.Application.Polls.Services
 
             var hasMore = saves.Count > PollCursor.PageSize;
             var page = saves.Take(PollCursor.PageSize).ToList();
+            var counts = await _polls.GetVoteCountsAsync(
+                page.Select(saved => saved.PollId).ToArray(),
+                cancellationToken);
             string? nextCursor = null;
             if (hasMore)
             {
@@ -89,7 +92,10 @@ namespace Yakku.Application.Polls.Services
 
             return new CreatorPollsPage
             {
-                Items = page.Select(saved => saved.Poll.ToResponse()).ToList(),
+                Items = page
+                    .Select(saved => saved.Poll.ToResponse(
+                        counts.GetValueOrDefault(saved.PollId) ?? PollVoteCountSnapshot.Empty))
+                    .ToList(),
                 Meta = PaginationMeta.ForCursor(PollCursor.PageSize, nextCursor, hasMore)
             };
         }

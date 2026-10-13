@@ -7,7 +7,8 @@ namespace Yakku.Application.Auth.Models
         public Guid ChallengeId { get; set; }
         public string OtpHash { get; set; } = string.Empty;
         public OtpPurpose Purpose { get; set; }
-        public string? DisplayName { get; set; }
+        public string? Name { get; set; }
+        public string? AnonymousName { get; set; }
         public string? PasswordHash { get; set; }
         public int AttemptCount { get; set; }
         public DateTime CreatedAt { get; set; }

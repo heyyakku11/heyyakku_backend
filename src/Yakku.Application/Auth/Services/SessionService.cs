@@ -3,11 +3,7 @@ using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
-using Yakku.Application.System;
-using Yakku.Application.System.DTOs;
-using Yakku.Application.System.Interfaces;
 using Yakku.Domain.Entities;
-using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Auth.Services
 {
@@ -15,18 +11,15 @@ namespace Yakku.Application.Auth.Services
     {
         private readonly IUserSessionRepository _sessions;
         private readonly ITokenService _tokenService;
-        private readonly ISystemLogWriter _systemLogWriter;
         private readonly IValidator<RefreshTokenRequest> _refreshTokenValidator;
 
         public SessionService(
             IUserSessionRepository sessions,
             ITokenService tokenService,
-            ISystemLogWriter systemLogWriter,
             IValidator<RefreshTokenRequest> refreshTokenValidator)
         {
             _sessions = sessions;
             _tokenService = tokenService;
-            _systemLogWriter = systemLogWriter;
             _refreshTokenValidator = refreshTokenValidator;
         }
 
@@ -34,11 +27,23 @@ namespace Yakku.Application.Auth.Services
             Guid userId,
             CancellationToken cancellationToken = default)
         {
+            const int maxLiveSessions = 5;
+            var utcNow = DateTime.UtcNow;
+            var liveSessions = await _sessions.ListLiveByUserIdAsync(userId, utcNow, cancellationToken);
+            if (liveSessions.Count >= maxLiveSessions)
+            {
+                var leastActive = liveSessions
+                    .OrderBy(session => session.LastActiveAt ?? DateTime.MinValue)
+                    .ThenBy(session => session.CreatedAt)
+                    .First();
+                leastActive.Revoke();
+            }
+
             var secret = RefreshTokenHasher.GenerateSecret();
             var session = new UserSession(
                 userId,
                 RefreshTokenHasher.Hash(string.Empty, secret),
-                DateTime.UtcNow.Add(JwtOptions.RefreshTokenLifetime));
+                utcNow.Add(JwtOptions.RefreshTokenLifetime));
 
             await _sessions.AddAsync(session, cancellationToken);
             await _sessions.SaveChangesAsync(cancellationToken);
@@ -59,17 +64,6 @@ namespace Yakku.Application.Auth.Services
 
             await _sessions.SaveChangesAsync(cancellationToken);
 
-            await _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = SystemLogLevel.Information,
-                    EventType = SystemLogEventTypes.SessionRefreshed,
-                    Message = "Session refreshed.",
-                    UserId = session.UserId,
-                    Details = new { sessionId = session.Id }
-                },
-                cancellationToken);
-
             return ToResponse(session.UserId, session.Id, secret);
         }
 
@@ -78,37 +72,21 @@ namespace Yakku.Application.Auth.Services
             CancellationToken cancellationToken = default)
         {
             var session = await LoadValidSessionAsync(refreshToken, cancellationToken);
-            var userId = session.UserId;
-            var sessionId = session.Id;
-            await _sessions.DeleteAsync(session, cancellationToken);
+            session.Revoke();
             await _sessions.SaveChangesAsync(cancellationToken);
-            await _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = SystemLogLevel.Information,
-                    EventType = SystemLogEventTypes.SessionRevoked,
-                    Message = "Session revoked.",
-                    UserId = userId,
-                    Details = new { sessionId }
-                },
-                cancellationToken);
         }
 
         public async Task RevokeAllAsync(
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            await _sessions.DeleteAllByUserIdAsync(userId, cancellationToken);
+            var sessions = await _sessions.ListByUserIdAsync(userId, cancellationToken);
+            foreach (var session in sessions)
+            {
+                session.Revoke();
+            }
+
             await _sessions.SaveChangesAsync(cancellationToken);
-            await _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = SystemLogLevel.Information,
-                    EventType = SystemLogEventTypes.SessionRevoked,
-                    Message = "All sessions revoked.",
-                    UserId = userId
-                },
-                cancellationToken);
         }
 
         private async Task<UserSession> LoadValidSessionAsync(
@@ -124,9 +102,9 @@ namespace Yakku.Application.Auth.Services
             }
 
             var session = await _sessions.GetByIdAsync(sessionId, cancellationToken);
-            if (session is null || session.IsExpired(DateTime.UtcNow))
+            if (session is null || session.RevokedAt is not null || session.IsExpired(DateTime.UtcNow))
             {
-                if (session is not null)
+                if (session is not null && session.RevokedAt is null && session.IsExpired(DateTime.UtcNow))
                 {
                     await _sessions.DeleteAsync(session, cancellationToken);
                     await _sessions.SaveChangesAsync(cancellationToken);

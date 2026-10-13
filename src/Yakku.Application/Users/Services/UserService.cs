@@ -1,13 +1,13 @@
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Polls;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Polls.Mapper;
 using Yakku.Application.Users.DTOs;
 using Yakku.Application.Users.Interfaces;
 using Yakku.Application.Users.Mapper;
 using Yakku.Application.Votes.Interfaces;
-using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Users.Services
 {
@@ -50,9 +50,13 @@ namespace Yakku.Application.Users.Services
                 cancellationToken);
 
             var hasMore = polls.Count > PollCursor.PageSize;
-            var items = polls
-                .Take(PollCursor.PageSize)
-                .Select(poll => poll.ToUserPollResponse())
+            var page = polls.Take(PollCursor.PageSize).ToList();
+            var counts = await _pollRepository.GetVoteCountsAsync(
+                page.Select(poll => poll.Id).ToArray(),
+                cancellationToken);
+            var items = page
+                .Select(poll => poll.ToUserPollResponse(
+                    counts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty))
                 .ToList();
 
             string? nextCursor = null;
@@ -85,8 +89,12 @@ namespace Yakku.Application.Users.Services
 
             var hasMore = entries.Count > PollCursor.PageSize;
             var page = entries.Take(PollCursor.PageSize).ToList();
+            var counts = await _pollRepository.GetVoteCountsAsync(
+                page.Select(entry => entry.Poll.Id).ToArray(),
+                cancellationToken);
             var items = page
-                .Select(entry => entry.Poll.ToUserPollResponse())
+                .Select(entry => entry.Poll.ToUserPollResponse(
+                    counts.GetValueOrDefault(entry.Poll.Id) ?? PollVoteCountSnapshot.Empty))
                 .ToList();
 
             string? nextCursor = null;
@@ -109,7 +117,7 @@ namespace Yakku.Application.Users.Services
             CancellationToken cancellationToken = default)
         {
             var poll = await _pollRepository.GetByIdAndCreatorAsync(pollId, userId, cancellationToken);
-            if (poll is null || poll.Status == PollStatus.Deleted)
+            if (poll is null)
             {
                 throw new AppException(
                     404,
@@ -121,8 +129,11 @@ namespace Yakku.Application.Users.Services
                 userId,
                 pollId,
                 cancellationToken);
+            var counts = await _pollRepository.GetVoteCountsAsync([poll.Id], cancellationToken);
 
-            return poll.ToUserPollDetailResponse(creatorVote);
+            return poll.ToUserPollDetailResponse(
+                creatorVote,
+                counts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty);
         }
     }
 }

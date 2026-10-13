@@ -23,18 +23,32 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return await _context.UserSessions.FindAsync([id], cancellationToken);
         }
 
+        public async Task<IReadOnlyList<UserSession>> ListLiveByUserIdAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.UserSessions
+                .Where(session =>
+                    session.UserId == userId
+                    && session.RevokedAt == null
+                    && session.ExpiresAt > utcNow)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<UserSession>> ListByUserIdAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.UserSessions
+                .Where(session => session.UserId == userId)
+                .ToListAsync(cancellationToken);
+        }
+
         public Task DeleteAsync(UserSession session, CancellationToken cancellationToken = default)
         {
             _context.UserSessions.Remove(session);
             return Task.CompletedTask;
-        }
-
-        public async Task DeleteAllByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
-        {
-            var sessions = await _context.UserSessions
-                .Where(session => session.UserId == userId)
-                .ToListAsync(cancellationToken);
-            _context.UserSessions.RemoveRange(sessions);
         }
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)

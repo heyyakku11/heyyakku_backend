@@ -15,11 +15,7 @@ namespace Yakku.Domain.Entities
         public DateTime? LastLoginAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
-        public ICollection<AdminSession> Sessions { get; private set; } = new List<AdminSession>();
-        public ICollection<AuditLog> AuditLogs { get; private set; } = new List<AuditLog>();
-        public ICollection<Category> DeletedCategories { get; private set; } = new List<Category>();
-        public ICollection<Report> ReviewedReports { get; private set; } = new List<Report>();
-        public ICollection<SystemLog> SystemLogs { get; private set; } = new List<SystemLog>();
+        public AdminSession? Session { get; private set; }
 
         private Admin()
         {

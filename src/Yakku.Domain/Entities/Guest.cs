@@ -8,10 +8,6 @@ namespace Yakku.Domain.Entities
         public DateTime? LastSeenAt { get; private set; }
         public DateTime ExpiresAt { get; private set; }
 
-        public ICollection<Vote> Votes { get; private set; } = new List<Vote>();
-        public ICollection<SystemLog> SystemLogs { get; private set; } = new List<SystemLog>();
-        public ICollection<Report> Reports { get; private set; } = new List<Report>();
-
         private Guest()
         {
         }

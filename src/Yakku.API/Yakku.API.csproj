@@ -22,8 +22,4 @@
 		<ProjectReference Include="..\Yakku.Infrastructure\Yakku.Infrastructure.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<InternalsVisibleTo Include="Yakku.Application.Tests" />
-	</ItemGroup>
-
 </Project>

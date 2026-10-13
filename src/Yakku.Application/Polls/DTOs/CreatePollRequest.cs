@@ -3,10 +3,10 @@ namespace Yakku.Application.Polls.DTOs
     public class CreatePollRequest
     {
         public string Question { get; set; } = string.Empty;
-        public Guid? CategoryId { get; set; }
-        public string OptionType { get; set; } = string.Empty;
-        public List<CreatePollOptionRequest> Options { get; set; } = [];
-        public int SelectedOptionIndex { get; set; }
+        public string ContentType { get; set; } = string.Empty;
+        public string? Visibility { get; set; }
         public DateTime? ExpiresAt { get; set; }
+        public List<CreatePollOptionRequest> Options { get; set; } = [];
+        public Guid? MediaUploadSessionId { get; set; }
     }
 }

@@ -6,9 +6,11 @@ namespace Yakku.Application.YakkuDirectory.DTOs
         public Guid CreatorId { get; set; }
         public string Question { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
-        public string OptionType { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public string Visibility { get; set; } = string.Empty;
         public int TotalVoteCount { get; set; }
-        public DateTime? ExpiresAt { get; set; }
+        public int CustomAnswerCount { get; set; }
+        public int TotalWhyCount { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

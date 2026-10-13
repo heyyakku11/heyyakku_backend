@@ -8,6 +8,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 {
     public class VoteRepository : IVoteRepository
     {
+        private const string OneVotePerPollConstraint = "IX_poll_votes_poll_id_voter_id";
+
         private readonly YakkuDbContext _context;
 
         public VoteRepository(YakkuDbContext context)
@@ -15,19 +17,9 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public async Task AddAsync(Vote vote, CancellationToken cancellationToken = default)
+        public async Task AddAsync(PollVote vote, CancellationToken cancellationToken = default)
         {
-            await _context.Votes.AddAsync(vote, cancellationToken);
-        }
-
-        public async Task<bool> ExistsForGuestAsync(
-            Guid guestId,
-            Guid pollId,
-            CancellationToken cancellationToken = default)
-        {
-            return await _context.Votes.AnyAsync(
-                vote => vote.GuestId == guestId && vote.PollId == pollId,
-                cancellationToken);
+            await _context.PollVotes.AddAsync(vote, cancellationToken);
         }
 
         public async Task<bool> ExistsForUserAsync(
@@ -35,21 +27,20 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             Guid pollId,
             CancellationToken cancellationToken = default)
         {
-            return await _context.Votes.AnyAsync(
-                vote => vote.UserId == userId && vote.PollId == pollId,
+            return await _context.PollVotes.AnyAsync(
+                vote => vote.VoterId == userId && vote.PollId == pollId,
                 cancellationToken);
         }
 
-        public async Task<Vote?> GetByUserAndPollAsync(
+        public async Task<PollVote?> GetByUserAndPollAsync(
             Guid userId,
             Guid pollId,
             CancellationToken cancellationToken = default)
         {
-            return await _context.Votes
+            return await _context.PollVotes
                 .AsNoTracking()
-                .Include(vote => vote.PollOption)
                 .FirstOrDefaultAsync(
-                    vote => vote.UserId == userId && vote.PollId == pollId,
+                    vote => vote.VoterId == userId && vote.PollId == pollId,
                     cancellationToken);
         }
 
@@ -59,9 +50,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             {
                 await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException exception) when (
-                IsUniqueViolation(exception, "IX_Votes_PollId_GuestId") ||
-                IsUniqueViolation(exception, "IX_Votes_PollId_UserId"))
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception, OneVotePerPollConstraint))
             {
                 throw VoteExceptions.AlreadyVoted();
             }

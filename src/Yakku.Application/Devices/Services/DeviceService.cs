@@ -6,9 +6,6 @@ using Yakku.Application.Devices.DTOs;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Devices.Mapper;
 using Yakku.Application.NotificationPreferences.Interfaces;
-using Yakku.Application.System;
-using Yakku.Application.System.DTOs;
-using Yakku.Application.System.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -19,20 +16,17 @@ namespace Yakku.Application.Devices.Services
         private readonly IDeviceRepository _devices;
         private readonly IUserSessionRepository _sessions;
         private readonly INotificationPreferenceRepository _preferences;
-        private readonly ISystemLogWriter _systemLogWriter;
         private readonly IValidator<RegisterDeviceRequest> _registerValidator;
 
         public DeviceService(
             IDeviceRepository devices,
             IUserSessionRepository sessions,
             INotificationPreferenceRepository preferences,
-            ISystemLogWriter systemLogWriter,
             IValidator<RegisterDeviceRequest> registerValidator)
         {
             _devices = devices;
             _sessions = sessions;
             _preferences = preferences;
-            _systemLogWriter = systemLogWriter;
             _registerValidator = registerValidator;
         }
 
@@ -66,12 +60,6 @@ namespace Yakku.Application.Devices.Services
                 await LinkSessionAsync(userId, sessionId, existing.Id, cancellationToken);
                 await EnsureNotificationPreferencesAsync(userId, existing, cancellationToken);
                 await _devices.SaveChangesAsync(cancellationToken);
-                await LogAsync(
-                    SystemLogEventTypes.DeviceRegistered,
-                    "Device registration updated.",
-                    userId,
-                    existing,
-                    cancellationToken);
 
                 return new RegisterDeviceResult
                 {
@@ -122,12 +110,6 @@ namespace Yakku.Application.Devices.Services
                 await LinkSessionAsync(userId, sessionId, raced.Id, cancellationToken);
                 await EnsureNotificationPreferencesAsync(userId, raced, cancellationToken);
                 await _devices.SaveChangesAsync(cancellationToken);
-                await LogAsync(
-                    SystemLogEventTypes.DeviceRegistered,
-                    "Device registration updated.",
-                    userId,
-                    raced,
-                    cancellationToken);
 
                 return new RegisterDeviceResult
                 {
@@ -135,13 +117,6 @@ namespace Yakku.Application.Devices.Services
                     Created = false
                 };
             }
-
-            await LogAsync(
-                SystemLogEventTypes.DeviceRegistered,
-                "Device registered.",
-                userId,
-                device,
-                cancellationToken);
 
             return new RegisterDeviceResult
             {
@@ -202,30 +177,6 @@ namespace Yakku.Application.Devices.Services
                     ApiErrorCodes.Unauthorized,
                     "Unauthorized.");
             }
-        }
-
-        private Task LogAsync(
-            string eventType,
-            string message,
-            Guid userId,
-            Device device,
-            CancellationToken cancellationToken)
-        {
-            return _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = SystemLogLevel.Information,
-                    EventType = eventType,
-                    Message = message,
-                    UserId = userId,
-                    Details = new
-                    {
-                        deviceId = device.Id,
-                        installationId = device.InstallationId,
-                        isActive = device.IsActive
-                    }
-                },
-                cancellationToken);
         }
 
         private static NotificationPermissionStatus? ParseOptionalPermission(string? value)

@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Yakku.Application.Categories.DTOs;
-using Yakku.Application.Categories.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.YakkuDirectory.DTOs;
@@ -15,14 +13,10 @@ namespace Yakku.API.Controllers
     public class YakkuController : ControllerBase
     {
         private readonly IYakkuDirectoryService _directoryService;
-        private readonly ICategoryService _categoryService;
 
-        public YakkuController(
-            IYakkuDirectoryService directoryService,
-            ICategoryService categoryService)
+        public YakkuController(IYakkuDirectoryService directoryService)
         {
             _directoryService = directoryService;
-            _categoryService = categoryService;
         }
 
         [HttpGet("users")]
@@ -78,45 +72,6 @@ namespace Yakku.API.Controllers
             {
                 var result = await _directoryService.ListPollsAsync(status, cancellationToken);
                 return Ok(ApiResponse.Ok(result, "Polls retrieved successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ToErrorResult(ex);
-            }
-        }
-
-        [AllowAnonymous]
-        [HttpGet("categories")]
-        [ProducesResponseType(typeof(ApiResponse<List<CategoryResponse>>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetCategories(CancellationToken cancellationToken)
-        {
-            try
-            {
-                var result = await _categoryService.ListAsync(cancellationToken);
-                return Ok(ApiResponse.Ok(result, "Categories retrieved successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ToErrorResult(ex);
-            }
-        }
-
-        [HttpPost("categories")]
-        [ProducesResponseType(typeof(ApiResponse<CategoryResponse>), StatusCodes.Status201Created)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> CreateCategory(
-            [FromBody] CreateCategoryRequest request,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                var result = await _categoryService.CreateAsync(request, cancellationToken);
-                return StatusCode(
-                    StatusCodes.Status201Created,
-                    ApiResponse.Ok(result, "Category created successfully"));
             }
             catch (AppException ex)
             {

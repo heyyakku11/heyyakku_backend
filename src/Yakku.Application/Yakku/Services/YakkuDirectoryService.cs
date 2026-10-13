@@ -1,5 +1,6 @@
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Guests.Interfaces;
+using Yakku.Application.Polls;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.YakkuDirectory.DTOs;
 using Yakku.Application.YakkuDirectory.Interfaces;
@@ -34,10 +35,11 @@ namespace Yakku.Application.YakkuDirectory.Services
                 .Select(user => new YakkuUserProfileResponse
                 {
                     Id = user.Id,
-                    Email = user.Email,
-                    DisplayName = user.Profile?.DisplayName ?? string.Empty,
+                    PhoneNumber = user.PhoneNumber,
+                    Name = user.Profile?.Name ?? string.Empty,
+                    AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
                     Status = user.Status == UserStatus.Active ? "active" : "nonactive",
-                    LastLoginAt = user.LastLoginAt,
+                    LoginAt = user.LoginAt,
                     CreatedAt = user.CreatedAt
                 })
                 .ToList();
@@ -69,18 +71,27 @@ namespace Yakku.Application.YakkuDirectory.Services
         {
             var filter = YakkuStatusFilter.ParsePollStatus(status);
             var polls = await _polls.ListByStatusAsync(filter, cancellationToken);
+            var counts = await _polls.GetVoteCountsAsync(
+                polls.Select(poll => poll.Id).ToArray(),
+                cancellationToken);
 
             return polls
-                .Select(poll => new YakkuPollResponse
+                .Select(poll =>
                 {
-                    Id = poll.Id,
-                    CreatorId = poll.CreatorId,
-                    Question = poll.Question,
-                    Status = poll.Status.ToString().ToLowerInvariant(),
-                    OptionType = poll.OptionType.ToString().ToLowerInvariant(),
-                    TotalVoteCount = poll.TotalVoteCount,
-                    ExpiresAt = poll.ExpiresAt,
-                    CreatedAt = poll.CreatedAt
+                    var tally = counts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty;
+                    return new YakkuPollResponse
+                    {
+                        Id = poll.Id,
+                        CreatorId = poll.CreatorId,
+                        Question = poll.Question,
+                        Status = poll.Status.ToString().ToLowerInvariant(),
+                        ContentType = poll.ContentType.ToString().ToLowerInvariant(),
+                        Visibility = poll.Visibility.ToString().ToLowerInvariant(),
+                        TotalVoteCount = tally.TotalVotes,
+                        CustomAnswerCount = tally.CustomAnswerCount,
+                        TotalWhyCount = tally.WhyCount,
+                        CreatedAt = poll.CreatedAt
+                    };
                 })
                 .ToList();
         }

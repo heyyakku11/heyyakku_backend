@@ -5,15 +5,14 @@ namespace Yakku.Application.Votes.Mapper
 {
     internal static class VoteMappings
     {
-        public static VoteResponse ToResponse(this Vote vote)
+        public static VoteResponse ToResponse(this PollVote vote)
         {
             return new VoteResponse
             {
                 Id = vote.Id,
                 PollId = vote.PollId,
                 PollOptionId = vote.PollOptionId,
-                CustomOptionText = vote.CustomOptionText,
-                ImageId = vote.ImageId,
+                CustomAnswer = vote.CustomAnswer,
                 Reason = vote.Reason,
                 CreatedAt = vote.CreatedAt
             };

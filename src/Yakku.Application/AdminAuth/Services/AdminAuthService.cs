@@ -9,9 +9,6 @@ using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Email;
 using Yakku.Application.Email.Interfaces;
-using Yakku.Application.System;
-using Yakku.Application.System.DTOs;
-using Yakku.Application.System.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -22,10 +19,8 @@ namespace Yakku.Application.AdminAuth.Services
         private readonly IAdminRepository _adminRepository;
         private readonly IAdminOtpChallengeStore _otpChallengeStore;
         private readonly IOtpGenerator _otpGenerator;
-        private readonly IEmailLogRepository _emailLogRepository;
         private readonly IOtpEmailQueue _otpEmailQueue;
         private readonly IAdminSessionService _sessionService;
-        private readonly ISystemLogWriter _systemLogWriter;
         private readonly IValidator<AdminRegisterRequest> _registerValidator;
         private readonly IValidator<AdminVerifyOtpRequest> _verifyOtpValidator;
         private readonly IValidator<AdminLoginRequest> _loginValidator;
@@ -34,10 +29,8 @@ namespace Yakku.Application.AdminAuth.Services
             IAdminRepository adminRepository,
             IAdminOtpChallengeStore otpChallengeStore,
             IOtpGenerator otpGenerator,
-            IEmailLogRepository emailLogRepository,
             IOtpEmailQueue otpEmailQueue,
             IAdminSessionService sessionService,
-            ISystemLogWriter systemLogWriter,
             IValidator<AdminRegisterRequest> registerValidator,
             IValidator<AdminVerifyOtpRequest> verifyOtpValidator,
             IValidator<AdminLoginRequest> loginValidator)
@@ -45,10 +38,8 @@ namespace Yakku.Application.AdminAuth.Services
             _adminRepository = adminRepository;
             _otpChallengeStore = otpChallengeStore;
             _otpGenerator = otpGenerator;
-            _emailLogRepository = emailLogRepository;
             _otpEmailQueue = otpEmailQueue;
             _sessionService = sessionService;
-            _systemLogWriter = systemLogWriter;
             _registerValidator = registerValidator;
             _verifyOtpValidator = verifyOtpValidator;
             _loginValidator = loginValidator;
@@ -88,7 +79,8 @@ namespace Yakku.Application.AdminAuth.Services
             var challenge = new OtpChallenge
             {
                 ChallengeId = challengeId,
-                OtpHash = OtpHasher.Hash(email, otp),
+                // OtpHash = OtpHasher.Hash(email, otp),
+                OtpHash = otp,
                 Purpose = OtpPurpose.Registration,
                 PasswordHash = AdminPasswordHasher.Hash(request.Password),
                 AttemptCount = 0,
@@ -97,34 +89,8 @@ namespace Yakku.Application.AdminAuth.Services
 
             await _otpChallengeStore.SetAsync(email, challenge, OtpOptions.Ttl, cancellationToken);
 
-            var emailLog = new EmailLog(
-                email,
-                EmailType.Otp,
-                challengeId,
-                OtpEmailQueueOptions.ProviderName,
-                OtpEmailQueueOptions.MaxAttempts);
-
-            await _emailLogRepository.AddAsync(emailLog, cancellationToken);
-            await _emailLogRepository.SaveChangesAsync(cancellationToken);
-
             await _otpEmailQueue.EnqueueAsync(
-                new EmailJob(emailLog.Id, challengeId, email, otp),
-                cancellationToken);
-
-            await _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = SystemLogLevel.Information,
-                    EventType = SystemLogEventTypes.OtpRequested,
-                    Message = "Admin OTP requested.",
-                    Details = new
-                    {
-                        email,
-                        purpose = OtpPurpose.Registration.ToString(),
-                        emailLogId = emailLog.Id,
-                        challengeId
-                    }
-                },
+                new EmailJob(challengeId, email, otp),
                 cancellationToken);
 
             return new RequestOtpResponse
@@ -155,7 +121,6 @@ namespace Yakku.Application.AdminAuth.Services
 
             if (challenge.AttemptCount >= OtpOptions.MaxVerificationAttempts)
             {
-                await LogOtpInvalidAsync(email, ApiErrorCodes.OtpAttemptsExceeded, cancellationToken);
                 throw new AppException(
                     400,
                     ApiErrorCodes.OtpAttemptsExceeded,
@@ -163,7 +128,8 @@ namespace Yakku.Application.AdminAuth.Services
                     "otp");
             }
 
-            if (!OtpHasher.Verify(email, request.Otp.Trim(), challenge.OtpHash))
+            // if (!OtpHasher.Verify(email, request.Otp.Trim(), challenge.OtpHash))
+            if (!string.Equals(request.Otp.Trim(), challenge.OtpHash, StringComparison.Ordinal))
             {
                 challenge.AttemptCount++;
                 var replaced = await _otpChallengeStore.ReplaceKeepingTtlAsync(email, challenge, cancellationToken);
@@ -178,7 +144,6 @@ namespace Yakku.Application.AdminAuth.Services
 
                 if (challenge.AttemptCount >= OtpOptions.MaxVerificationAttempts)
                 {
-                    await LogOtpInvalidAsync(email, ApiErrorCodes.OtpAttemptsExceeded, cancellationToken);
                     throw new AppException(
                         400,
                         ApiErrorCodes.OtpAttemptsExceeded,
@@ -186,7 +151,6 @@ namespace Yakku.Application.AdminAuth.Services
                         "otp");
                 }
 
-                await LogOtpInvalidAsync(email, ApiErrorCodes.OtpInvalid, cancellationToken);
                 throw new AppException(
                     400,
                     ApiErrorCodes.OtpInvalid,
@@ -229,16 +193,6 @@ namespace Yakku.Application.AdminAuth.Services
             admin.RecordLogin();
             await _adminRepository.SaveChangesAsync(cancellationToken);
             await _otpChallengeStore.DeleteAsync(email, cancellationToken);
-
-            await _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = SystemLogLevel.Information,
-                    EventType = SystemLogEventTypes.AdminRegistered,
-                    Message = "Admin registered.",
-                    Details = new { email, adminId = admin.Id }
-                },
-                cancellationToken);
 
             return ToAuthResponse(
                 await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken),
@@ -283,16 +237,6 @@ namespace Yakku.Application.AdminAuth.Services
             admin.RecordLogin();
             await _adminRepository.SaveChangesAsync(cancellationToken);
 
-            await _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = SystemLogLevel.Information,
-                    EventType = SystemLogEventTypes.AdminLoggedIn,
-                    Message = "Admin logged in.",
-                    Details = new { email, adminId = admin.Id }
-                },
-                cancellationToken);
-
             return ToAuthResponse(
                 await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken),
                 admin);
@@ -309,19 +253,6 @@ namespace Yakku.Application.AdminAuth.Services
                 Email = admin.Email,
                 Role = admin.Role.ToString()
             };
-        }
-
-        private Task LogOtpInvalidAsync(string email, string reason, CancellationToken cancellationToken)
-        {
-            return _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = SystemLogLevel.Warning,
-                    EventType = SystemLogEventTypes.OtpInvalid,
-                    Message = "Admin OTP verification failed.",
-                    Details = new { email, reason }
-                },
-                cancellationToken);
         }
 
         private static void EnsureAllowedEmail(string email)

@@ -16,8 +16,4 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="Yakku.Application.Tests" />
-  </ItemGroup>
-
 </Project>

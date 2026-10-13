@@ -9,6 +9,9 @@ namespace Yakku.Application.Common.Responses
         public const string Forbidden = "FORBIDDEN";
         public const string Conflict = "CONFLICT";
         public const string AlreadyVoted = "ALREADY_VOTED";
+        public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
+        public const string UnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE";
+        public const string RateLimited = "RATE_LIMITED";
         public const string OtpNotFound = "OTP_NOT_FOUND";
         public const string OtpExpired = "OTP_EXPIRED";
         public const string OtpInvalid = "OTP_INVALID";

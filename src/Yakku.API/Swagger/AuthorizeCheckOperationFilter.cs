@@ -27,13 +27,6 @@ namespace Yakku.API.Swagger
         {
             var metadata = context.ApiDescription.ActionDescriptor.EndpointMetadata;
 
-            // Guest votes use cookie identity; still show the lock in Swagger.
-            if (string.Equals(context.MethodInfo.Name, "GuestVote", StringComparison.Ordinal)
-                || context.ApiDescription.RelativePath?.Contains("guest-votes", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                return true;
-            }
-
             if (metadata.OfType<IAllowAnonymous>().Any()
                 || HasAttribute<AllowAnonymousAttribute>(context.MethodInfo))
             {

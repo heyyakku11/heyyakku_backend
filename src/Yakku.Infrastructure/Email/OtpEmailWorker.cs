@@ -5,11 +5,6 @@ using Microsoft.Extensions.Logging;
 using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Email;
-using Yakku.Application.Email.Interfaces;
-using Yakku.Application.System;
-using Yakku.Application.System.DTOs;
-using Yakku.Application.System.Interfaces;
-using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Email
 {
@@ -48,14 +43,8 @@ namespace Yakku.Infrastructure.Email
                 {
                     _logger.LogError(
                         exception,
-                        "Unhandled fault while processing OTP email job {EmailLogId}",
-                        job.EmailLogId);
-                    await WriteSystemLogAsync(
-                        SystemLogLevel.Error,
-                        SystemLogEventTypes.OtpEmailWorkerFault,
-                        "OTP email worker fault.",
-                        new { emailLogId = job.EmailLogId, challengeId = job.ChallengeId },
-                        stoppingToken);
+                        "Unhandled fault while processing OTP email job {ChallengeId}",
+                        job.ChallengeId);
                 }
             }
         }
@@ -63,36 +52,26 @@ namespace Yakku.Infrastructure.Email
         private async Task ProcessJobAsync(EmailJob job, CancellationToken stoppingToken)
         {
             using var scope = _scopeFactory.CreateScope();
-            var emailLogs = scope.ServiceProvider.GetRequiredService<IEmailLogRepository>();
             var otpStore = scope.ServiceProvider.GetRequiredService<IOtpChallengeStore>();
             var adminOtpStore = scope.ServiceProvider.GetRequiredService<IAdminOtpChallengeStore>();
-            var systemLogs = scope.ServiceProvider.GetRequiredService<ISystemLogWriter>();
-
-            var emailLog = await emailLogs.GetByIdAsync(job.EmailLogId, stoppingToken);
-            if (emailLog is null)
-            {
-                _logger.LogWarning("EmailLog {EmailLogId} was not found for OTP job.", job.EmailLogId);
-                return;
-            }
 
             if (!await IsChallengeCurrentAsync(otpStore, adminOtpStore, job, stoppingToken))
             {
-                emailLog.MarkCancelled("Superseded", "OTP challenge was replaced before send.");
-                await emailLogs.SaveChangesAsync(stoppingToken);
+                _logger.LogInformation(
+                    "Skipping OTP email for superseded challenge {ChallengeId}.",
+                    job.ChallengeId);
                 return;
             }
 
-            emailLog.MarkSending();
-            await emailLogs.SaveChangesAsync(stoppingToken);
-
-            for (var attempt = 1; attempt <= emailLog.MaxAttempts; attempt++)
+            for (var attempt = 1; attempt <= OtpEmailQueueOptions.MaxAttempts; attempt++)
             {
                 stoppingToken.ThrowIfCancellationRequested();
 
                 if (!await IsChallengeCurrentAsync(otpStore, adminOtpStore, job, stoppingToken))
                 {
-                    emailLog.MarkCancelled("Superseded", "OTP challenge was replaced during send.");
-                    await emailLogs.SaveChangesAsync(stoppingToken);
+                    _logger.LogInformation(
+                        "Stopping OTP email for superseded challenge {ChallengeId}.",
+                        job.ChallengeId);
                     return;
                 }
 
@@ -102,41 +81,19 @@ namespace Yakku.Infrastructure.Email
                     await Task.Delay(WithJitter(OtpEmailQueueOptions.RetryDelays[delayIndex]), stoppingToken);
                 }
 
-                emailLog.RecordAttempt();
-                await emailLogs.SaveChangesAsync(stoppingToken);
-
                 var result = await _emailSender.SendOtpAsync(job.RecipientEmail, job.Otp, stoppingToken);
                 if (result.Succeeded)
                 {
-                    emailLog.MarkSent(result.ProviderMessageId);
-                    await emailLogs.SaveChangesAsync(stoppingToken);
                     return;
                 }
 
-                if (result.IsPermanentFailure || attempt >= emailLog.MaxAttempts)
+                if (result.IsPermanentFailure || attempt >= OtpEmailQueueOptions.MaxAttempts)
                 {
-                    emailLog.MarkFailed(
-                        result.ErrorCode ?? "SendFailed",
-                        result.ErrorMessage);
-                    await emailLogs.SaveChangesAsync(stoppingToken);
-
                     await DeleteMatchingChallengeAsync(otpStore, adminOtpStore, job, stoppingToken);
-
-                    await systemLogs.WriteAsync(
-                        new SystemLogWriteRequest
-                        {
-                            Level = SystemLogLevel.Warning,
-                            EventType = SystemLogEventTypes.OtpEmailPermanentlyFailed,
-                            Message = "OTP email permanently failed.",
-                            Details = new
-                            {
-                                emailLogId = emailLog.Id,
-                                challengeId = job.ChallengeId,
-                                errorCode = result.ErrorCode
-                            },
-                            UserId = emailLog.UserId
-                        },
-                        stoppingToken);
+                    _logger.LogWarning(
+                        "OTP email permanently failed for challenge {ChallengeId}. Error code: {ErrorCode}",
+                        job.ChallengeId,
+                        result.ErrorCode);
                     return;
                 }
             }
@@ -177,33 +134,6 @@ namespace Yakku.Infrastructure.Email
         {
             var factor = 0.8 + (Random.Shared.NextDouble() * 0.4);
             return TimeSpan.FromMilliseconds(delay.TotalMilliseconds * factor);
-        }
-
-        private async Task WriteSystemLogAsync(
-            SystemLogLevel level,
-            string eventType,
-            string message,
-            object details,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var systemLogs = scope.ServiceProvider.GetRequiredService<ISystemLogWriter>();
-                await systemLogs.WriteAsync(
-                    new SystemLogWriteRequest
-                    {
-                        Level = level,
-                        EventType = eventType,
-                        Message = message,
-                        Details = details
-                    },
-                    cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception, "Failed to write system log {EventType}", eventType);
-            }
         }
     }
 }

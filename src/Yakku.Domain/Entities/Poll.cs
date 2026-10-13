@@ -1,6 +1,4 @@
-﻿using System.Buffers.Text;
-using System.Security.Cryptography;
-using Yakku.Domain.Enums;
+﻿using Yakku.Domain.Enums;
 
 namespace Yakku.Domain.Entities
 {
@@ -8,27 +6,20 @@ namespace Yakku.Domain.Entities
     {
         public Guid Id { get; private set; }
         public Guid CreatorId { get; private set; }
-        public string ShareToken { get; private set; } = string.Empty;
         public string Question { get; private set; } = string.Empty;
-        public OptionType OptionType { get; private set; }
+        public PollContentType ContentType { get; private set; }
         public PollStatus Status { get; private set; }
+        public PollVisibility Visibility { get; private set; }
         public DateTime? ExpiresAt { get; private set; }
-        public bool AllowComments { get; private set; }
-        public DateTime? ClosedAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
-        public DateTime? DeletedAt { get; private set; }
-        public Guid? DeletedBy { get; private set; }
-        public string? DeletedReason { get; private set; }
-        public int TotalVoteCount { get; private set; }
 
         public User Creator { get; private set; } = null!;
-        public ICollection<PollCategory> PollCategories { get; private set; } = new List<PollCategory>();
         public ICollection<PollOption> Options { get; private set; } = new List<PollOption>();
-        public ICollection<Vote> Votes { get; private set; } = new List<Vote>();
-        public ICollection<Comment> Comments { get; private set; } = new List<Comment>();
+        public PollMedia? Media { get; private set; }
+        public ICollection<PollVote> Votes { get; private set; } = new List<PollVote>();
         public ICollection<SavedPoll> SavedPolls { get; private set; } = new List<SavedPoll>();
-        public PollAnalytics? PollAnalytics { get; private set; }
+        public ICollection<MediaUploadSession> UploadSessions { get; private set; } = new List<MediaUploadSession>();
 
         private Poll()
         {
@@ -37,42 +28,19 @@ namespace Yakku.Domain.Entities
         public Poll(
             Guid creatorId,
             string question,
-            OptionType optionType,
-            DateTime? expiresAt = null,
-            bool allowComments = false)
+            PollContentType contentType,
+            PollVisibility visibility = PollVisibility.Public,
+            DateTime? expiresAt = null)
         {
             Id = Guid.NewGuid();
             CreatorId = creatorId;
-            ShareToken = Base64Url.EncodeToString(
-                SHA256.HashData(RandomNumberGenerator.GetBytes(32)));
             Question = question;
-            OptionType = optionType;
-            Status = PollStatus.Active;
-            ExpiresAt = ToUtc(expiresAt);
-            AllowComments = allowComments;
+            ContentType = contentType;
+            Status = PollStatus.Draft;
+            Visibility = visibility;
+            ExpiresAt = expiresAt;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
-            TotalVoteCount = 0;
-        }
-
-        private static DateTime? ToUtc(DateTime? value)
-        {
-            if (value is null)
-            {
-                return null;
-            }
-
-            return value.Value.Kind switch
-            {
-                DateTimeKind.Utc => value.Value,
-                DateTimeKind.Local => value.Value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
-            };
-        }
-
-        public void AddCategory(Guid categoryId)
-        {
-            PollCategories.Add(new PollCategory(Id, categoryId));
         }
 
         public void AddTextOption(string text, int sortOrder)
@@ -80,47 +48,190 @@ namespace Yakku.Domain.Entities
             Options.Add(PollOption.CreateText(Id, text, sortOrder));
         }
 
-        public void AddImageOption(Guid imageId, int sortOrder)
+        public string? GetMediaAttachmentBlocker(PollMediaType mediaType)
         {
-            Options.Add(PollOption.CreateImage(Id, imageId, sortOrder));
+            if (Status != PollStatus.Draft)
+            {
+                return "Media can only be attached to a draft poll.";
+            }
+
+            if (ContentType == PollContentType.Question)
+            {
+                return "Question polls cannot have media.";
+            }
+
+            if (Media is not null)
+            {
+                return "This poll already has media.";
+            }
+
+            if (!ContentTypeMatches(mediaType))
+            {
+                return "Media type does not match the poll content type.";
+            }
+
+            return null;
+        }
+
+        public void AttachMedia(PollMedia media)
+        {
+            var blocker = GetMediaAttachmentBlocker(media.MediaType);
+            if (blocker is not null)
+            {
+                throw new InvalidOperationException(blocker);
+            }
+
+            Media = media;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        public PollMedia? ClearMedia()
+        {
+            if (Status != PollStatus.Draft)
+            {
+                throw new InvalidOperationException("Media can only be changed on a draft poll.");
+            }
+
+            var existing = Media;
+            Media = null;
+            UpdatedAt = DateTime.UtcNow;
+            return existing;
+        }
+
+        public void UpdateQuestion(string question)
+        {
+            if (Status != PollStatus.Draft)
+            {
+                throw new InvalidOperationException("Only a draft poll can be updated.");
+            }
+
+            Question = question;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        public void UpdateVisibility(PollVisibility visibility)
+        {
+            if (Status != PollStatus.Draft)
+            {
+                throw new InvalidOperationException("Only a draft poll can be updated.");
+            }
+
+            Visibility = visibility;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        public void UpdateExpiresAt(DateTime? expiresAt)
+        {
+            if (Status != PollStatus.Draft)
+            {
+                throw new InvalidOperationException("Only a draft poll can be updated.");
+            }
+
+            ExpiresAt = expiresAt;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        public void ReplaceTextOptions(IReadOnlyList<(string Text, int DisplayOrder)> options)
+        {
+            if (Status != PollStatus.Draft)
+            {
+                throw new InvalidOperationException("Only a draft poll can be updated.");
+            }
+
+            Options.Clear();
+            foreach (var option in options)
+            {
+                AddTextOption(option.Text, option.DisplayOrder);
+            }
+
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        public string? GetPublishBlocker()
+        {
+            if (Status != PollStatus.Draft)
+            {
+                return "Only a draft poll can be published.";
+            }
+
+            if (string.IsNullOrWhiteSpace(Question))
+            {
+                return "Question is required.";
+            }
+
+            if (Options.Count is < 2 or > 3)
+            {
+                return "A poll must have 2 or 3 options.";
+            }
+
+            if (ContentType == PollContentType.Question)
+            {
+                return Media is null
+                    ? null
+                    : "Question polls cannot have media.";
+            }
+
+            if (Media is null || !ContentTypeMatches(Media.MediaType))
+            {
+                return "This poll needs one matching media item before it can be published.";
+            }
+
+            return null;
+        }
+
+        public void Publish()
+        {
+            var blocker = GetPublishBlocker();
+            if (blocker is not null)
+            {
+                throw new InvalidOperationException(blocker);
+            }
+
+            MarkPublished();
+        }
+
+        public void MarkPublished()
+        {
+            Status = PollStatus.Active;
+            UpdatedAt = DateTime.UtcNow;
         }
 
         public bool TryClose()
         {
-            if (Status == PollStatus.Deleted)
-            {
-                return false;
-            }
-
-            if (Status == PollStatus.Closed)
-            {
-                return false;
-            }
-
             if (Status != PollStatus.Active)
             {
                 return false;
             }
 
             Status = PollStatus.Closed;
-            ClosedAt = DateTime.UtcNow;
-            UpdatedAt = ClosedAt.Value;
+            UpdatedAt = DateTime.UtcNow;
             return true;
         }
 
-        public bool TrySoftDelete(Guid? deletedBy = null, string? deletedReason = null)
+        public bool IsAcceptingVotes(DateTime utcNow)
         {
-            if (Status == PollStatus.Deleted)
+            if (Status != PollStatus.Active)
             {
                 return false;
             }
 
-            Status = PollStatus.Deleted;
-            DeletedAt = DateTime.UtcNow;
-            DeletedBy = deletedBy;
-            DeletedReason = deletedReason;
-            UpdatedAt = DeletedAt.Value;
-            return true;
+            return ExpiresAt is null || ExpiresAt > utcNow;
+        }
+
+        public bool MatchesMedia(PollMediaType mediaType)
+        {
+            return ContentTypeMatches(mediaType);
+        }
+
+        private bool ContentTypeMatches(PollMediaType mediaType)
+        {
+            return ContentType switch
+            {
+                PollContentType.Image => mediaType == PollMediaType.Image,
+                PollContentType.Video => mediaType == PollMediaType.Video,
+                PollContentType.Audio => mediaType == PollMediaType.Audio,
+                _ => false
+            };
         }
     }
 }

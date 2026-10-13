@@ -11,9 +11,10 @@ namespace Yakku.Application.Users.Mapper
             {
                 Id = user.Id,
                 Status = user.Status.ToString(),
-                Email = user.Email,
-                DisplayName = user.Profile?.DisplayName ?? string.Empty,
-                LastLoginAt = user.LastLoginAt,
+                PhoneNumber = user.PhoneNumber,
+                Name = user.Profile?.Name ?? string.Empty,
+                AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
+                LoginAt = user.LoginAt,
                 AvatarUrl = null
             };
         }

@@ -24,11 +24,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
         }
 
-        public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+        public async Task<User?> GetByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
         {
             return await _context.Users
                 .Include(user => user.Profile)
-                .FirstOrDefaultAsync(user => user.Email == email, cancellationToken);
+                .FirstOrDefaultAsync(user => user.PhoneNumber == phoneNumber, cancellationToken);
         }
 
         public async Task<IReadOnlyList<User>> ListAsync(
@@ -51,10 +51,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<bool> DisplayNameExistsAsync(string displayName, CancellationToken cancellationToken = default)
+        public async Task<bool> AnonymousNameExistsAsync(string anonymousName, CancellationToken cancellationToken = default)
         {
             return await _context.UserProfiles
-                .AnyAsync(profile => profile.DisplayName == displayName, cancellationToken);
+                .AnyAsync(profile => profile.AnonymousName == anonymousName, cancellationToken);
         }
 
         public async Task AddAsync(User user, CancellationToken cancellationToken = default)
@@ -68,21 +68,21 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             {
                 await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException exception) when (IsUniqueViolation(exception, "IX_UserProfiles_DisplayName"))
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception, "IX_UserProfiles_AnonymousName"))
             {
                 throw new AppException(
                     409,
                     ApiErrorCodes.Conflict,
-                    "Display name already exists.",
-                    "displayName");
+                    "Anonymous name already exists.",
+                    "anonymousName");
             }
-            catch (DbUpdateException exception) when (IsUniqueViolation(exception, "IX_Users_Email"))
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception, "IX_Users_PhoneNumber"))
             {
                 throw new AppException(
                     409,
                     ApiErrorCodes.Conflict,
-                    "An account with this email already exists.",
-                    "email");
+                    "An account with this phone number already exists.",
+                    "phoneNumber");
             }
         }
 

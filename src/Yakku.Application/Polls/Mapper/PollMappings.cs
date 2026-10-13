@@ -7,104 +7,66 @@ namespace Yakku.Application.Polls.Mapper
 {
     internal static class PollMappings
     {
-        public static PollResponse ToResponse(this PollEntity poll)
+        public static PollResponse ToResponse(this PollEntity poll, PollVoteCountSnapshot counts)
         {
-            var totalVotes = poll.TotalVoteCount;
             return new PollResponse
             {
                 Id = poll.Id,
                 Question = poll.Question,
-                ShareToken = poll.ShareToken,
-                OptionType = ToOptionTypeString(poll.OptionType),
+                ContentType = ToEnumString(poll.ContentType),
+                Status = ToEnumString(poll.Status),
+                Visibility = ToEnumString(poll.Visibility),
                 ExpiresAt = poll.ExpiresAt,
-                TotalVoteCount = totalVotes,
+                CreatedAt = poll.CreatedAt,
+                MediaReadiness = poll.Media is null ? "none" : "ready",
+                Media = poll.Media is null ? null : ToMediaResponse(poll.Media),
+                TotalVoteCount = counts.TotalVotes,
+                CustomAnswerCount = counts.CustomAnswerCount,
+                TotalWhyCount = counts.WhyCount,
                 Options = poll.Options
                     .OrderBy(option => option.SortOrder)
-                    .Select(option => new PollOptionResponse
-                    {
-                        Id = option.Id,
-                        Text = option.Text,
-                        ImageId = option.ImageId,
-                        SecureUrl = option.Image?.SecureUrl,
-                        SortOrder = option.SortOrder,
-                        VoteCount = option.VoteCount,
-                        Percentage = ToPercentage(option.VoteCount, totalVotes)
-                    })
+                    .Select(option => ToOptionResponse(option, counts))
                     .ToList()
             };
         }
 
-        public static PollSummaryResponse ToSummaryResponse(this PollEntity poll)
+        public static PollSummaryResponse ToSummaryResponse(this PollEntity poll, PollVoteCountSnapshot counts)
         {
-            var firstCategory = poll.PollCategories.FirstOrDefault()?.Category;
             return new PollSummaryResponse
             {
                 Id = poll.Id,
                 Question = poll.Question,
-                CategoryId = firstCategory?.Id,
-                ShareToken = poll.ShareToken,
-                OptionType = ToOptionTypeString(poll.OptionType),
-                Status = ToStatusString(poll.Status),
-                ExpiresAt = poll.ExpiresAt,
+                ContentType = ToEnumString(poll.ContentType),
+                Status = ToEnumString(poll.Status),
+                Visibility = ToEnumString(poll.Visibility),
                 CreatedAt = poll.CreatedAt,
-                TotalVoteCount = poll.TotalVoteCount
+                TotalVoteCount = counts.TotalVotes,
+                CustomAnswerCount = counts.CustomAnswerCount,
+                TotalWhyCount = counts.WhyCount
             };
         }
 
-        public static SharedPollResponse ToSharedResponse(this PollEntity poll)
+        public static UserPollResponse ToUserPollResponse(this PollEntity poll, PollVoteCountSnapshot counts)
         {
-            var totalVotes = poll.TotalVoteCount;
-            var effectiveStatus = ToEffectiveShareStatus(poll);
-            var firstCategory = poll.PollCategories.FirstOrDefault()?.Category;
-            return new SharedPollResponse
-            {
-                Question = poll.Question,
-                OptionType = ToOptionTypeString(poll.OptionType),
-                ExpiresAt = poll.ExpiresAt,
-                Status = effectiveStatus,
-                IsAcceptingVotes = effectiveStatus == "active",
-                Category = firstCategory is null
-                    ? null
-                    : new SharedPollCategoryResponse
-                    {
-                        Id = firstCategory.Id,
-                        Name = firstCategory.Name
-                    },
-                Options = poll.Options
-                    .OrderBy(option => option.SortOrder)
-                    .Select(option => new PollOptionResponse
-                    {
-                        Id = option.Id,
-                        Text = option.Text,
-                        ImageId = option.ImageId,
-                        SecureUrl = option.Image?.SecureUrl,
-                        SortOrder = option.SortOrder,
-                        VoteCount = option.VoteCount,
-                        Percentage = ToPercentage(option.VoteCount, totalVotes)
-                    })
-                    .ToList()
-            };
-        }
-
-        public static UserPollResponse ToUserPollResponse(this PollEntity poll)
-        {
-            var totalVotes = poll.TotalVoteCount;
             return new UserPollResponse
             {
                 PollId = poll.Id,
                 Question = poll.Question,
-                Status = ToStatusString(poll.Status),
-                ExpiresAt = poll.ExpiresAt,
+                ContentType = ToEnumString(poll.ContentType),
+                Status = ToEnumString(poll.Status),
+                Visibility = ToEnumString(poll.Visibility),
                 CreatedAt = poll.CreatedAt,
-                TotalVoteCount = totalVotes,
+                TotalVoteCount = counts.TotalVotes,
+                CustomAnswerCount = counts.CustomAnswerCount,
+                TotalWhyCount = counts.WhyCount,
                 PollOptions = poll.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new UserPollOptionResponse
                     {
                         Id = option.Id,
-                        Text = option.Text ?? string.Empty,
-                        VoteCount = option.VoteCount,
-                        Percentage = ToPercentage(option.VoteCount, totalVotes)
+                        Text = option.Text,
+                        VoteCount = counts.CountFor(option.Id),
+                        Percentage = ToPercentage(counts.CountFor(option.Id), counts.TotalVotes)
                     })
                     .ToList()
             };
@@ -112,33 +74,25 @@ namespace Yakku.Application.Polls.Mapper
 
         public static UserPollDetailResponse ToUserPollDetailResponse(
             this PollEntity poll,
-            Vote? creatorVote)
+            PollVote? creatorVote,
+            PollVoteCountSnapshot counts)
         {
-            var totalVotes = poll.TotalVoteCount;
             var pollOptions = poll.Options
                 .OrderBy(option => option.SortOrder)
                 .Select(option => new UserPollDetailOptionResponse
                 {
                     Id = option.Id,
                     Text = option.Text,
-                    ImageId = option.ImageId,
-                    SecureUrl = option.Image?.SecureUrl,
                     SortOrder = option.SortOrder,
-                    VoteCount = option.VoteCount,
-                    Percentage = ToPercentage(option.VoteCount, totalVotes)
+                    VoteCount = counts.CountFor(option.Id),
+                    Percentage = ToPercentage(counts.CountFor(option.Id), counts.TotalVotes)
                 })
                 .ToList();
 
-            var crowdLeader = poll.Options
+            var crowdLeader = pollOptions
                 .OrderByDescending(option => option.VoteCount)
                 .ThenBy(option => option.SortOrder)
                 .FirstOrDefault();
-
-            UserPollDetailOptionResponse? crowdLeaderResponse = null;
-            if (crowdLeader is not null)
-            {
-                crowdLeaderResponse = pollOptions.First(option => option.Id == crowdLeader.Id);
-            }
 
             var yourOptionId = creatorVote?.PollOptionId;
             UserPollDetailOptionResponse? yourOptionResponse = null;
@@ -151,25 +105,51 @@ namespace Yakku.Application.Polls.Mapper
             {
                 PollId = poll.Id,
                 Question = poll.Question,
-                Status = ToStatusString(poll.Status),
-                ShareToken = poll.ShareToken,
-                OptionType = ToOptionTypeString(poll.OptionType),
+                ContentType = ToEnumString(poll.ContentType),
+                Status = ToEnumString(poll.Status),
+                Visibility = ToEnumString(poll.Visibility),
                 ExpiresAt = poll.ExpiresAt,
                 CreatedAt = poll.CreatedAt,
-                TotalVoteCount = totalVotes,
+                TotalVoteCount = counts.TotalVotes,
+                CustomAnswerCount = counts.CustomAnswerCount,
+                TotalWhyCount = counts.WhyCount,
                 PollOptions = pollOptions,
                 YouVsCrowd = new YouVsCrowdResponse
                 {
                     YourOptionId = yourOptionId,
-                    YourOptionText = yourOptionResponse?.Text,
+                    YourOptionText = yourOptionResponse?.Text ?? creatorVote?.CustomAnswer,
                     YourOptionPercentage = yourOptionResponse?.Percentage,
-                    CrowdLeadingOptionId = crowdLeaderResponse?.Id,
-                    CrowdLeadingOptionText = crowdLeaderResponse?.Text,
-                    CrowdLeadingPercentage = crowdLeaderResponse?.Percentage,
-                    AgreesWithCrowd = yourOptionId is null || crowdLeaderResponse is null
+                    CrowdLeadingOptionId = crowdLeader?.Id,
+                    CrowdLeadingOptionText = crowdLeader?.Text,
+                    CrowdLeadingPercentage = crowdLeader?.Percentage,
+                    AgreesWithCrowd = yourOptionId is null || crowdLeader is null
                         ? null
-                        : yourOptionId == crowdLeaderResponse.Id
+                        : yourOptionId == crowdLeader.Id
                 }
+            };
+        }
+
+        private static PollMediaResponse ToMediaResponse(PollMedia media)
+        {
+            return new PollMediaResponse
+            {
+                MediaType = ToEnumString(media.MediaType),
+                MimeType = media.MimeType,
+                FileSize = media.FileSize,
+                DurationMs = media.DurationMs
+            };
+        }
+
+        private static PollOptionResponse ToOptionResponse(PollOption option, PollVoteCountSnapshot counts)
+        {
+            var voteCount = counts.CountFor(option.Id);
+            return new PollOptionResponse
+            {
+                Id = option.Id,
+                Text = option.Text,
+                SortOrder = option.SortOrder,
+                VoteCount = voteCount,
+                Percentage = ToPercentage(voteCount, counts.TotalVotes)
             };
         }
 
@@ -183,31 +163,10 @@ namespace Yakku.Application.Polls.Mapper
             return Math.Round(voteCount * 100m / totalVotes, 2);
         }
 
-        private static string ToOptionTypeString(Domain.Enums.OptionType optionType)
+        private static string ToEnumString<TEnum>(TEnum value)
+            where TEnum : struct, Enum
         {
-            return optionType.ToString().ToLowerInvariant();
-        }
-
-        private static string ToStatusString(Domain.Enums.PollStatus status)
-        {
-            return status.ToString().ToLowerInvariant();
-        }
-
-        private static string ToEffectiveShareStatus(PollEntity poll)
-        {
-            if (poll.Status == Domain.Enums.PollStatus.Closed)
-            {
-                return "closed";
-            }
-
-            if (poll.Status == Domain.Enums.PollStatus.Active
-                && poll.ExpiresAt is not null
-                && poll.ExpiresAt <= DateTime.UtcNow)
-            {
-                return "expired";
-            }
-
-            return ToStatusString(poll.Status);
+            return value.ToString().ToLowerInvariant();
         }
     }
 }

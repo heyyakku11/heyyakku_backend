@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Domain.Entities;
-using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Persistence.Repositories
 {
@@ -68,8 +67,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .AsNoTracking()
                 .Include(saved => saved.Poll)
                 .ThenInclude(poll => poll.Options)
-                .ThenInclude(option => option.Image)
-                .Where(saved => saved.UserId == userId && saved.Poll.Status != PollStatus.Deleted);
+                .Where(saved => saved.UserId == userId);
 
             if (cursorSavedAt is not null && cursorPollId is not null)
             {

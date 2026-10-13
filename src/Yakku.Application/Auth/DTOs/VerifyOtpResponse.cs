@@ -2,7 +2,9 @@ namespace Yakku.Application.Auth.DTOs
 {
     public class VerifyOtpResponse
     {
-        public string DisplayName { get; set; } = string.Empty;
+        public Guid UserId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string AnonymousName { get; set; } = string.Empty;
         public string Purpose { get; set; } = string.Empty;
         public string AccessToken { get; set; } = string.Empty;
         public string RefreshToken { get; set; } = string.Empty;

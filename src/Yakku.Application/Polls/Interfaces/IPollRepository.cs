@@ -7,11 +7,9 @@ namespace Yakku.Application.Polls.Interfaces
     {
         Task AddAsync(PollEntity poll, CancellationToken cancellationToken = default);
 
-        Task<PollEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        void Delete(PollEntity poll);
 
-        Task<PollEntity?> GetByShareTokenAsync(
-            string shareToken,
-            CancellationToken cancellationToken = default);
+        Task<PollEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
         Task<PollEntity?> GetByIdAndCreatorAsync(
             Guid id,
@@ -29,6 +27,16 @@ namespace Yakku.Application.Polls.Interfaces
             DateTime? cursorCreatedAt,
             Guid? cursorId,
             int take,
+            PollContentType? contentType,
+            CancellationToken cancellationToken = default);
+
+        Task<int> TryMarkActiveAsync(
+            Guid pollId,
+            Guid creatorId,
+            CancellationToken cancellationToken = default);
+
+        Task ExecuteInTransactionAsync(
+            Func<CancellationToken, Task> action,
             CancellationToken cancellationToken = default);
 
         Task<IReadOnlyList<PollEntity>> ListByStatusAsync(
@@ -40,6 +48,10 @@ namespace Yakku.Application.Polls.Interfaces
             DateTime? cursorVotedAt,
             Guid? cursorPollId,
             int take,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyDictionary<Guid, PollVoteCountSnapshot>> GetVoteCountsAsync(
+            IReadOnlyCollection<Guid> pollIds,
             CancellationToken cancellationToken = default);
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);

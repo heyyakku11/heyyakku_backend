@@ -4,11 +4,6 @@ using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Models;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
-using Yakku.Application.Email;
-using Yakku.Application.Email.Interfaces;
-using Yakku.Application.System;
-using Yakku.Application.System.DTOs;
-using Yakku.Application.System.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -16,17 +11,15 @@ namespace Yakku.Application.Auth.Services
 {
     public class AuthService : IAuthService
     {
-        private const int DisplayNameRetryLimit = 8;
+        private const int AnonymousNameRetryLimit = 8;
 
         private readonly IUserRepository _userRepository;
         private readonly IOtpChallengeStore _otpChallengeStore;
         private readonly IOtpGenerator _otpGenerator;
         private readonly IDisplayNameGenerator _displayNameGenerator;
-        private readonly IEmailLogRepository _emailLogRepository;
-        private readonly IOtpEmailQueue _otpEmailQueue;
         private readonly ISessionService _sessionService;
-        private readonly ISystemLogWriter _systemLogWriter;
         private readonly IValidator<RequestOtpRequest> _requestOtpValidator;
+        private readonly IValidator<ResendOtpRequest> _resendOtpValidator;
         private readonly IValidator<VerifyOtpRequest> _verifyOtpValidator;
 
         public AuthService(
@@ -34,22 +27,18 @@ namespace Yakku.Application.Auth.Services
             IOtpChallengeStore otpChallengeStore,
             IOtpGenerator otpGenerator,
             IDisplayNameGenerator displayNameGenerator,
-            IEmailLogRepository emailLogRepository,
-            IOtpEmailQueue otpEmailQueue,
             ISessionService sessionService,
-            ISystemLogWriter systemLogWriter,
             IValidator<RequestOtpRequest> requestOtpValidator,
+            IValidator<ResendOtpRequest> resendOtpValidator,
             IValidator<VerifyOtpRequest> verifyOtpValidator)
         {
             _userRepository = userRepository;
             _otpChallengeStore = otpChallengeStore;
             _otpGenerator = otpGenerator;
             _displayNameGenerator = displayNameGenerator;
-            _emailLogRepository = emailLogRepository;
-            _otpEmailQueue = otpEmailQueue;
             _sessionService = sessionService;
-            _systemLogWriter = systemLogWriter;
             _requestOtpValidator = requestOtpValidator;
+            _resendOtpValidator = resendOtpValidator;
             _verifyOtpValidator = verifyOtpValidator;
         }
 
@@ -59,70 +48,104 @@ namespace Yakku.Application.Auth.Services
         {
             await _requestOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-            var email = NormalizeEmail(request.Email);
-            var user = await _userRepository.GetByEmailAsync(email, cancellationToken);
+            var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            var user = await _userRepository.GetByPhoneNumberAsync(phoneNumber, cancellationToken);
             var purpose = user is null ? OtpPurpose.Registration : OtpPurpose.Login;
 
-            var existing = await _otpChallengeStore.GetAsync(email, cancellationToken);
+            if (purpose == OtpPurpose.Registration && string.IsNullOrWhiteSpace(request.Name))
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "Name is required.",
+                    "name");
+            }
+
+            var existing = await _otpChallengeStore.GetAsync(phoneNumber, cancellationToken);
             if (existing is not null && DateTime.UtcNow - existing.CreatedAt < OtpOptions.ResendCooldown)
             {
                 throw new AppException(
                     400,
                     ApiErrorCodes.OtpResendCooldown,
                     "Please wait before requesting another OTP.",
-                    "email");
+                    "phoneNumber");
             }
 
             var otp = _otpGenerator.Generate();
             var challengeId = Guid.NewGuid();
-            var displayName = purpose == OtpPurpose.Registration
-                ? existing?.DisplayName ?? await CreateUniqueDisplayNameAsync(cancellationToken)
-                : null;
+            string? anonymousName = null;
+            string? name = null;
+            if (purpose == OtpPurpose.Registration)
+            {
+                name = request.Name!.Trim();
+                anonymousName = existing?.AnonymousName ?? await CreateUniqueAnonymousNameAsync(cancellationToken);
+            }
 
             var challenge = new OtpChallenge
             {
                 ChallengeId = challengeId,
-                OtpHash = OtpHasher.Hash(email, otp),
+                // OtpHash = OtpHasher.Hash(phoneNumber, otp),
+                OtpHash = otp,
                 Purpose = purpose,
-                DisplayName = displayName,
+                Name = name,
+                AnonymousName = anonymousName,
                 AttemptCount = 0,
                 CreatedAt = DateTime.UtcNow
             };
 
-            await _otpChallengeStore.SetAsync(email, challenge, OtpOptions.Ttl, cancellationToken);
-
-            var emailLog = new EmailLog(
-                email,
-                EmailType.Otp,
-                challengeId,
-                OtpEmailQueueOptions.ProviderName,
-                OtpEmailQueueOptions.MaxAttempts,
-                user?.Id);
-
-            await _emailLogRepository.AddAsync(emailLog, cancellationToken);
-            await _emailLogRepository.SaveChangesAsync(cancellationToken);
-
-            await _otpEmailQueue.EnqueueAsync(
-                new EmailJob(emailLog.Id, challengeId, email, otp),
-                cancellationToken);
-
-            await LogAsync(
-                SystemLogLevel.Information,
-                SystemLogEventTypes.OtpRequested,
-                "OTP requested.",
-                new
-                {
-                    email,
-                    purpose = purpose.ToString(),
-                    emailLogId = emailLog.Id,
-                    challengeId
-                },
-                user?.Id,
-                cancellationToken);
+            await _otpChallengeStore.SetAsync(phoneNumber, challenge, OtpOptions.Ttl, cancellationToken);
 
             return new RequestOtpResponse
             {
                 Purpose = purpose.ToString(),
+                ExpiresInSeconds = OtpOptions.ExpiresInSeconds
+            };
+        }
+
+        public async Task<RequestOtpResponse> ResendOtpAsync(
+            ResendOtpRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            await _resendOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            var existing = await _otpChallengeStore.GetAsync(phoneNumber, cancellationToken);
+            if (existing is null)
+            {
+                throw new AppException(
+                    404,
+                    ApiErrorCodes.OtpNotFound,
+                    "OTP not found or has expired.",
+                    "phoneNumber");
+            }
+
+            if (DateTime.UtcNow - existing.CreatedAt < OtpOptions.ResendCooldown)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.OtpResendCooldown,
+                    "Please wait before requesting another OTP.",
+                    "phoneNumber");
+            }
+
+            var otp = _otpGenerator.Generate();
+            var challengeId = Guid.NewGuid();
+            var challenge = new OtpChallenge
+            {
+                ChallengeId = challengeId,
+                OtpHash = otp,
+                Purpose = existing.Purpose,
+                Name = existing.Name,
+                AnonymousName = existing.AnonymousName,
+                AttemptCount = 0,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _otpChallengeStore.SetAsync(phoneNumber, challenge, OtpOptions.Ttl, cancellationToken);
+
+            return new RequestOtpResponse
+            {
+                Purpose = existing.Purpose.ToString(),
                 ExpiresInSeconds = OtpOptions.ExpiresInSeconds
             };
         }
@@ -133,8 +156,8 @@ namespace Yakku.Application.Auth.Services
         {
             await _verifyOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-            var email = NormalizeEmail(request.Email);
-            var challenge = await _otpChallengeStore.GetAsync(email, cancellationToken);
+            var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            var challenge = await _otpChallengeStore.GetAsync(phoneNumber, cancellationToken);
             if (challenge is null)
             {
                 throw new AppException(
@@ -146,7 +169,6 @@ namespace Yakku.Application.Auth.Services
 
             if (challenge.AttemptCount >= OtpOptions.MaxVerificationAttempts)
             {
-                await LogOtpInvalidAsync(email, ApiErrorCodes.OtpAttemptsExceeded, cancellationToken);
                 throw new AppException(
                     400,
                     ApiErrorCodes.OtpAttemptsExceeded,
@@ -154,10 +176,11 @@ namespace Yakku.Application.Auth.Services
                     "otp");
             }
 
-            if (!OtpHasher.Verify(email, request.Otp.Trim(), challenge.OtpHash))
+            // if (!OtpHasher.Verify(phoneNumber, request.Otp.Trim(), challenge.OtpHash))
+            if (!string.Equals(request.Otp.Trim(), challenge.OtpHash, StringComparison.Ordinal))
             {
                 challenge.AttemptCount++;
-                var replaced = await _otpChallengeStore.ReplaceKeepingTtlAsync(email, challenge, cancellationToken);
+                var replaced = await _otpChallengeStore.ReplaceKeepingTtlAsync(phoneNumber, challenge, cancellationToken);
                 if (!replaced)
                 {
                     throw new AppException(
@@ -169,7 +192,6 @@ namespace Yakku.Application.Auth.Services
 
                 if (challenge.AttemptCount >= OtpOptions.MaxVerificationAttempts)
                 {
-                    await LogOtpInvalidAsync(email, ApiErrorCodes.OtpAttemptsExceeded, cancellationToken);
                     throw new AppException(
                         400,
                         ApiErrorCodes.OtpAttemptsExceeded,
@@ -177,7 +199,6 @@ namespace Yakku.Application.Auth.Services
                         "otp");
                 }
 
-                await LogOtpInvalidAsync(email, ApiErrorCodes.OtpInvalid, cancellationToken);
                 throw new AppException(
                     400,
                     ApiErrorCodes.OtpInvalid,
@@ -187,81 +208,77 @@ namespace Yakku.Application.Auth.Services
 
             if (challenge.Purpose == OtpPurpose.Registration)
             {
-                return await CompleteRegistrationAsync(email, challenge, cancellationToken);
+                return await CompleteRegistrationAsync(phoneNumber, challenge, cancellationToken);
             }
 
-            return await CompleteLoginAsync(email, cancellationToken);
+            return await CompleteLoginAsync(phoneNumber, cancellationToken);
         }
 
         private async Task<VerifyOtpResponse> CompleteRegistrationAsync(
-            string email,
+            string phoneNumber,
             OtpChallenge challenge,
             CancellationToken cancellationToken)
         {
-            var displayName = string.IsNullOrWhiteSpace(challenge.DisplayName)
-                ? await CreateUniqueDisplayNameAsync(cancellationToken)
-                : challenge.DisplayName;
+            var name = challenge.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "Name is required.",
+                    "name");
+            }
 
-            var user = new User(email, displayName);
+            var anonymousName = string.IsNullOrWhiteSpace(challenge.AnonymousName)
+                ? await CreateUniqueAnonymousNameAsync(cancellationToken)
+                : challenge.AnonymousName;
+
+            var user = new User(phoneNumber, name, anonymousName);
             await _userRepository.AddAsync(user, cancellationToken);
             await _userRepository.SaveChangesAsync(cancellationToken);
-            await _otpChallengeStore.DeleteAsync(email, cancellationToken);
-            await LogAsync(
-                SystemLogLevel.Information,
-                SystemLogEventTypes.UserRegistered,
-                "User registered.",
-                new { email },
-                user.Id,
-                cancellationToken);
+            await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
 
             return await ToResponseAsync(user, OtpPurpose.Registration, cancellationToken);
         }
 
         private async Task<VerifyOtpResponse> CompleteLoginAsync(
-            string email,
+            string phoneNumber,
             CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByEmailAsync(email, cancellationToken);
+            var user = await _userRepository.GetByPhoneNumberAsync(phoneNumber, cancellationToken);
             if (user is null)
             {
-                await _otpChallengeStore.DeleteAsync(email, cancellationToken);
+                await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
                 throw new AppException(
                     404,
                     ApiErrorCodes.NotFound,
                     "User not found.",
-                    "email");
+                    "phoneNumber");
             }
 
             user.RecordLogin();
             await _userRepository.SaveChangesAsync(cancellationToken);
-            await _otpChallengeStore.DeleteAsync(email, cancellationToken);
-            await LogAsync(
-                SystemLogLevel.Information,
-                SystemLogEventTypes.UserLoggedIn,
-                "User logged in.",
-                new { email },
-                user.Id,
-                cancellationToken);
+            await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
 
             return await ToResponseAsync(user, OtpPurpose.Login, cancellationToken);
         }
 
-        private async Task<string> CreateUniqueDisplayNameAsync(CancellationToken cancellationToken)
+        private async Task<string> CreateUniqueAnonymousNameAsync(CancellationToken cancellationToken)
         {
-            for (var attempt = 0; attempt < DisplayNameRetryLimit; attempt++)
+            for (var attempt = 0; attempt < AnonymousNameRetryLimit; attempt++)
             {
-                var displayName = _displayNameGenerator.Generate();
-                if (!await _userRepository.DisplayNameExistsAsync(displayName, cancellationToken))
+                var anonymousName = _displayNameGenerator.Generate();
+                if (!await _userRepository.AnonymousNameExistsAsync(anonymousName, cancellationToken))
                 {
-                    return displayName;
+                    return anonymousName;
                 }
             }
 
             throw new AppException(
                 409,
                 ApiErrorCodes.Conflict,
-                "Display name already exists.",
-                "displayName");
+                "Anonymous name already exists.",
+                "anonymousName");
         }
 
         private async Task<VerifyOtpResponse> ToResponseAsync(
@@ -273,7 +290,9 @@ namespace Yakku.Application.Auth.Services
 
             return new VerifyOtpResponse
             {
-                DisplayName = user.Profile?.DisplayName ?? string.Empty,
+                UserId = user.Id,
+                Name = user.Profile?.Name ?? string.Empty,
+                AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
                 Purpose = purpose.ToString(),
                 AccessToken = tokens.AccessToken,
                 RefreshToken = tokens.RefreshToken,
@@ -282,40 +301,18 @@ namespace Yakku.Application.Auth.Services
             };
         }
 
-        private Task LogOtpInvalidAsync(string email, string reason, CancellationToken cancellationToken)
+        private static string NormalizePhoneNumber(string phoneNumber)
         {
-            return LogAsync(
-                SystemLogLevel.Warning,
-                SystemLogEventTypes.OtpInvalid,
-                "OTP verification failed.",
-                new { email, reason },
-                userId: null,
-                cancellationToken);
-        }
+            if (!PhoneNumberNormalizer.TryNormalize(phoneNumber, out var normalized))
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "Phone number must be in E.164 format.",
+                    "phoneNumber");
+            }
 
-        private Task LogAsync(
-            SystemLogLevel level,
-            string eventType,
-            string message,
-            object? details,
-            Guid? userId,
-            CancellationToken cancellationToken)
-        {
-            return _systemLogWriter.WriteAsync(
-                new SystemLogWriteRequest
-                {
-                    Level = level,
-                    EventType = eventType,
-                    Message = message,
-                    Details = details,
-                    UserId = userId
-                },
-                cancellationToken);
-        }
-
-        private static string NormalizeEmail(string email)
-        {
-            return email.Trim().ToLowerInvariant();
+            return normalized;
         }
     }
 }

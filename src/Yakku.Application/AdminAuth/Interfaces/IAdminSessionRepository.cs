@@ -6,6 +6,7 @@ namespace Yakku.Application.AdminAuth.Interfaces
     {
         Task AddAsync(AdminSession session, CancellationToken cancellationToken = default);
         Task<AdminSession?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<AdminSession?> GetByAdminIdAsync(Guid adminId, CancellationToken cancellationToken = default);
         Task DeleteAsync(AdminSession session, CancellationToken cancellationToken = default);
         Task DeleteAllByAdminIdAsync(Guid adminId, CancellationToken cancellationToken = default);
         Task SaveChangesAsync(CancellationToken cancellationToken = default);

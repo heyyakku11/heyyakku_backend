@@ -8,7 +8,7 @@ namespace Yakku.Domain.Entities
         public string RefreshTokenHash { get; private set; } = string.Empty;
         public DateTime ExpiresAt { get; private set; }
         public DateTime? RevokedAt { get; private set; }
-        public DateTime? LastUsedAt { get; private set; }
+        public DateTime? LastActiveAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
         public User User { get; private set; } = null!;
@@ -25,13 +25,19 @@ namespace Yakku.Domain.Entities
             RefreshTokenHash = refreshTokenHash;
             ExpiresAt = expiresAt;
             CreatedAt = DateTime.UtcNow;
+            LastActiveAt = CreatedAt;
         }
 
         public void Rotate(string refreshTokenHash, DateTime expiresAt)
         {
             RefreshTokenHash = refreshTokenHash;
             ExpiresAt = expiresAt;
-            LastUsedAt = DateTime.UtcNow;
+            LastActiveAt = DateTime.UtcNow;
+        }
+
+        public void Revoke()
+        {
+            RevokedAt ??= DateTime.UtcNow;
         }
 
         public void AssignDevice(Guid deviceId)

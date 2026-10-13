@@ -34,6 +34,14 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasDefaultValue(true);
 
+            builder.Property(x => x.WhatsAppEnabled)
+                .IsRequired()
+                .HasDefaultValue(true);
+
+            builder.Property(x => x.SmsEnabled)
+                .IsRequired()
+                .HasDefaultValue(true);
+
             builder.HasIndex(x => x.UserId)
                 .IsUnique()
                 .HasDatabaseName("IX_NotificationPreferences_UserId");

@@ -12,9 +12,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("Users");
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.Email)
+            builder.Property(x => x.PhoneNumber)
                 .IsRequired()
-                .HasMaxLength(320);
+                .HasMaxLength(20);
 
             builder.Property(x => x.Status)
                 .HasConversion<string>()
@@ -27,9 +27,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.UpdatedAt)
                 .IsRequired();
 
-            builder.HasIndex(x => x.Email)
+            builder.HasIndex(x => x.PhoneNumber)
                 .IsUnique()
-                .HasDatabaseName("IX_Users_Email");
+                .HasDatabaseName("IX_Users_PhoneNumber");
 
             builder.HasOne(x => x.Profile)
                 .WithOne(x => x.User)

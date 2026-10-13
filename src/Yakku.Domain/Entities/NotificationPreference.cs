@@ -9,6 +9,8 @@ namespace Yakku.Domain.Entities
         public bool OffersEnabled { get; private set; }
         public bool AlertsEnabled { get; private set; }
         public bool NormalEnabled { get; private set; }
+        public bool WhatsAppEnabled { get; private set; }
+        public bool SmsEnabled { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
@@ -27,6 +29,8 @@ namespace Yakku.Domain.Entities
             OffersEnabled = true;
             AlertsEnabled = true;
             NormalEnabled = true;
+            WhatsAppEnabled = true;
+            SmsEnabled = true;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
         }
@@ -36,7 +40,9 @@ namespace Yakku.Domain.Entities
             bool? pollActivityEnabled,
             bool? offersEnabled,
             bool? alertsEnabled,
-            bool? normalEnabled)
+            bool? normalEnabled,
+            bool? whatsAppEnabled = null,
+            bool? smsEnabled = null)
         {
             if (pushEnabled.HasValue)
             {
@@ -61,6 +67,16 @@ namespace Yakku.Domain.Entities
             if (normalEnabled.HasValue)
             {
                 NormalEnabled = normalEnabled.Value;
+            }
+
+            if (whatsAppEnabled.HasValue)
+            {
+                WhatsAppEnabled = whatsAppEnabled.Value;
+            }
+
+            if (smsEnabled.HasValue)
+            {
+                SmsEnabled = smsEnabled.Value;
             }
 
             UpdatedAt = DateTime.UtcNow;
