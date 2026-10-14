@@ -7,10 +7,6 @@ namespace Yakku.Domain.Entities
         public bool PushEnabled { get; private set; }
         public bool PollActivityEnabled { get; private set; }
         public bool OffersEnabled { get; private set; }
-        public bool AlertsEnabled { get; private set; }
-        public bool NormalEnabled { get; private set; }
-        public bool WhatsAppEnabled { get; private set; }
-        public bool SmsEnabled { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
@@ -27,10 +23,6 @@ namespace Yakku.Domain.Entities
             PushEnabled = true;
             PollActivityEnabled = true;
             OffersEnabled = true;
-            AlertsEnabled = true;
-            NormalEnabled = true;
-            WhatsAppEnabled = true;
-            SmsEnabled = true;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
         }
@@ -38,11 +30,7 @@ namespace Yakku.Domain.Entities
         public void Update(
             bool? pushEnabled,
             bool? pollActivityEnabled,
-            bool? offersEnabled,
-            bool? alertsEnabled,
-            bool? normalEnabled,
-            bool? whatsAppEnabled = null,
-            bool? smsEnabled = null)
+            bool? offersEnabled)
         {
             if (pushEnabled.HasValue)
             {
@@ -57,26 +45,6 @@ namespace Yakku.Domain.Entities
             if (offersEnabled.HasValue)
             {
                 OffersEnabled = offersEnabled.Value;
-            }
-
-            if (alertsEnabled.HasValue)
-            {
-                AlertsEnabled = alertsEnabled.Value;
-            }
-
-            if (normalEnabled.HasValue)
-            {
-                NormalEnabled = normalEnabled.Value;
-            }
-
-            if (whatsAppEnabled.HasValue)
-            {
-                WhatsAppEnabled = whatsAppEnabled.Value;
-            }
-
-            if (smsEnabled.HasValue)
-            {
-                SmsEnabled = smsEnabled.Value;
             }
 
             UpdatedAt = DateTime.UtcNow;

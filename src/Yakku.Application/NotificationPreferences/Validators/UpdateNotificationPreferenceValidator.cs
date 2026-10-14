@@ -16,9 +16,7 @@ namespace Yakku.Application.NotificationPreferences.Validators
         {
             return request.PushEnabled.HasValue
                 || request.PollActivityEnabled.HasValue
-                || request.OffersEnabled.HasValue
-                || request.AlertsEnabled.HasValue
-                || request.NormalEnabled.HasValue;
+                || request.OffersEnabled.HasValue;
         }
     }
 }

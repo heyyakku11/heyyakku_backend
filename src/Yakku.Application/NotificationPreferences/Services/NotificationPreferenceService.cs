@@ -38,9 +38,7 @@ namespace Yakku.Application.NotificationPreferences.Services
             preference.Update(
                 request.PushEnabled,
                 request.PollActivityEnabled,
-                request.OffersEnabled,
-                request.AlertsEnabled,
-                request.NormalEnabled);
+                request.OffersEnabled);
 
             await _preferences.SaveChangesAsync(cancellationToken);
             return preference.ToResponse();

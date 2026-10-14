@@ -11,9 +11,7 @@ namespace Yakku.Application.NotificationPreferences.Mapper
             {
                 PushEnabled = preference.PushEnabled,
                 PollActivityEnabled = preference.PollActivityEnabled,
-                OffersEnabled = preference.OffersEnabled,
-                AlertsEnabled = preference.AlertsEnabled,
-                NormalEnabled = preference.NormalEnabled
+                OffersEnabled = preference.OffersEnabled
             };
         }
     }
