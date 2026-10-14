@@ -12,7 +12,7 @@ using Yakku.Application.Guests.Interfaces;
 namespace Yakku.API.Controllers
 {
     [ApiController]
-    [Route("api/auth")]
+    [Route("api/v1/auth")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
@@ -32,7 +32,7 @@ namespace Yakku.API.Controllers
             _guestCookies = guestCookies;
         }
 
-        [HttpPost("/api/v1/auth/send")]
+        [HttpPost("send")]
         [EndpointSummary("Send OTP")]
         [EndpointDescription("Sends OTP for login or registration. New numbers must include a name.")]
         [ProducesResponseType(typeof(ApiResponse<RequestOtpResponse>), StatusCodes.Status200OK)]
@@ -52,7 +52,7 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("/api/v1/auth/resend")]
+        [HttpPost("resend")]
         [EndpointSummary("Resend OTP")]
         [EndpointDescription("Resends OTP for an existing challenge after the cooldown.")]
         [ProducesResponseType(typeof(ApiResponse<RequestOtpResponse>), StatusCodes.Status200OK)]
@@ -73,7 +73,7 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("/api/v1/auth/verify")]
+        [HttpPost("verify")]
         [EndpointSummary("Verify OTP")]
         [EndpointDescription("Verifies OTP, registers new users, and returns access/refresh tokens.")]
         [ProducesResponseType(typeof(ApiResponse<VerifyOtpResponse>), StatusCodes.Status200OK)]
@@ -110,7 +110,7 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("/api/v1/auth/refresh")]
+        [HttpPost("refresh")]
         [EndpointSummary("Refresh tokens")]
         [EndpointDescription("Exchanges a valid refresh token for a new access/refresh pair.")]
         [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
@@ -130,7 +130,7 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("/api/v1/auth/logout")]
+        [HttpPost("logout")]
         [EndpointSummary("Logout")]
         [EndpointDescription("Revokes the given refresh token and ends that session.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -151,7 +151,7 @@ namespace Yakku.API.Controllers
         }
 
         [Authorize]
-        [HttpPost("/api/v1/auth/logout-all")]
+        [HttpPost("logout-all")]
         [EndpointSummary("Logout all sessions")]
         [EndpointDescription("Requires auth. Revokes every active session for the current user.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
