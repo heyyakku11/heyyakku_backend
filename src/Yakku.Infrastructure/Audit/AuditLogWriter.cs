@@ -44,7 +44,7 @@ namespace Yakku.Infrastructure.Audit
                 AuditSanitizer.HashSubject(entry.Subject),
                 AuditSanitizer.Truncate(entry.EventType, 64)!,
                 entry.Outcome,
-                AuditSanitizer.SanitizeText(entry.FailureReason, 128),
+                AuditSanitizer.SanitizeCode(entry.FailureReason, 128),
                 entry.SessionId,
                 request.IpAddress,
                 request.UserAgent,
@@ -68,7 +68,7 @@ namespace Yakku.Infrastructure.Audit
                 entry.Outcome,
                 AuditSanitizer.Truncate(entry.FromStatus, 20),
                 AuditSanitizer.Truncate(entry.ToStatus, 20),
-                AuditSanitizer.SanitizeText(entry.ErrorCode, 64),
+                AuditSanitizer.SanitizeCode(entry.ErrorCode, 64),
                 request.TraceId,
                 AuditSanitizer.SerializeMetadata(entry.Metadata));
             return SaveAsync(context => context.PollAuditLogs.Add(log), "poll");
@@ -90,7 +90,7 @@ namespace Yakku.Infrastructure.Audit
                 entry.WillRetry,
                 entry.Status,
                 AuditSanitizer.Truncate(entry.ProviderMessageId, 256),
-                AuditSanitizer.SanitizeText(entry.ErrorCode, 64),
+                AuditSanitizer.SanitizeCode(entry.ErrorCode, 64),
                 AuditSanitizer.SanitizeText(entry.ErrorMessage, 500),
                 entry.LatencyMs is int latency ? Math.Max(0, latency) : null);
             return SaveAsync(context => context.NotificationAuditLogs.Add(log), "notification");
@@ -149,7 +149,7 @@ namespace Yakku.Infrastructure.Audit
                 var applied = attempt.ApplyDeliveryReport(
                     deliveryStatus,
                     occurredAtUtc,
-                    AuditSanitizer.SanitizeText(errorCode, 64),
+                    AuditSanitizer.SanitizeCode(errorCode, 64),
                     AuditSanitizer.SanitizeText(errorMessage, 500));
                 if (applied)
                 {

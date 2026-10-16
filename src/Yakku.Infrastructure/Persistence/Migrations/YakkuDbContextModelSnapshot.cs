@@ -237,6 +237,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<Guid?>("GuestId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("InstallationId")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -270,6 +273,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<string>("PushToken")
                         .HasColumnType("text");
 
+                    b.Property<string>("PushTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Timezone")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -282,6 +289,15 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("GuestId")
+                        .HasDatabaseName("IX_Devices_GuestId")
+                        .HasFilter("\"GuestId\" IS NOT NULL");
+
+                    b.HasIndex("PushTokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Devices_PushTokenHash")
+                        .HasFilter("\"PushTokenHash\" IS NOT NULL");
+
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_Devices_UserId");
 
@@ -289,7 +305,12 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Devices_InstallationId_Platform");
 
-                    b.ToTable("devices", (string)null);
+                    b.ToTable("devices", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_devices_push_token_hash_matches_token", "(\"PushToken\" IS NULL) = (\"PushTokenHash\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_devices_single_owner", "NOT (\"UserId\" IS NOT NULL AND \"GuestId\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Guest", b =>
@@ -1298,10 +1319,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
                 {
+                    b.HasOne("Yakku.Domain.Entities.Guest", "Guest")
+                        .WithMany()
+                        .HasForeignKey("GuestId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("Yakku.Domain.Entities.User", "User")
                         .WithMany("Devices")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Guest");
 
                     b.Navigation("User");
                 });

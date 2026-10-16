@@ -278,7 +278,7 @@ public class GuestLifecycleTests
             Storage = new FakeObjectStorage();
             Audit = new RecordingAuditLogWriter();
             Identity = new GuestIdentityService(Guests, new GuestTokenGenerator(), Hasher, Audit);
-            Claim = new GuestMediaClaimService(Guests, Hasher, Sessions, Audit);
+            Claim = new GuestMediaClaimService(Guests, Hasher, Sessions, new InMemoryDeviceRepository(), Audit);
             Cleanup = new GuestCleanupService(
                 Guests,
                 Sessions,

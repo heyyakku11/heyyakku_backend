@@ -48,7 +48,7 @@ public sealed class GuestAtomicityIntegrationTests
         var (guest, raw) = await AddGuestAsync(context, sessions: 2);
         var audit = new RecordingAuditLogWriter();
         var failing = new InstrumentedGuestRepository(new GuestRepository(context));
-        var service = new GuestMediaClaimService(failing, Hasher, new MediaUploadSessionRepository(context), audit);
+        var service = new GuestMediaClaimService(failing, Hasher, new MediaUploadSessionRepository(context), new DeviceRepository(context), audit);
 
         // The session reassignment has already run inside the transaction when the guest delete fails.
         var result = await service.TryClaimAsync(raw, user.Id);
@@ -75,6 +75,7 @@ public sealed class GuestAtomicityIntegrationTests
                 failing,
                 Hasher,
                 new MediaUploadSessionRepository(failingContext),
+                new DeviceRepository(failingContext),
                 new RecordingAuditLogWriter())
             .TryClaimAsync(raw, user.Id);
         Assert.Equal(GuestClaimResult.Failed, first);
@@ -128,6 +129,7 @@ public sealed class GuestAtomicityIntegrationTests
                     holdAfterLoad: TimeSpan.FromMilliseconds(400)),
                 Hasher,
                 new MediaUploadSessionRepository(context),
+                new DeviceRepository(context),
                 new RecordingAuditLogWriter());
             return (user.Id, Result: await service.TryClaimAsync(raw, user.Id));
         }));
@@ -228,6 +230,7 @@ public sealed class GuestAtomicityIntegrationTests
             new GuestRepository(context),
             Hasher,
             new MediaUploadSessionRepository(context),
+            new DeviceRepository(context),
             new RecordingAuditLogWriter());
     }
 
@@ -296,6 +299,9 @@ public sealed class GuestAtomicityIntegrationTests
 
         public Task AddAsync(Guest guest, CancellationToken cancellationToken = default)
             => _inner.AddAsync(guest, cancellationToken);
+
+        public Task<Guest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+            => _inner.GetByIdAsync(id, cancellationToken);
 
         public Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
             => _inner.GetByTokenHashAsync(tokenHash, cancellationToken);

@@ -20,6 +20,9 @@ internal sealed class InMemoryGuestRepository : IGuestRepository
         return Task.CompletedTask;
     }
 
+    public Task<Guest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => Task.FromResult(_guests.FirstOrDefault(guest => guest.Id == id));
+
     public Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(_guests.FirstOrDefault(guest => guest.GuestTokenHash == tokenHash));

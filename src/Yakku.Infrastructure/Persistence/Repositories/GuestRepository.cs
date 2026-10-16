@@ -18,6 +18,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             await _context.Guests.AddAsync(guest, cancellationToken);
         }
 
+        public Task<Guest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return _context.Guests.FirstOrDefaultAsync(guest => guest.Id == id, cancellationToken);
+        }
+
         public async Task<Guest?> GetByTokenHashAsync(
             string tokenHash,
             CancellationToken cancellationToken = default)

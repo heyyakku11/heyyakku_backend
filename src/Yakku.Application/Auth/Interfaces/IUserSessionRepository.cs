@@ -13,6 +13,12 @@ namespace Yakku.Application.Auth.Interfaces
         Task<IReadOnlyList<UserSession>> ListByUserIdAsync(
             Guid userId,
             CancellationToken cancellationToken = default);
+        /// <summary>True when a live (unrevoked, unexpired) session other than the excluded one is linked to the device.</summary>
+        Task<bool> HasLiveSessionForDeviceAsync(
+            Guid deviceId,
+            DateTime utcNow,
+            Guid? exceptSessionId,
+            CancellationToken cancellationToken = default);
         Task DeleteAsync(UserSession session, CancellationToken cancellationToken = default);
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }

@@ -45,6 +45,20 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public Task<bool> HasLiveSessionForDeviceAsync(
+            Guid deviceId,
+            DateTime utcNow,
+            Guid? exceptSessionId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.UserSessions.AnyAsync(
+                session => session.DeviceId == deviceId
+                    && session.RevokedAt == null
+                    && session.ExpiresAt > utcNow
+                    && (exceptSessionId == null || session.Id != exceptSessionId),
+                cancellationToken);
+        }
+
         public Task DeleteAsync(UserSession session, CancellationToken cancellationToken = default)
         {
             _context.UserSessions.Remove(session);

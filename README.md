@@ -124,6 +124,10 @@ In Development, OTP is logged (`LoggingEmailSender`), not emailed.
 | `POST` | `/api/v1/polls/{id}/votes` | JWT | Cast vote |
 | `POST` | `/api/v1/guests` | — | Create **or reuse** a guest: a valid `yakku_guest` cookie / `X-Guest-Token` returns the same guest with `guestToken: null`; a new `guestToken` (and cookie) is issued only when none is valid. Rate-limited per IP; `409` if the caller is already signed in |
 | `POST` | `/api/v1/auth/verify` | — | Verify OTP; best-effort, atomic claim of the caller's valid guest, then the guest is deleted |
+| `POST` | `/api/v1/devices/register` | JWT **or** guest | Register / upsert the caller's installation (one record per installation + platform). `201` when created, `200` when updated. `409 DEVICE_CONFLICT` if the installation or push token belongs to someone else |
+| `PATCH` | `/api/v1/devices/me` | JWT **or** guest | Partial update: push-token rotation, metadata, notification permission. Omitted = unchanged, `""` = clear. Header `X-Installation-Id` names the installation (required for guests; users default to the one linked to their session) |
+| `DELETE` | `/api/v1/devices/me` | JWT **or** guest | Unregister: stops push, clears the token, keeps the record. Repeatable (`204`); `404` if the caller has no such device |
+| `GET` | `/api/v1/devices/me` | JWT | The user's own installations (never push tokens; `pushEnabled`, `isCurrent`, `lastSeenAt`) |
 | `POST` | `/api/v1/media-upload-sessions` | JWT **or** guest | Start upload (presigned PUT); rate-limited |
 | `GET` | `/api/v1/media-upload-sessions/{id}` | JWT **or** guest | Owner-only upload status |
 | `GET` | `/api/v1/media-upload-sessions/{id}/access` | JWT **or** guest | Short-lived download URL (`uploaded` / `attached` only) |
@@ -164,6 +168,22 @@ Uploads use a single presigned PUT (no multipart). Actual size is enforced on co
 ### Guest expiry and cleanup
 
 Guests expire 7 days after creation. A background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
+
+## Devices
+
+An installation (`installationId` + platform) has **one owner**: a user or a guest, taken from the validated JWT or guest token, never from the request body. A push token belongs to one installation (unique index on its SHA-256; raw tokens are never returned or logged).
+
+| Event | What happens |
+| --- | --- |
+| Register again / token refresh | Same record is updated; no duplicates, even under concurrent requests |
+| Token already on another installation of the **same owner** | Stale copy is cleared |
+| Token or installation held by **someone else** | `409 DEVICE_CONFLICT`, no takeover |
+| Notification permission `denied` | Token is cleared, push stops, record is kept |
+| Guest signs in (register or login) | Guest installations move to the user inside the same transaction as the upload-session claim; expired / missing guest credential transfers nothing; a failure rolls everything back and never fails the login |
+| Logout (single session) | Revokes that session only. The installation **stays linked to the account** (ownership never changes silently) but push is disabled, unless another live session still uses it. The next login re-enables it |
+| Logout all | Same, for all the user's installations |
+| Next account on the same phone | May register the installation once the previous owner has no live session on it (i.e. after logout) |
+| Guest purged after expiry | Its remaining installations are deleted with it |
 
 ## Audit logs and monitoring
 

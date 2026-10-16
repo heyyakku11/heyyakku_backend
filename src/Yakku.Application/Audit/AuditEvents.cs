@@ -23,6 +23,15 @@ namespace Yakku.Application.Audit
             public const string GuestClaimFailed = "guest.claim_failed";
         }
 
+        public static class Device
+        {
+            public const string Registered = "device.registered";
+            public const string Updated = "device.updated";
+            public const string Unregistered = "device.unregistered";
+            public const string OwnershipConflict = "device.ownership_conflict";
+            public const string LoggedOut = "device.logout_disabled";
+        }
+
         public static class Poll
         {
             public const string Created = "poll.created";

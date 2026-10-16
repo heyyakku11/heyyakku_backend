@@ -24,6 +24,15 @@ namespace Yakku.Application.Common
             public const int CreateRateLimitPerMinute = 20;
         }
 
+        public static class Devices
+        {
+            /// <summary>Register / update / unregister requests per caller per minute.</summary>
+            public const int WriteRateLimitPerMinute = 30;
+
+            /// <summary>List requests per caller per minute.</summary>
+            public const int ReadRateLimitPerMinute = 60;
+        }
+
         public static class Retention
         {
             public const int AuthenticationDays = 180;

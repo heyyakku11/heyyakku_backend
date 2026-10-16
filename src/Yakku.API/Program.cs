@@ -151,13 +151,16 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("poll-votes", httpContext => FixedWindow(httpContext, permitLimit: 30));
     // Reusing a valid guest and creating one share this limit, so a single address cannot mint guests in bulk.
     var guestCreateLimit = OperationalSettings.Guests.CreateRateLimitPerMinute;
-    options.AddPolicy("guest-create", httpContext => FixedWindow(httpContext, permitLimit: guestCreateLimit));
+    options.AddPolicy("device-write", httpContext => FixedWindow(httpContext, OperationalSettings.Devices.WriteRateLimitPerMinute));
+    options.AddPolicy("device-read", httpContext => FixedWindow(httpContext, OperationalSettings.Devices.ReadRateLimitPerMinute));
+    options.AddPolicy("guest-create",httpContext => FixedWindow(httpContext, permitLimit: guestCreateLimit));
 });
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
 builder.Services.AddScoped<Yakku.API.Guests.GuestCookieService>();
 builder.Services.AddScoped<Yakku.API.Media.MediaCallerResolver>();
+builder.Services.AddScoped<Yakku.API.Devices.DeviceCallerResolver>();
 
 var corsOrigins = ParseCorsOrigins(Environment.GetEnvironmentVariable("CORS_ORIGINS"));
 if (corsOrigins.Length > 0)

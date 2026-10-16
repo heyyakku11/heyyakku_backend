@@ -3,6 +3,7 @@ using Yakku.Application.Audit;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
+using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
@@ -14,17 +15,20 @@ namespace Yakku.Application.Auth.Services
         private readonly IUserSessionRepository _sessions;
         private readonly ITokenService _tokenService;
         private readonly IValidator<RefreshTokenRequest> _refreshTokenValidator;
+        private readonly IDeviceRepository _devices;
         private readonly IAuditLogWriter _audit;
 
         public SessionService(
             IUserSessionRepository sessions,
             ITokenService tokenService,
             IValidator<RefreshTokenRequest> refreshTokenValidator,
+            IDeviceRepository devices,
             IAuditLogWriter audit)
         {
             _sessions = sessions;
             _tokenService = tokenService;
             _refreshTokenValidator = refreshTokenValidator;
+            _devices = devices;
             _audit = audit;
         }
 
@@ -96,6 +100,47 @@ namespace Yakku.Application.Auth.Services
             session.Revoke();
             await _sessions.SaveChangesAsync(cancellationToken);
             await AuditAsync(AuditEvents.Auth.SessionRevoked, AuditOutcome.Success, session.UserId, session.Id);
+            await DisableDeviceAfterLogoutAsync(session, cancellationToken);
+        }
+
+        /// <summary>
+        /// Logout policy: the installation stays linked to the account (ownership never changes silently) but push
+        /// delivery to it stops. It is skipped while another live session of the user still uses the installation.
+        /// Re-registering on the next login re-enables it. Best effort: it can never fail the logout itself.
+        /// </summary>
+        private async Task DisableDeviceAfterLogoutAsync(UserSession session, CancellationToken cancellationToken)
+        {
+            if (session.DeviceId is not Guid deviceId)
+            {
+                return;
+            }
+
+            try
+            {
+                if (await _sessions.HasLiveSessionForDeviceAsync(deviceId, DateTime.UtcNow, session.Id, cancellationToken))
+                {
+                    return;
+                }
+
+                var device = await _devices.GetByIdAsync(deviceId, cancellationToken);
+                if (device is null || device.UserId != session.UserId)
+                {
+                    return;
+                }
+
+                device.Deactivate();
+                await _devices.SaveChangesAsync(cancellationToken);
+                await AuditAsync(AuditEvents.Device.LoggedOut, AuditOutcome.Success, session.UserId, session.Id);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                await AuditFailureAsync(
+                    AuditEvents.Device.LoggedOut,
+                    exception.GetType().Name,
+                    AuditOutcome.Failure,
+                    session.UserId,
+                    session.Id);
+            }
         }
 
         public async Task RevokeAllAsync(
@@ -109,6 +154,27 @@ namespace Yakku.Application.Auth.Services
             }
 
             await _sessions.SaveChangesAsync(cancellationToken);
+
+            // Every session is gone, so none of the user's installations can receive push any more.
+            try
+            {
+                foreach (var device in await _devices.GetByUserIdAsync(userId, cancellationToken))
+                {
+                    device.Deactivate();
+                }
+
+                await _devices.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                await AuditFailureAsync(
+                    AuditEvents.Device.LoggedOut,
+                    exception.GetType().Name,
+                    AuditOutcome.Failure,
+                    userId,
+                    null);
+            }
+
             await _audit.WriteAuthenticationAsync(
                 new AuthenticationAuditEntry(
                     AuditActorType.User,

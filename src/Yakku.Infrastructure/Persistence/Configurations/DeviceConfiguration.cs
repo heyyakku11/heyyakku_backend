@@ -8,7 +8,16 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<Device> builder)
         {
-            builder.ToTable("devices");
+            builder.ToTable("devices", table =>
+            {
+                // An installation has at most one owner. (Neither is allowed: an orphan whose user was deleted.)
+                table.HasCheckConstraint(
+                    "CK_devices_single_owner",
+                    "NOT (\"UserId\" IS NOT NULL AND \"GuestId\" IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_devices_push_token_hash_matches_token",
+                    "(\"PushToken\" IS NULL) = (\"PushTokenHash\" IS NULL)");
+            });
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.InstallationId)
@@ -17,6 +26,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.PushToken)
                 .HasColumnType("text");
+
+            builder.Property(x => x.PushTokenHash)
+                .HasMaxLength(64);
 
             builder.Property(x => x.Platform)
                 .HasConversion<string>()
@@ -52,6 +64,16 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.UserId)
                 .HasDatabaseName("IX_Devices_UserId");
 
+            builder.HasIndex(x => x.GuestId)
+                .HasFilter("\"GuestId\" IS NOT NULL")
+                .HasDatabaseName("IX_Devices_GuestId");
+
+            // A push token belongs to exactly one installation.
+            builder.HasIndex(x => x.PushTokenHash)
+                .IsUnique()
+                .HasFilter("\"PushTokenHash\" IS NOT NULL")
+                .HasDatabaseName("IX_Devices_PushTokenHash");
+
             builder.HasIndex(x => new { x.InstallationId, x.Platform })
                 .IsUnique()
                 .HasDatabaseName("IX_Devices_InstallationId_Platform");
@@ -61,6 +83,13 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasForeignKey(x => x.UserId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // A guest's installations go with the guest when it is purged (they are transferred first on claim).
+            builder.HasOne(x => x.Guest)
+                .WithMany()
+                .HasForeignKey(x => x.GuestId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

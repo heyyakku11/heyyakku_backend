@@ -53,6 +53,24 @@ public class AuditSanitizerTests
     }
 
     [Theory]
+    [InlineData("installation_owned_by_another_account")]
+    [InlineData("OTP_ATTEMPTS_EXCEEDED")]
+    [InlineData("Http503")]
+    [InlineData("InvalidOperationException")]
+    public void SanitizeCode_KeepsPlainReasonCodesReadable(string code)
+    {
+        Assert.Equal(code, AuditSanitizer.SanitizeCode(code, 128));
+    }
+
+    [Fact]
+    public void SanitizeCode_StillRedactsAnythingThatIsNotACode()
+    {
+        Assert.DoesNotContain(Jwt, AuditSanitizer.SanitizeCode(Jwt, 500));
+        Assert.DoesNotContain("jane@example.com", AuditSanitizer.SanitizeCode("bad jane@example.com", 128));
+        Assert.Equal(10, AuditSanitizer.SanitizeCode("a_code_that_is_too_long", 10)!.Length);
+    }
+
+    [Theory]
     [InlineData("jane@example.com", "j***@example.com")]
     [InlineData("+919876543210", "***10")]
     public void MaskRecipient_HidesTheAddress(string input, string expected)

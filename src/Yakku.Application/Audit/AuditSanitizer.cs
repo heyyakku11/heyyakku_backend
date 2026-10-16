@@ -78,6 +78,29 @@ namespace Yakku.Application.Audit
             return Truncate(text, maxLength);
         }
 
+        /// <summary>
+        /// For machine-readable reason / error codes such as <c>installation_owned_by_another_account</c>. A plain
+        /// identifier is kept as written (the general rules would redact long snake_case codes as if they were
+        /// secrets); anything else, including JWT-shaped text, goes through <see cref="SanitizeText"/>.
+        /// </summary>
+        public static string? SanitizeCode(string? value, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var trimmed = value.Trim();
+            return trimmed.Length <= maxLength
+                   && !trimmed.StartsWith("eyJ", StringComparison.Ordinal)
+                   && CodePattern().IsMatch(trimmed)
+                ? trimmed
+                : SanitizeText(trimmed, maxLength);
+        }
+
+        [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9_.:\-]*$")]
+        private static partial Regex CodePattern();
+
         public static string? SanitizeUserAgent(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))

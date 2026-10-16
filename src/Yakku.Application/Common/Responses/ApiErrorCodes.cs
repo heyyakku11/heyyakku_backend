@@ -8,6 +8,7 @@ namespace Yakku.Application.Common.Responses
         public const string Unauthorized = "UNAUTHORIZED";
         public const string Forbidden = "FORBIDDEN";
         public const string Conflict = "CONFLICT";
+        public const string DeviceConflict = "DEVICE_CONFLICT";
         public const string AlreadyVoted = "ALREADY_VOTED";
         public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
         public const string UnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE";
