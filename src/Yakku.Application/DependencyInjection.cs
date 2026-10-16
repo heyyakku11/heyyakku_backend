@@ -42,6 +42,7 @@ namespace Yakku.Application
             services.AddScoped<IYakkuDirectoryService, YakkuDirectoryService>();
             services.AddScoped<IGuestIdentityService, GuestIdentityService>();
             services.AddScoped<IGuestMediaClaimService, GuestMediaClaimService>();
+            services.AddScoped<IGuestCleanupService, GuestCleanupService>();
             services.AddScoped<IVoteService, VoteService>();
             services.AddScoped<IDeviceService, DeviceService>();
             services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();

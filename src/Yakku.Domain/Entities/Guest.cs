@@ -13,12 +13,22 @@ namespace Yakku.Domain.Entities
         }
 
         public Guest(string guestTokenHash)
+            : this(guestTokenHash, DateTime.UtcNow)
+        {
+        }
+
+        public Guest(string guestTokenHash, DateTime createdAtUtc)
         {
             Id = Guid.NewGuid();
             GuestTokenHash = guestTokenHash;
-            CreatedAt = DateTime.UtcNow;
+            CreatedAt = createdAtUtc;
             LastSeenAt = CreatedAt;
             ExpiresAt = CreatedAt.AddDays(7);
+        }
+
+        public bool IsExpired(DateTime utcNow)
+        {
+            return ExpiresAt <= utcNow;
         }
 
         public void Touch()

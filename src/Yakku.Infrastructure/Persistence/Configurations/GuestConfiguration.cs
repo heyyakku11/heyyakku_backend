@@ -8,7 +8,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<Guest> builder)
         {
-            builder.ToTable("Guests");
+            builder.ToTable("guests");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.GuestTokenHash)

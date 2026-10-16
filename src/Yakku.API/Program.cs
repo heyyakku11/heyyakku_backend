@@ -10,9 +10,12 @@ using Yakku.API.Configuration;
 using Yakku.API.Middleware;
 using Yakku.API.Swagger;
 using Yakku.Application;
+using Yakku.Application.Audit;
 using Yakku.Application.Auth;
 using Yakku.Application.Common.Responses;
+using Yakku.Domain.Enums;
 using Yakku.Infrastructure;
+using Yakku.Application.Common;
 using Yakku.Infrastructure.Persistence;
 
 EnvLoader.Load();
@@ -118,6 +121,20 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = async (context, token) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+        var policy = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+        await context.HttpContext.RequestServices.GetRequiredService<IAuditLogWriter>().WriteSystemAsync(
+            new SystemLogEntry(
+                SystemLogCategory.RateLimit,
+                SystemLogSeverity.Warning,
+                "RateLimiter",
+                "Request rejected by the rate limiter.",
+                HttpMethod: context.HttpContext.Request.Method,
+                Path: context.HttpContext.Request.Path.Value,
+                StatusCode: StatusCodes.Status429TooManyRequests,
+                Metadata: new Dictionary<string, string?> { ["policy"] = policy }),
+            CancellationToken.None);
+
         await context.HttpContext.Response.WriteAsJsonAsync(
             ApiResponse.Fail(
                 "Too many requests.",
@@ -132,6 +149,9 @@ builder.Services.AddRateLimiter(options =>
     };
     options.AddPolicy("media-upload", httpContext => FixedWindow(httpContext, permitLimit: 20));
     options.AddPolicy("poll-votes", httpContext => FixedWindow(httpContext, permitLimit: 30));
+    // Reusing a valid guest and creating one share this limit, so a single address cannot mint guests in bulk.
+    var guestCreateLimit = OperationalSettings.Guests.CreateRateLimitPerMinute;
+    options.AddPolicy("guest-create", httpContext => FixedWindow(httpContext, permitLimit: guestCreateLimit));
 });
 
 builder.Services.AddApplication();
@@ -157,6 +177,7 @@ if (corsOrigins.Length > 0)
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseMiddleware<RequestMonitoringMiddleware>(TimeSpan.FromMilliseconds(OperationalSettings.Monitoring.SlowRequestThresholdMs));
 
 if (corsOrigins.Length > 0)
 {

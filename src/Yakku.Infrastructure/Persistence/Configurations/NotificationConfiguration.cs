@@ -8,7 +8,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<Notification> builder)
         {
-            builder.ToTable("Notifications");
+            builder.ToTable("notifications");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Type)

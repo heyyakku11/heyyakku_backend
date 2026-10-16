@@ -169,9 +169,12 @@ public class GuestMediaUploadTests
                 Storage,
                 policy,
                 new CreatePollValidator(),
-                new UpdatePollValidator());
-            Claim = new GuestMediaClaimService(Guests, hasher, SessionStore);
+                new UpdatePollValidator(),
+                Audit);
+            Claim = new GuestMediaClaimService(Guests, hasher, SessionStore, Audit);
         }
+
+        public RecordingAuditLogWriter Audit { get; } = new();
 
         public Guid UserId { get; }
         public Guid GuestId { get; }
@@ -199,44 +202,4 @@ public class GuestMediaUploadTests
                 GuestOwner);
         }
     }
-}
-
-internal sealed class InMemoryGuestRepository : IGuestRepository
-{
-    private readonly List<Guest> _guests = [];
-
-    public void Seed(Guest guest) => _guests.Add(guest);
-
-    public Task AddAsync(Guest guest, CancellationToken cancellationToken = default)
-    {
-        _guests.Add(guest);
-        return Task.CompletedTask;
-    }
-
-    public Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(_guests.FirstOrDefault(guest => guest.GuestTokenHash == tokenHash));
-    }
-
-    public Task<IReadOnlyList<Guest>> ListAsync(
-        bool? active,
-        DateTime utcNow,
-        CancellationToken cancellationToken = default)
-    {
-        IEnumerable<Guest> query = _guests;
-        if (active == true)
-        {
-            query = query.Where(guest => guest.ExpiresAt > utcNow);
-        }
-        else if (active == false)
-        {
-            query = query.Where(guest => guest.ExpiresAt <= utcNow);
-        }
-
-        return Task.FromResult<IReadOnlyList<Guest>>(query.ToList());
-    }
-
-    public void Delete(Guest guest) => _guests.Remove(guest);
-
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

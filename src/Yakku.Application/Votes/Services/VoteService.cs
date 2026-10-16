@@ -1,4 +1,5 @@
 using FluentValidation;
+using Yakku.Application.Audit;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls.Interfaces;
@@ -15,15 +16,18 @@ namespace Yakku.Application.Votes.Services
         private readonly IPollRepository _pollRepository;
         private readonly IVoteRepository _voteRepository;
         private readonly IValidator<CastVoteRequest> _validator;
+        private readonly IAuditLogWriter _audit;
 
         public VoteService(
             IPollRepository pollRepository,
             IVoteRepository voteRepository,
-            IValidator<CastVoteRequest> validator)
+            IValidator<CastVoteRequest> validator,
+            IAuditLogWriter audit)
         {
             _pollRepository = pollRepository;
             _voteRepository = voteRepository;
             _validator = validator;
+            _audit = audit;
         }
 
         public async Task<VoteResponse> CastAsync(
@@ -31,6 +35,51 @@ namespace Yakku.Application.Votes.Services
             Guid userId,
             CastVoteRequest request,
             CancellationToken cancellationToken = default)
+        {
+            // Only the voter reference, poll and outcome are audited. The chosen option, custom answer and
+            // reason are deliberately never written.
+            try
+            {
+                var response = await CastCoreAsync(pollId, userId, request, cancellationToken);
+                await _audit.WritePollAsync(
+                    new PollAuditEntry(
+                        pollId,
+                        AuditActorType.User,
+                        null,
+                        AuditEvents.Poll.VoteCast,
+                        AuditOutcome.Success,
+                        VoterUserId: userId),
+                    CancellationToken.None);
+                return response;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                var errorCode = exception switch
+                {
+                    AppException app => app.ErrorCode,
+                    ValidationException => ApiErrorCodes.ValidationError,
+                    _ => exception.GetType().Name
+                };
+
+                await _audit.WritePollAsync(
+                    new PollAuditEntry(
+                        pollId,
+                        AuditActorType.User,
+                        null,
+                        AuditEvents.Poll.VoteRejected,
+                        errorCode == ApiErrorCodes.Unauthorized ? AuditOutcome.Denied : AuditOutcome.Failure,
+                        ErrorCode: errorCode,
+                        VoterUserId: userId == Guid.Empty ? null : userId),
+                    CancellationToken.None);
+                throw;
+            }
+        }
+
+        private async Task<VoteResponse> CastCoreAsync(
+            Guid pollId,
+            Guid userId,
+            CastVoteRequest request,
+            CancellationToken cancellationToken)
         {
             if (userId == Guid.Empty)
             {

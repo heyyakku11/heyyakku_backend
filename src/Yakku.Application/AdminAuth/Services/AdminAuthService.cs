@@ -1,6 +1,7 @@
 using FluentValidation;
 using Yakku.Application.AdminAuth.DTOs;
 using Yakku.Application.AdminAuth.Interfaces;
+using Yakku.Application.Audit;
 using Yakku.Application.Auth;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
@@ -24,6 +25,7 @@ namespace Yakku.Application.AdminAuth.Services
         private readonly IValidator<AdminRegisterRequest> _registerValidator;
         private readonly IValidator<AdminVerifyOtpRequest> _verifyOtpValidator;
         private readonly IValidator<AdminLoginRequest> _loginValidator;
+        private readonly IAuditLogWriter _audit;
 
         public AdminAuthService(
             IAdminRepository adminRepository,
@@ -33,7 +35,8 @@ namespace Yakku.Application.AdminAuth.Services
             IAdminSessionService sessionService,
             IValidator<AdminRegisterRequest> registerValidator,
             IValidator<AdminVerifyOtpRequest> verifyOtpValidator,
-            IValidator<AdminLoginRequest> loginValidator)
+            IValidator<AdminLoginRequest> loginValidator,
+            IAuditLogWriter audit)
         {
             _adminRepository = adminRepository;
             _otpChallengeStore = otpChallengeStore;
@@ -43,6 +46,7 @@ namespace Yakku.Application.AdminAuth.Services
             _registerValidator = registerValidator;
             _verifyOtpValidator = verifyOtpValidator;
             _loginValidator = loginValidator;
+            _audit = audit;
         }
 
         public async Task<RequestOtpResponse> RegisterAsync(
@@ -103,6 +107,23 @@ namespace Yakku.Application.AdminAuth.Services
         public async Task<AdminAuthResponse> VerifyOtpAsync(
             AdminVerifyOtpRequest request,
             CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var response = await VerifyOtpCoreAsync(request, cancellationToken);
+                await AuditSuccessAsync(AuditEvents.Auth.LoggedIn, request.Email, "otp");
+                return response;
+            }
+            catch (AppException exception)
+            {
+                await AuditFailureAsync(AuditEvents.Auth.OtpVerifyFailed, exception, request.Email);
+                throw;
+            }
+        }
+
+        private async Task<AdminAuthResponse> VerifyOtpCoreAsync(
+            AdminVerifyOtpRequest request,
+            CancellationToken cancellationToken)
         {
             await _verifyOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
@@ -203,6 +224,23 @@ namespace Yakku.Application.AdminAuth.Services
             AdminLoginRequest request,
             CancellationToken cancellationToken = default)
         {
+            try
+            {
+                var response = await LoginCoreAsync(request, cancellationToken);
+                await AuditSuccessAsync(AuditEvents.Auth.LoggedIn, request.Email, "password");
+                return response;
+            }
+            catch (AppException exception)
+            {
+                await AuditFailureAsync(AuditEvents.Auth.LoginFailed, exception, request.Email);
+                throw;
+            }
+        }
+
+        private async Task<AdminAuthResponse> LoginCoreAsync(
+            AdminLoginRequest request,
+            CancellationToken cancellationToken)
+        {
             await _loginValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var email = NormalizeEmail(request.Email);
@@ -240,6 +278,38 @@ namespace Yakku.Application.AdminAuth.Services
             return ToAuthResponse(
                 await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken),
                 admin);
+        }
+
+        private Task AuditSuccessAsync(string eventType, string? email, string method)
+        {
+            return _audit.WriteAuthenticationAsync(
+                new AuthenticationAuditEntry(
+                    AuditActorType.Admin,
+                    null,
+                    eventType,
+                    AuditOutcome.Success,
+                    Subject: email,
+                    Metadata: new Dictionary<string, string?> { ["method"] = method }),
+                CancellationToken.None);
+        }
+
+        private Task AuditFailureAsync(string eventType, AppException exception, string? email)
+        {
+            // Admin accounts are high value: exhausted OTP attempts and bad passwords are flagged as suspicious.
+            var outcome = exception.ErrorCode is ApiErrorCodes.OtpAttemptsExceeded
+                || (exception.ErrorCode == ApiErrorCodes.Unauthorized && eventType == AuditEvents.Auth.LoginFailed)
+                ? AuditOutcome.Suspicious
+                : AuditOutcome.Failure;
+
+            return _audit.WriteAuthenticationAsync(
+                new AuthenticationAuditEntry(
+                    AuditActorType.Admin,
+                    null,
+                    eventType,
+                    outcome,
+                    FailureReason: exception.ErrorCode,
+                    Subject: email),
+                CancellationToken.None);
         }
 
         private static AdminAuthResponse ToAuthResponse(TokenResponse tokens, Admin admin)

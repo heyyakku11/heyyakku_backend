@@ -1,10 +1,13 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.AdminAuth.Interfaces;
+using Yakku.Application.Audit;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Email;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Email
 {
@@ -14,17 +17,20 @@ namespace Yakku.Infrastructure.Email
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IEmailSender _emailSender;
         private readonly ILogger<OtpEmailWorker> _logger;
+        private readonly IAuditLogWriter _audit;
 
         public OtpEmailWorker(
             Channel<EmailJob> channel,
             IServiceScopeFactory scopeFactory,
             IEmailSender emailSender,
-            ILogger<OtpEmailWorker> logger)
+            ILogger<OtpEmailWorker> logger,
+            IAuditLogWriter audit)
         {
             _reader = channel.Reader;
             _scopeFactory = scopeFactory;
             _emailSender = emailSender;
             _logger = logger;
+            _audit = audit;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -60,6 +66,7 @@ namespace Yakku.Infrastructure.Email
                 _logger.LogInformation(
                     "Skipping OTP email for superseded challenge {ChallengeId}.",
                     job.ChallengeId);
+                await AuditAttemptAsync(job, 1, NotificationAuditStatus.Skipped, null, "superseded", null, null, false);
                 return;
             }
 
@@ -72,6 +79,7 @@ namespace Yakku.Infrastructure.Email
                     _logger.LogInformation(
                         "Stopping OTP email for superseded challenge {ChallengeId}.",
                         job.ChallengeId);
+                    await AuditAttemptAsync(job, attempt, NotificationAuditStatus.Skipped, null, "superseded", null, null, false);
                     return;
                 }
 
@@ -81,7 +89,24 @@ namespace Yakku.Infrastructure.Email
                     await Task.Delay(WithJitter(OtpEmailQueueOptions.RetryDelays[delayIndex]), stoppingToken);
                 }
 
+                var stopwatch = Stopwatch.StartNew();
                 var result = await _emailSender.SendOtpAsync(job.RecipientEmail, job.Otp, stoppingToken);
+                stopwatch.Stop();
+
+                // Resend returning an id means it accepted the message, not that the inbox received it.
+                var willRetry = !result.Succeeded
+                    && !result.IsPermanentFailure
+                    && attempt < OtpEmailQueueOptions.MaxAttempts;
+                await AuditAttemptAsync(
+                    job,
+                    attempt,
+                    result.Succeeded ? NotificationAuditStatus.Accepted : NotificationAuditStatus.Failed,
+                    result.ProviderMessageId,
+                    result.ErrorCode,
+                    result.ErrorMessage,
+                    (int)stopwatch.ElapsedMilliseconds,
+                    willRetry);
+
                 if (result.Succeeded)
                 {
                     return;
@@ -97,6 +122,35 @@ namespace Yakku.Infrastructure.Email
                     return;
                 }
             }
+        }
+
+        private Task AuditAttemptAsync(
+            EmailJob job,
+            int attempt,
+            NotificationAuditStatus status,
+            string? providerMessageId,
+            string? errorCode,
+            string? errorMessage,
+            int? latencyMs,
+            bool willRetry)
+        {
+            return _audit.WriteNotificationAsync(
+                new NotificationAuditEntry(
+                    NotificationChannel.Email,
+                    "resend",
+                    AuditEvents.Notification.OtpEmail,
+                    null,
+                    null,
+                    job.RecipientEmail,
+                    job.ChallengeId,
+                    attempt,
+                    willRetry,
+                    status,
+                    providerMessageId,
+                    errorCode,
+                    errorMessage,
+                    latencyMs),
+                CancellationToken.None);
         }
 
         private static async Task<bool> IsChallengeCurrentAsync(

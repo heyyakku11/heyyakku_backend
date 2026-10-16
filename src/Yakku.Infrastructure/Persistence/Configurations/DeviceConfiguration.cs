@@ -8,7 +8,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<Device> builder)
         {
-            builder.ToTable("Devices");
+            builder.ToTable("devices");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.InstallationId)

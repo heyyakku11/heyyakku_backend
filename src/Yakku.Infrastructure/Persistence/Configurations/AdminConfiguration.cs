@@ -9,7 +9,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<Admin> builder)
         {
-            builder.ToTable("Admins");
+            builder.ToTable("admins");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Email)

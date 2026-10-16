@@ -8,7 +8,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<AdminSession> builder)
         {
-            builder.ToTable("AdminSessions");
+            builder.ToTable("admin_sessions");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.AdminId)

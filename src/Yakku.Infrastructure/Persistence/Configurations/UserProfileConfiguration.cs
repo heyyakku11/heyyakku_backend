@@ -8,7 +8,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<UserProfile> builder)
         {
-            builder.ToTable("UserProfiles");
+            builder.ToTable("user_profiles");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.UserId)

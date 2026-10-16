@@ -127,6 +127,14 @@ namespace Yakku.Domain.Entities
             UpdatedAt = DateTime.UtcNow;
         }
 
+        /// <summary>Invalidates the session immediately so cleanup picks it up on its next run.</summary>
+        internal void ExpireNow(DateTime utcNow)
+        {
+            Status = MediaUploadStatus.Expired;
+            ExpiresAt = utcNow;
+            UpdatedAt = utcNow;
+        }
+
         internal void MarkCancelled()
         {
             Status = MediaUploadStatus.Cancelled;

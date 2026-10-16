@@ -1,4 +1,5 @@
 using FluentValidation;
+using Yakku.Application.Audit;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Models;
@@ -21,6 +22,7 @@ namespace Yakku.Application.Auth.Services
         private readonly IValidator<RequestOtpRequest> _requestOtpValidator;
         private readonly IValidator<ResendOtpRequest> _resendOtpValidator;
         private readonly IValidator<VerifyOtpRequest> _verifyOtpValidator;
+        private readonly IAuditLogWriter _audit;
 
         public AuthService(
             IUserRepository userRepository,
@@ -30,7 +32,8 @@ namespace Yakku.Application.Auth.Services
             ISessionService sessionService,
             IValidator<RequestOtpRequest> requestOtpValidator,
             IValidator<ResendOtpRequest> resendOtpValidator,
-            IValidator<VerifyOtpRequest> verifyOtpValidator)
+            IValidator<VerifyOtpRequest> verifyOtpValidator,
+            IAuditLogWriter audit)
         {
             _userRepository = userRepository;
             _otpChallengeStore = otpChallengeStore;
@@ -40,11 +43,37 @@ namespace Yakku.Application.Auth.Services
             _requestOtpValidator = requestOtpValidator;
             _resendOtpValidator = resendOtpValidator;
             _verifyOtpValidator = verifyOtpValidator;
+            _audit = audit;
         }
 
         public async Task<RequestOtpResponse> RequestOtpAsync(
             RequestOtpRequest request,
             CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var response = await RequestOtpCoreAsync(request, cancellationToken);
+                await _audit.WriteAuthenticationAsync(
+                    new AuthenticationAuditEntry(
+                        AuditActorType.User,
+                        null,
+                        AuditEvents.Auth.OtpRequested,
+                        AuditOutcome.Success,
+                        Subject: request.PhoneNumber,
+                        Metadata: new Dictionary<string, string?> { ["purpose"] = response.Purpose }),
+                    CancellationToken.None);
+                return response;
+            }
+            catch (AppException exception)
+            {
+                await AuditFailureAsync(AuditEvents.Auth.OtpRequested, exception, request.PhoneNumber);
+                throw;
+            }
+        }
+
+        private async Task<RequestOtpResponse> RequestOtpCoreAsync(
+            RequestOtpRequest request,
+            CancellationToken cancellationToken)
         {
             await _requestOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
@@ -153,6 +182,32 @@ namespace Yakku.Application.Auth.Services
         public async Task<VerifyOtpResponse> VerifyOtpAsync(
             VerifyOtpRequest request,
             CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var response = await VerifyOtpCoreAsync(request, cancellationToken);
+                await _audit.WriteAuthenticationAsync(
+                    new AuthenticationAuditEntry(
+                        AuditActorType.User,
+                        response.UserId,
+                        response.Purpose == nameof(OtpPurpose.Registration)
+                            ? AuditEvents.Auth.Registered
+                            : AuditEvents.Auth.LoggedIn,
+                        AuditOutcome.Success,
+                        Subject: request.PhoneNumber),
+                    CancellationToken.None);
+                return response;
+            }
+            catch (AppException exception)
+            {
+                await AuditFailureAsync(AuditEvents.Auth.OtpVerifyFailed, exception, request.PhoneNumber);
+                throw;
+            }
+        }
+
+        private async Task<VerifyOtpResponse> VerifyOtpCoreAsync(
+            VerifyOtpRequest request,
+            CancellationToken cancellationToken)
         {
             await _verifyOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
@@ -299,6 +354,24 @@ namespace Yakku.Application.Auth.Services
                 AccessTokenExpiresInSeconds = tokens.AccessTokenExpiresInSeconds,
                 RefreshTokenExpiresInSeconds = tokens.RefreshTokenExpiresInSeconds
             };
+        }
+
+        private Task AuditFailureAsync(string eventType, AppException exception, string? subject)
+        {
+            // Exhausting OTP attempts is the brute-force signal; everything else is an ordinary failure.
+            var outcome = exception.ErrorCode == ApiErrorCodes.OtpAttemptsExceeded
+                ? AuditOutcome.Suspicious
+                : AuditOutcome.Failure;
+
+            return _audit.WriteAuthenticationAsync(
+                new AuthenticationAuditEntry(
+                    AuditActorType.User,
+                    null,
+                    eventType,
+                    outcome,
+                    FailureReason: exception.ErrorCode,
+                    Subject: subject),
+                CancellationToken.None);
         }
 
         private static string NormalizePhoneNumber(string phoneNumber)

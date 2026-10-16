@@ -24,6 +24,10 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
         public DbSet<Admin> Admins => Set<Admin>();
         public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
+        public DbSet<AuthenticationAuditLog> AuthenticationAuditLogs => Set<AuthenticationAuditLog>();
+        public DbSet<PollAuditLog> PollAuditLogs => Set<PollAuditLog>();
+        public DbSet<NotificationAuditLog> NotificationAuditLogs => Set<NotificationAuditLog>();
+        public DbSet<SystemLog> SystemLogs => Set<SystemLog>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

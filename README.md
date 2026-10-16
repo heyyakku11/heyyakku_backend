@@ -122,8 +122,8 @@ In Development, OTP is logged (`LoggingEmailSender`), not emailed.
 | `POST` | `/api/v1/polls/{id}/publish` | JWT | Publish draft only (legacy; not needed for new creates) |
 | `GET` | `/api/v1/polls/{id}` | JWT or anonymous | Get poll (signed media URL when ready) |
 | `POST` | `/api/v1/polls/{id}/votes` | JWT | Cast vote |
-| `POST` | `/api/v1/guests` | — | Create/refresh guest; returns `guestId` and one-time `guestToken` (also sets `yakku_guest` cookie) |
-| `POST` | `/api/v1/auth/verify` | — | Verify OTP; claims guest uploads then deletes guest |
+| `POST` | `/api/v1/guests` | — | Create **or reuse** a guest: a valid `yakku_guest` cookie / `X-Guest-Token` returns the same guest with `guestToken: null`; a new `guestToken` (and cookie) is issued only when none is valid. Rate-limited per IP; `409` if the caller is already signed in |
+| `POST` | `/api/v1/auth/verify` | — | Verify OTP; best-effort, atomic claim of the caller's valid guest, then the guest is deleted |
 | `POST` | `/api/v1/media-upload-sessions` | JWT **or** guest | Start upload (presigned PUT); rate-limited |
 | `GET` | `/api/v1/media-upload-sessions/{id}` | JWT **or** guest | Owner-only upload status |
 | `GET` | `/api/v1/media-upload-sessions/{id}/access` | JWT **or** guest | Short-lived download URL (`uploaded` / `attached` only) |
@@ -151,9 +151,30 @@ Server selects the bucket from `mediaType` (`IMAGE` → images, `VIDEO` → vide
 3. `POST /api/v1/auth/verify` with the guest token still present — backend transfers guest upload sessions to the user, deletes the guest row, and clears the cookie. Response includes JWT + `userId`.
 4. `POST /api/v1/polls` with Bearer JWT and the same `mediaUploadSessionId`.
 
+The claim is optional and never blocks sign-in:
+
+- It runs in **one database transaction** (sessions move to the user and the guest is deleted together, or nothing changes) and locks the guest row, so concurrent claims of one guest have exactly one winner.
+- Only a **valid, unexpired** guest is claimed. A missing, unknown or expired token still signs the user in; nothing is transferred.
+- If the claim fails, the request still succeeds, the failure is audited, and the guest cookie is kept so the next sign-in can retry. The response contract is unchanged.
+
 Allowed types: JPEG/PNG/WebP; MP4/WebM; MP3/M4A/WAV/OGG. Limits default to 10 / 100 / 20 MiB and 60s / 120s for video/audio. Abandoned and failed sessions are purged by a background worker.
 
 Uploads use a single presigned PUT (no multipart). Actual size is enforced on complete, not by the signed URL. Do not log guest tokens or signed URLs.
+
+### Guest expiry and cleanup
+
+Guests expire 7 days after creation. A background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
+
+## Audit logs and monitoring
+
+| Table | Records |
+| --- | --- |
+| `authentication_audit_logs` | User / guest / admin sign-ins, OTP failures, session create / refresh / revoke, guest claims, and `SUSPICIOUS` events (exhausted OTP attempts, reuse of a revoked or rotated refresh token, failed admin password) |
+| `poll_audit_logs` | Poll create / update / publish / close / delete, votes, rejected operations and permission failures. No foreign keys, so history survives poll and user deletion. Votes store a per-poll pseudonym and never the chosen option, answer or reason |
+| `notification_audit_logs` | One row per push / email / SMS / WhatsApp attempt: provider, attempt number, retry flag, latency, sanitized error. `status` is **provider acceptance**; `delivery_status` stays `UNKNOWN` until a delivery report is recorded (FCM and Resend acceptance are not delivery) |
+| `system_logs` | Unhandled exceptions, slow requests (over 1.5 s), 5xx responses, rate-limit rejections, and background-job runs / failures |
+
+Credentials, tokens, OTPs, cookies and raw identifiers are never written: emails and phone numbers are masked or hashed, free text is redacted, and request paths are stored without IDs or query strings. Audit writes are best-effort and can never fail the request they describe. A retention job (`AuditRetentionWorker`) deletes rows past their retention window. Only the SMS and WhatsApp *schema* exists; no SMS/WhatsApp provider is wired up yet.
 
 ## Tests
 

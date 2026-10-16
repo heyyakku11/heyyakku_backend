@@ -7,6 +7,7 @@ using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Guests;
 using Yakku.Application.Guests.Interfaces;
 
 namespace Yakku.API.Controllers
@@ -19,17 +20,20 @@ namespace Yakku.API.Controllers
         private readonly ISessionService _sessionService;
         private readonly IGuestMediaClaimService _guestMediaClaim;
         private readonly GuestCookieService _guestCookies;
+        private readonly ILogger<AuthController> _logger;
 
         public AuthController(
             IAuthService authService,
             ISessionService sessionService,
             IGuestMediaClaimService guestMediaClaim,
-            GuestCookieService guestCookies)
+            GuestCookieService guestCookies,
+            ILogger<AuthController> logger)
         {
             _authService = authService;
             _sessionService = sessionService;
             _guestMediaClaim = guestMediaClaim;
             _guestCookies = guestCookies;
+            _logger = logger;
         }
 
         [HttpPost("send")]
@@ -67,15 +71,7 @@ namespace Yakku.API.Controllers
             {
                 var result = await _authService.VerifyOtpAsync(request, cancellationToken);
 
-                var guestToken = MediaCallerResolver.ReadGuestToken(HttpContext);
-                if (!string.IsNullOrWhiteSpace(guestToken))
-                {
-                    await _guestMediaClaim.ClaimAndDeleteGuestAsync(
-                        guestToken,
-                        result.UserId,
-                        cancellationToken);
-                    _guestCookies.Clear(HttpContext);
-                }
+                await ClaimGuestAsync(result.UserId, cancellationToken);
 
                 var message = result.Purpose == "Registration"
                     ? "Registration successful"
@@ -145,6 +141,42 @@ namespace Yakku.API.Controllers
             catch (AppException ex)
             {
                 return ToErrorResult(ex);
+            }
+        }
+
+        /// <summary>
+        /// Moves guest data to the freshly authenticated user. Strictly optional: it can never fail the sign-in,
+        /// because the OTP is already consumed and the user already exists by the time this runs.
+        /// </summary>
+        private async Task ClaimGuestAsync(Guid userId, CancellationToken cancellationToken)
+        {
+            var guestToken = MediaCallerResolver.ReadGuestToken(HttpContext);
+            if (string.IsNullOrWhiteSpace(guestToken))
+            {
+                return;
+            }
+
+            GuestClaimResult outcome;
+            try
+            {
+                outcome = await _guestMediaClaim.TryClaimAsync(guestToken, userId, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                // TryClaimAsync is written never to throw; this is the backstop so that can never become a 500.
+                _logger.LogError(
+                    "Guest claim threw unexpectedly ({ExceptionType}); sign-in continues.",
+                    exception.GetType().Name);
+                outcome = GuestClaimResult.Failed;
+            }
+
+            _logger.LogInformation("Guest claim finished with outcome {Outcome}.", outcome);
+
+            // Claimed, unknown and expired tokens are useless from now on and are dropped. After a failure the
+            // guest (rolled back, intact) and its credential are kept so the next sign-in can retry.
+            if (outcome != GuestClaimResult.Failed)
+            {
+                _guestCookies.Clear(HttpContext);
             }
         }
 

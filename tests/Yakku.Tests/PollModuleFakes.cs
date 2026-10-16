@@ -89,8 +89,15 @@ internal sealed class FakeObjectStorage : IObjectStorage
         return Task.FromResult(stored.Bytes);
     }
 
+    public bool FailDeletes { get; set; }
+
     public Task DeleteAsync(string bucketName, string objectKey, CancellationToken cancellationToken = default)
     {
+        if (FailDeletes)
+        {
+            throw new InvalidOperationException("Storage is unavailable.");
+        }
+
         Deleted.Add(objectKey);
         _objects.Remove(objectKey);
         return Task.CompletedTask;
@@ -491,6 +498,34 @@ internal sealed class InMemorySessionRepository : IMediaUploadSessionRepository
         }
 
         return Task.FromResult(count);
+    }
+
+    public Task<int> ExpireGuestSessionsAsync(Guid guestId, DateTime utcNow, CancellationToken cancellationToken = default)
+    {
+        var count = 0;
+        foreach (var session in _sessions.Where(session =>
+                     session.GuestId == guestId
+                     && session.PurgedAt == null
+                     && session.Status is MediaUploadStatus.Pending
+                         or MediaUploadStatus.Uploading
+                         or MediaUploadStatus.Uploaded
+                         or MediaUploadStatus.Failed))
+        {
+            session.ExpireNow(utcNow);
+            count++;
+        }
+
+        return Task.FromResult(count);
+    }
+
+    public Task<int> DeletePurgedGuestSessionsAsync(Guid guestId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_sessions.RemoveAll(session => session.GuestId == guestId && session.PurgedAt != null));
+    }
+
+    public Task<int> CountGuestSessionsAsync(Guid guestId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_sessions.Count(session => session.GuestId == guestId));
     }
 
     public Task MarkPurgedAsync(Guid sessionId, CancellationToken cancellationToken = default)

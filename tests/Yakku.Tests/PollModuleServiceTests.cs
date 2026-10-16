@@ -1,5 +1,7 @@
 using FluentValidation;
+using Yakku.Application.Audit;
 using Yakku.Application.Common.Exceptions;
+using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls;
 using Yakku.Application.Polls.DTOs;
 using Yakku.Application.Polls.Services;
@@ -558,6 +560,89 @@ public class PollModuleServiceTests
         Assert.Contains(session.ObjectKey, harness.Storage.Deleted);
     }
 
+    [Fact]
+    public async Task PollAudit_RecordsCreateAndFailedStateTransition()
+    {
+        var harness = new PollHarness();
+        var created = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+
+        var createdEntry = Assert.Single(harness.Audit.Polls);
+        Assert.Equal(AuditEvents.Poll.Created, createdEntry.EventType);
+        Assert.Equal(AuditOutcome.Success, createdEntry.Outcome);
+        Assert.Equal(created.Id, createdEntry.PollId);
+        Assert.Equal(harness.UserId, createdEntry.ActorUserId);
+        Assert.Equal("active", createdEntry.ToStatus);
+
+        // Publishing an already active poll is an invalid state transition.
+        await Assert.ThrowsAsync<AppException>(() => harness.Polls.PublishAsync(created.Id, harness.UserId));
+
+        var failed = harness.Audit.Polls.Last();
+        Assert.Equal(AuditEvents.Poll.OperationFailed, failed.EventType);
+        Assert.Equal(AuditOutcome.Failure, failed.Outcome);
+        Assert.Equal(ApiErrorCodes.Conflict, failed.ErrorCode);
+        Assert.Equal(AuditEvents.Poll.Published, failed.Metadata!["attempted"]);
+    }
+
+    [Fact]
+    public async Task PollAudit_RecordsPermissionFailureWithoutLeakingExistence()
+    {
+        var harness = new PollHarness();
+        var created = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+        var intruder = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<AppException>(() => harness.Polls.DeletePollAsync(created.Id, intruder));
+
+        Assert.Equal(404, exception.StatusCode);
+        Assert.Single(harness.PollStore.Polls);
+        var denied = Assert.Single(harness.Audit.Polls, entry => entry.EventType == AuditEvents.Poll.PermissionDenied);
+        Assert.Equal(AuditOutcome.Denied, denied.Outcome);
+        Assert.Equal(intruder, denied.ActorUserId);
+        Assert.Equal(created.Id, denied.PollId);
+    }
+
+    [Fact]
+    public async Task PollAudit_RecordsDeletion()
+    {
+        var harness = new PollHarness();
+        var created = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+
+        await harness.Polls.DeletePollAsync(created.Id, harness.UserId);
+
+        var deleted = Assert.Single(harness.Audit.Polls, entry => entry.EventType == AuditEvents.Poll.Deleted);
+        Assert.Equal(created.Id, deleted.PollId);
+        Assert.Equal(AuditOutcome.Success, deleted.Outcome);
+    }
+
+    [Fact]
+    public async Task VoteAudit_RecordsOutcomesWithoutAnswerDetail()
+    {
+        var harness = new PollHarness();
+        var created = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+        var voter = Guid.NewGuid();
+        var request = new CastVoteRequest
+        {
+            PollId = created.Id,
+            PollOptionId = created.Options[0].Id,
+            Reason = "private reason"
+        };
+
+        await harness.Votes.CastAsync(created.Id, voter, request, CancellationToken.None);
+        await Assert.ThrowsAsync<AppException>(() =>
+            harness.Votes.CastAsync(created.Id, voter, request, CancellationToken.None));
+
+        var cast = Assert.Single(harness.Audit.Polls, entry => entry.EventType == AuditEvents.Poll.VoteCast);
+        Assert.Equal(voter, cast.VoterUserId);
+        Assert.Null(cast.ActorUserId);
+        Assert.Null(cast.Metadata);
+
+        var rejected = Assert.Single(harness.Audit.Polls, entry => entry.EventType == AuditEvents.Poll.VoteRejected);
+        Assert.Equal(ApiErrorCodes.AlreadyVoted, rejected.ErrorCode);
+        Assert.Equal(AuditOutcome.Failure, rejected.Outcome);
+        Assert.DoesNotContain(
+            harness.Audit.Polls,
+            entry => (entry.Metadata?.Values.Any(value => value?.Contains("private reason") == true)) == true);
+    }
+
     private static CreatePollRequest QuestionRequest(string contentType = "question")
     {
         return new CreatePollRequest
@@ -590,7 +675,8 @@ public class PollModuleServiceTests
                 Storage,
                 policy,
                 new CreatePollValidator(),
-                new UpdatePollValidator());
+                new UpdatePollValidator(),
+                Audit);
             Sessions = new MediaUploadSessionService(
                 SessionStore,
                 PollStore,
@@ -600,11 +686,13 @@ public class PollModuleServiceTests
                 Inspector,
                 new CreateMediaUploadSessionValidator(),
                 new CompleteMediaUploadValidator());
-            Votes = new VoteService(PollStore, new InMemoryVoteRepository(_votes), new CastVoteValidator());
+            Votes = new VoteService(PollStore, new InMemoryVoteRepository(_votes), new CastVoteValidator(), Audit);
             Cleanup = new MediaUploadCleanupService(SessionStore, Storage);
         }
 
         public Guid UserId { get; }
+
+        public RecordingAuditLogWriter Audit { get; } = new();
 
         public InMemoryPollRepository PollStore { get; }
 

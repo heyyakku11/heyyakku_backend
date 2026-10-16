@@ -373,6 +373,44 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
+        public async Task<int> ExpireGuestSessionsAsync(
+            Guid guestId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.MediaUploadSessions
+                .Where(session =>
+                    session.GuestId == guestId
+                    && session.PurgedAt == null
+                    && (session.Status == MediaUploadStatus.Pending
+                        || session.Status == MediaUploadStatus.Uploading
+                        || session.Status == MediaUploadStatus.Uploaded
+                        || session.Status == MediaUploadStatus.Failed))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(session => session.Status, MediaUploadStatus.Expired)
+                        .SetProperty(session => session.ExpiresAt, utcNow)
+                        .SetProperty(session => session.UpdatedAt, utcNow),
+                    cancellationToken);
+        }
+
+        public async Task<int> DeletePurgedGuestSessionsAsync(
+            Guid guestId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.MediaUploadSessions
+                .Where(session => session.GuestId == guestId && session.PurgedAt != null)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        public async Task<int> CountGuestSessionsAsync(
+            Guid guestId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.MediaUploadSessions
+                .CountAsync(session => session.GuestId == guestId, cancellationToken);
+        }
+
         public async Task MarkPurgedAsync(Guid sessionId, CancellationToken cancellationToken = default)
         {
             var utcNow = DateTime.UtcNow;

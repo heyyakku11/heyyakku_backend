@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using FluentValidation;
+using Yakku.Application.Audit;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
@@ -7,6 +9,7 @@ using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.PushNotifications.DTOs;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Application.PushNotifications.Services
 {
@@ -18,6 +21,7 @@ namespace Yakku.Application.PushNotifications.Services
         private readonly IValidator<NotificationPayload> _payloadValidator;
         private readonly IValidator<TestDeviceNotificationRequest> _deviceTestValidator;
         private readonly IValidator<TestUserNotificationRequest> _userTestValidator;
+        private readonly IAuditLogWriter _audit;
 
         public PushNotificationService(
             IFirebaseNotificationProvider firebase,
@@ -25,8 +29,10 @@ namespace Yakku.Application.PushNotifications.Services
             IUserRepository users,
             IValidator<NotificationPayload> payloadValidator,
             IValidator<TestDeviceNotificationRequest> deviceTestValidator,
-            IValidator<TestUserNotificationRequest> userTestValidator)
+            IValidator<TestUserNotificationRequest> userTestValidator,
+            IAuditLogWriter audit)
         {
+            _audit = audit;
             _firebase = firebase;
             _devices = devices;
             _users = users;
@@ -97,7 +103,10 @@ namespace Yakku.Application.PushNotifications.Services
             await _payloadValidator.ValidateAndThrowAsync(payload, cancellationToken);
             EnsureEligible(device);
 
+            var stopwatch = Stopwatch.StartNew();
             var sendResult = await _firebase.SendAsync(device.PushToken!, payload, cancellationToken);
+            stopwatch.Stop();
+            await AuditAttemptAsync(device, sendResult, (int)stopwatch.ElapsedMilliseconds);
             var deactivated = false;
 
             if (sendResult.IsInvalidToken)
@@ -159,7 +168,9 @@ namespace Yakku.Application.PushNotifications.Services
             }
 
             var tokens = eligible.Select(device => device.PushToken!).ToList();
+            var stopwatch = Stopwatch.StartNew();
             var sendResults = await _firebase.SendToManyAsync(tokens, payload, cancellationToken);
+            stopwatch.Stop();
             var successful = 0;
             var failed = 0;
             var deactivated = 0;
@@ -168,6 +179,8 @@ namespace Yakku.Application.PushNotifications.Services
             {
                 var device = eligible[index];
                 var result = sendResults[index];
+                // The batch call has one latency; it is recorded against every device in the batch.
+                await AuditAttemptAsync(device, result, (int)stopwatch.ElapsedMilliseconds);
 
                 if (result.Success)
                 {
@@ -252,6 +265,29 @@ namespace Yakku.Application.PushNotifications.Services
                 Failed = result.Failed,
                 InvalidTokensDeactivated = result.InvalidTokensDeactivated
             };
+        }
+
+        private Task AuditAttemptAsync(Device device, FirebaseTokenSendResult result, int latencyMs)
+        {
+            // FCM only confirms it accepted the message; delivery to the handset is not reported back,
+            // so an accepted push stays DeliveryStatus.Unknown.
+            return _audit.WriteNotificationAsync(
+                new NotificationAuditEntry(
+                    NotificationChannel.Push,
+                    "fcm",
+                    AuditEvents.Notification.Push,
+                    device.UserId,
+                    device.Id,
+                    null,
+                    null,
+                    1,
+                    false,
+                    result.Success ? NotificationAuditStatus.Accepted : NotificationAuditStatus.Failed,
+                    result.MessageId,
+                    result.Success ? null : result.ErrorCode ?? (result.IsInvalidToken ? "invalid_token" : "send_failed"),
+                    result.Success ? null : result.ErrorMessage,
+                    latencyMs),
+                CancellationToken.None);
         }
 
         private static void EnsureEligible(Device device)

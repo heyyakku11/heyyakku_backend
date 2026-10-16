@@ -1,3 +1,4 @@
+using Yakku.API.Media;
 using Yakku.Application.Guests.DTOs;
 using Yakku.Application.Guests.Interfaces;
 
@@ -20,7 +21,9 @@ namespace Yakku.API.Guests
             HttpContext httpContext,
             CancellationToken cancellationToken = default)
         {
-            httpContext.Request.Cookies.TryGetValue(CookieName, out var rawToken);
+            // Same lookup order as the media endpoints (X-Guest-Token header, then cookie), so a client that
+            // keeps its token in app storage is recognised and not issued a second identity.
+            var rawToken = MediaCallerResolver.ReadGuestToken(httpContext);
             var result = await _guestIdentityService.EstablishAsync(rawToken, cancellationToken);
 
             if (result.RawTokenToSet is not null)

@@ -74,7 +74,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Admins_Email");
 
-                    b.ToTable("Admins", (string)null);
+                    b.ToTable("admins", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
@@ -119,7 +119,101 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_AdminSessions_RefreshTokenHash");
 
-                    b.ToTable("AdminSessions", (string)null);
+                    b.ToTable("admin_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AuthenticationAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("actor_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<IPAddress>("IpAddress")
+                        .HasColumnType("inet")
+                        .HasColumnName("ip_address");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("outcome");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("SubjectHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("subject_hash");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("trace_id");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_authentication_audit_logs_created_at");
+
+                    b.HasIndex("EventType", "CreatedAt")
+                        .HasDatabaseName("IX_authentication_audit_logs_event_type_created_at");
+
+                    b.HasIndex("Outcome", "CreatedAt")
+                        .HasDatabaseName("IX_authentication_audit_logs_non_success")
+                        .HasFilter("\"outcome\" <> 'SUCCESS'");
+
+                    b.HasIndex("SubjectHash", "CreatedAt")
+                        .HasDatabaseName("IX_authentication_audit_logs_subject_hash")
+                        .HasFilter("\"subject_hash\" IS NOT NULL");
+
+                    b.HasIndex("ActorType", "ActorId", "CreatedAt")
+                        .HasDatabaseName("IX_authentication_audit_logs_actor");
+
+                    b.ToTable("authentication_audit_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_authentication_audit_logs_actor_type", "\"actor_type\" IN ('USER', 'GUEST', 'ADMIN', 'SYSTEM')");
+
+                            t.HasCheckConstraint("CK_authentication_audit_logs_event_type_not_blank", "char_length(btrim(\"event_type\")) > 0");
+
+                            t.HasCheckConstraint("CK_authentication_audit_logs_outcome", "\"outcome\" IN ('SUCCESS', 'FAILURE', 'DENIED', 'SUSPICIOUS')");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
@@ -195,7 +289,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Devices_InstallationId_Platform");
 
-                    b.ToTable("Devices", (string)null);
+                    b.ToTable("devices", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Guest", b =>
@@ -227,7 +321,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Guests_GuestTokenHash");
 
-                    b.ToTable("Guests", (string)null);
+                    b.ToTable("guests", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.MediaUploadSession", b =>
@@ -418,7 +512,137 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "IsRead", "CreatedAt")
                         .HasDatabaseName("IX_Notifications_UserId_IsRead_CreatedAt");
 
-                    b.ToTable("Notifications", (string)null);
+                    b.ToTable("notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.NotificationAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_number");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("channel");
+
+                    b.Property<Guid?>("CorrelationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DeliveryStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("delivery_status");
+
+                    b.Property<DateTime?>("DeliveryUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("delivery_updated_at");
+
+                    b.Property<Guid?>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("error_code");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("EventType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<int?>("LatencyMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("latency_ms");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("provider");
+
+                    b.Property<DateTime?>("ProviderAcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("provider_accepted_at");
+
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("provider_message_id");
+
+                    b.Property<string>("Recipient")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("recipient");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("WillRetry")
+                        .HasColumnType("boolean")
+                        .HasColumnName("will_retry");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId")
+                        .HasDatabaseName("IX_notification_audit_logs_correlation_id")
+                        .HasFilter("\"correlation_id\" IS NOT NULL");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_notification_audit_logs_created_at");
+
+                    b.HasIndex("Provider", "ProviderMessageId")
+                        .HasDatabaseName("IX_notification_audit_logs_provider_message_id")
+                        .HasFilter("\"provider_message_id\" IS NOT NULL");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_notification_audit_logs_user_id_created_at")
+                        .HasFilter("\"user_id\" IS NOT NULL");
+
+                    b.HasIndex("Channel", "Status", "CreatedAt")
+                        .HasDatabaseName("IX_notification_audit_logs_channel_status_created_at");
+
+                    b.ToTable("notification_audit_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_notification_audit_logs_accepted_at_matches_status", "(\"status\" = 'ACCEPTED') = (\"provider_accepted_at\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_notification_audit_logs_attempt_positive", "\"attempt_number\" > 0");
+
+                            t.HasCheckConstraint("CK_notification_audit_logs_channel", "\"channel\" IN ('PUSH', 'EMAIL', 'SMS', 'WHATSAPP')");
+
+                            t.HasCheckConstraint("CK_notification_audit_logs_delivery_requires_acceptance", "\"delivery_status\" IN ('UNKNOWN', 'NOTAPPLICABLE') OR \"status\" = 'ACCEPTED'");
+
+                            t.HasCheckConstraint("CK_notification_audit_logs_delivery_status", "\"delivery_status\" IN ('UNKNOWN', 'DELIVERED', 'FAILED', 'NOTAPPLICABLE')");
+
+                            t.HasCheckConstraint("CK_notification_audit_logs_latency_non_negative", "\"latency_ms\" IS NULL OR \"latency_ms\" >= 0");
+
+                            t.HasCheckConstraint("CK_notification_audit_logs_status", "\"status\" IN ('QUEUED', 'ACCEPTED', 'FAILED', 'SKIPPED')");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.NotificationPreference", b =>
@@ -457,7 +681,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_NotificationPreferences_UserId");
 
-                    b.ToTable("NotificationPreferences", (string)null);
+                    b.ToTable("notification_preferences", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Poll", b =>
@@ -538,6 +762,102 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_polls_status", "\"status\" IN ('DRAFT', 'ACTIVE', 'CLOSED', 'EXPIRED')");
 
                             t.HasCheckConstraint("CK_polls_visibility", "\"visibility\" IN ('PUBLIC', 'PRIVATE')");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PollAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("actor_type");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("error_code");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("from_status");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("outcome");
+
+                    b.Property<Guid?>("PollId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("poll_id");
+
+                    b.Property<string>("ToStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("to_status");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("trace_id");
+
+                    b.Property<string>("VoterRef")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("voter_ref");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_poll_audit_logs_created_at");
+
+                    b.HasIndex("ActorUserId", "CreatedAt")
+                        .HasDatabaseName("IX_poll_audit_logs_actor_user_id_created_at")
+                        .HasFilter("\"actor_user_id\" IS NOT NULL");
+
+                    b.HasIndex("EventType", "CreatedAt")
+                        .HasDatabaseName("IX_poll_audit_logs_event_type_created_at");
+
+                    b.HasIndex("PollId", "CreatedAt")
+                        .HasDatabaseName("IX_poll_audit_logs_poll_id_created_at")
+                        .HasFilter("\"poll_id\" IS NOT NULL");
+
+                    b.ToTable("poll_audit_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_poll_audit_logs_actor_type", "\"actor_type\" IN ('USER', 'GUEST', 'ADMIN', 'SYSTEM')");
+
+                            t.HasCheckConstraint("CK_poll_audit_logs_event_type_not_blank", "char_length(btrim(\"event_type\")) > 0");
+
+                            t.HasCheckConstraint("CK_poll_audit_logs_outcome", "\"outcome\" IN ('SUCCESS', 'FAILURE', 'DENIED', 'SUSPICIOUS')");
+
+                            t.HasCheckConstraint("CK_poll_audit_logs_voter_ref_vote_events_only", "\"voter_ref\" IS NULL OR \"event_type\" LIKE 'vote.%'");
+
+                            t.HasCheckConstraint("CK_poll_audit_logs_voter_ref_without_user", "\"voter_ref\" IS NULL OR \"actor_user_id\" IS NULL");
                         });
                 });
 
@@ -723,7 +1043,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_poll_votes_custom_answer_not_blank", "\"custom_answer\" IS NULL OR char_length(btrim(\"custom_answer\")) > 0");
 
-                            t.HasCheckConstraint("CK_poll_votes_one_choice", "(\"poll_option_id\" IS NOT NULL AND \"custom_answer\" IS NULL)\r\nOR\r\n(\"poll_option_id\" IS NULL AND \"custom_answer\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_poll_votes_one_choice", "(\"poll_option_id\" IS NOT NULL AND \"custom_answer\" IS NULL)\nOR\n(\"poll_option_id\" IS NULL AND \"custom_answer\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_poll_votes_reason_not_blank", "\"reason\" IS NULL OR char_length(btrim(\"reason\")) > 0");
                         });
@@ -753,7 +1073,99 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_SavedPolls_UserId_PollId");
 
-                    b.ToTable("SavedPolls", (string)null);
+                    b.ToTable("saved_polls", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.SystemLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_ms");
+
+                    b.Property<string>("ExceptionType")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("exception_type");
+
+                    b.Property<string>("HttpMethod")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("http_method");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("path");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("severity");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("source");
+
+                    b.Property<int?>("StatusCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("status_code");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("trace_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_system_logs_created_at");
+
+                    b.HasIndex("Category", "CreatedAt")
+                        .HasDatabaseName("IX_system_logs_category_created_at");
+
+                    b.HasIndex("Severity", "CreatedAt")
+                        .HasDatabaseName("IX_system_logs_severity_created_at");
+
+                    b.ToTable("system_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_system_logs_category", "\"category\" IN ('EXCEPTION', 'LATENCY', 'FAILURE', 'RATELIMIT', 'BACKGROUNDJOB', 'PERFORMANCE')");
+
+                            t.HasCheckConstraint("CK_system_logs_duration_non_negative", "\"duration_ms\" IS NULL OR \"duration_ms\" >= 0");
+
+                            t.HasCheckConstraint("CK_system_logs_message_not_blank", "char_length(btrim(\"message\")) > 0");
+
+                            t.HasCheckConstraint("CK_system_logs_severity", "\"severity\" IN ('INFORMATION', 'WARNING', 'ERROR', 'CRITICAL')");
+
+                            t.HasCheckConstraint("CK_system_logs_status_code_range", "\"status_code\" IS NULL OR (\"status_code\" >= 100 AND \"status_code\" <= 599)");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.User", b =>
@@ -789,7 +1201,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Users_PhoneNumber");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("users", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserProfile", b =>
@@ -827,7 +1239,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_UserProfiles_UserId");
 
-                    b.ToTable("UserProfiles", (string)null);
+                    b.ToTable("user_profiles", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserSession", b =>
@@ -870,7 +1282,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_UserSessions_UserId");
 
-                    b.ToTable("UserSessions", (string)null);
+                    b.ToTable("user_sessions", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>

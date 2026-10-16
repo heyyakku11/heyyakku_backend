@@ -96,9 +96,30 @@ namespace Yakku.Application.Polls.Interfaces
             int batchSize,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Reassigns every guest-owned session (including terminal ones) to the user. Not atomic on its own:
+        /// call it inside the guest repository transaction together with the guest delete.
+        /// </summary>
         Task<int> ClaimGuestSessionsAsync(
             Guid guestId,
             Guid userId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Invalidates a guest's live sessions (pending, uploading, uploaded, failed) so media cleanup purges their objects.
+        /// </summary>
+        Task<int> ExpireGuestSessionsAsync(
+            Guid guestId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Removes the guest's session rows whose stored object is already purged.</summary>
+        Task<int> DeletePurgedGuestSessionsAsync(
+            Guid guestId,
+            CancellationToken cancellationToken = default);
+
+        Task<int> CountGuestSessionsAsync(
+            Guid guestId,
             CancellationToken cancellationToken = default);
 
         Task MarkPurgedAsync(Guid sessionId, CancellationToken cancellationToken = default);

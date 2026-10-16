@@ -1,4 +1,5 @@
 using FluentValidation;
+using Yakku.Application.Audit;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls.DTOs;
@@ -21,6 +22,7 @@ namespace Yakku.Application.Polls.Services
         private readonly IMediaUploadPolicy _policy;
         private readonly IValidator<CreatePollRequest> _createValidator;
         private readonly IValidator<UpdatePollRequest> _updateValidator;
+        private readonly IAuditLogWriter _audit;
 
         public PollService(
             IPollRepository pollRepository,
@@ -28,7 +30,8 @@ namespace Yakku.Application.Polls.Services
             IObjectStorage storage,
             IMediaUploadPolicy policy,
             IValidator<CreatePollRequest> createValidator,
-            IValidator<UpdatePollRequest> updateValidator)
+            IValidator<UpdatePollRequest> updateValidator,
+            IAuditLogWriter audit)
         {
             _pollRepository = pollRepository;
             _sessions = sessions;
@@ -36,12 +39,28 @@ namespace Yakku.Application.Polls.Services
             _policy = policy;
             _createValidator = createValidator;
             _updateValidator = updateValidator;
+            _audit = audit;
         }
 
-        public async Task<PollResponse> CreateAsync(
+        public Task<PollResponse> CreateAsync(
             CreatePollRequest request,
             Guid creatorId,
             CancellationToken cancellationToken = default)
+        {
+            return AuditedAsync(
+                AuditEvents.Poll.Created,
+                null,
+                creatorId,
+                null,
+                PollStatus.Active,
+                () => CreateCoreAsync(request, creatorId, cancellationToken),
+                response => response.Id);
+        }
+
+        private async Task<PollResponse> CreateCoreAsync(
+            CreatePollRequest request,
+            Guid creatorId,
+            CancellationToken cancellationToken)
         {
             await _createValidator.ValidateAndThrowAsync(request, cancellationToken);
 
@@ -144,11 +163,27 @@ namespace Yakku.Application.Polls.Services
             return await ToResponseAsync(poll, creatorId, cancellationToken);
         }
 
-        public async Task<PollResponse> UpdateAsync(
+        public Task<PollResponse> UpdateAsync(
             Guid pollId,
             UpdatePollRequest request,
             Guid creatorId,
             CancellationToken cancellationToken = default)
+        {
+            return AuditedAsync(
+                AuditEvents.Poll.Updated,
+                pollId,
+                creatorId,
+                PollStatus.Draft,
+                PollStatus.Draft,
+                () => UpdateCoreAsync(pollId, request, creatorId, cancellationToken),
+                response => response.Id);
+        }
+
+        private async Task<PollResponse> UpdateCoreAsync(
+            Guid pollId,
+            UpdatePollRequest request,
+            Guid creatorId,
+            CancellationToken cancellationToken)
         {
             await _updateValidator.ValidateAndThrowAsync(request, cancellationToken);
 
@@ -330,10 +365,25 @@ namespace Yakku.Application.Polls.Services
             };
         }
 
-        public async Task<PollResponse> PublishAsync(
+        public Task<PollResponse> PublishAsync(
             Guid pollId,
             Guid creatorId,
             CancellationToken cancellationToken = default)
+        {
+            return AuditedAsync(
+                AuditEvents.Poll.Published,
+                pollId,
+                creatorId,
+                PollStatus.Draft,
+                PollStatus.Active,
+                () => PublishCoreAsync(pollId, creatorId, cancellationToken),
+                response => response.Id);
+        }
+
+        private async Task<PollResponse> PublishCoreAsync(
+            Guid pollId,
+            Guid creatorId,
+            CancellationToken cancellationToken)
         {
             await _pollRepository.ExecuteInTransactionAsync(async transactionToken =>
             {
@@ -374,10 +424,25 @@ namespace Yakku.Application.Polls.Services
             return await ToResponseAsync(publishedPoll, creatorId, cancellationToken);
         }
 
-        public async Task<PollResponse> ClosePollAsync(
+        public Task<PollResponse> ClosePollAsync(
             Guid pollId,
             Guid creatorId,
             CancellationToken cancellationToken = default)
+        {
+            return AuditedAsync(
+                AuditEvents.Poll.Closed,
+                pollId,
+                creatorId,
+                null,
+                PollStatus.Closed,
+                () => CloseCoreAsync(pollId, creatorId, cancellationToken),
+                response => response.Id);
+        }
+
+        private async Task<PollResponse> CloseCoreAsync(
+            Guid pollId,
+            Guid creatorId,
+            CancellationToken cancellationToken)
         {
             var poll = await GetOwnedPollAsync(pollId, creatorId, cancellationToken);
 
@@ -399,6 +464,25 @@ namespace Yakku.Application.Polls.Services
             Guid pollId,
             Guid creatorId,
             CancellationToken cancellationToken = default)
+        {
+            await AuditedAsync(
+                AuditEvents.Poll.Deleted,
+                pollId,
+                creatorId,
+                null,
+                null,
+                async () =>
+                {
+                    await DeleteCoreAsync(pollId, creatorId, cancellationToken);
+                    return pollId;
+                },
+                id => id);
+        }
+
+        private async Task DeleteCoreAsync(
+            Guid pollId,
+            Guid creatorId,
+            CancellationToken cancellationToken)
         {
             var keys = new List<StoredObjectReference>();
             await _pollRepository.ExecuteInTransactionAsync(async transactionToken =>
@@ -579,10 +663,76 @@ namespace Yakku.Application.Polls.Services
             var poll = await _pollRepository.GetByIdAndCreatorAsync(pollId, creatorId, cancellationToken);
             if (poll is null)
             {
+                // The caller still gets a plain 404 (no existence leak), but an attempt on someone
+                // else's poll is recorded as a permission failure.
+                if (await _pollRepository.GetByIdAsync(pollId, cancellationToken) is not null)
+                {
+                    await _audit.WritePollAsync(
+                        new PollAuditEntry(
+                            pollId,
+                            AuditActorType.User,
+                            creatorId,
+                            AuditEvents.Poll.PermissionDenied,
+                            AuditOutcome.Denied,
+                            ErrorCode: ApiErrorCodes.NotFound),
+                        CancellationToken.None);
+                }
+
                 throw NotFound("Poll not found");
             }
 
             return poll;
+        }
+
+        private async Task<T> AuditedAsync<T>(
+            string eventType,
+            Guid? pollId,
+            Guid actorId,
+            PollStatus? fromStatus,
+            PollStatus? toStatus,
+            Func<Task<T>> action,
+            Func<T, Guid?> pollIdOf)
+        {
+            T result;
+            try
+            {
+                result = await action();
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                var errorCode = exception switch
+                {
+                    AppException app => app.ErrorCode,
+                    ValidationException => ApiErrorCodes.ValidationError,
+                    _ => exception.GetType().Name
+                };
+
+                await _audit.WritePollAsync(
+                    new PollAuditEntry(
+                        pollId,
+                        AuditActorType.User,
+                        actorId,
+                        AuditEvents.Poll.OperationFailed,
+                        AuditOutcome.Failure,
+                        fromStatus?.ToString().ToLowerInvariant(),
+                        toStatus?.ToString().ToLowerInvariant(),
+                        errorCode,
+                        Metadata: new Dictionary<string, string?> { ["attempted"] = eventType }),
+                    CancellationToken.None);
+                throw;
+            }
+
+            await _audit.WritePollAsync(
+                new PollAuditEntry(
+                    pollId ?? pollIdOf(result),
+                    AuditActorType.User,
+                    actorId,
+                    eventType,
+                    AuditOutcome.Success,
+                    fromStatus?.ToString().ToLowerInvariant(),
+                    toStatus?.ToString().ToLowerInvariant()),
+                CancellationToken.None);
+            return result;
         }
 
         private async Task<PollResponse> ToResponseAsync(

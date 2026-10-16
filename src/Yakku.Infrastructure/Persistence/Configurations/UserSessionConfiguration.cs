@@ -8,7 +8,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<UserSession> builder)
         {
-            builder.ToTable("UserSessions");
+            builder.ToTable("user_sessions");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.RefreshTokenHash)

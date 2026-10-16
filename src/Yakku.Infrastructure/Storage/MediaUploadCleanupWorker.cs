@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Yakku.Application.Audit;
 using Yakku.Application.Polls.Interfaces;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Storage
 {
@@ -40,6 +42,16 @@ namespace Yakku.Infrastructure.Storage
                     _logger.LogWarning(
                         "Media upload cleanup did not finish ({ExceptionType}).",
                         exception.GetType().Name);
+
+                    await using var failureScope = _scopeFactory.CreateAsyncScope();
+                    await failureScope.ServiceProvider.GetRequiredService<IAuditLogWriter>().WriteSystemAsync(
+                        new SystemLogEntry(
+                            SystemLogCategory.BackgroundJob,
+                            SystemLogSeverity.Error,
+                            nameof(MediaUploadCleanupWorker),
+                            "Media upload cleanup failed.",
+                            ExceptionType: exception.GetType().Name),
+                        CancellationToken.None);
                 }
             }
         }

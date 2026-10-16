@@ -8,7 +8,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<SavedPoll> builder)
         {
-            builder.ToTable("SavedPolls");
+            builder.ToTable("saved_polls");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.UserId)

@@ -22,6 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Yakku.API\Yakku.API.csproj" />
     <ProjectReference Include="..\..\src\Yakku.Application\Yakku.Application.csproj" />
     <ProjectReference Include="..\..\src\Yakku.Infrastructure\Yakku.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Yakku.Domain\Yakku.Domain.csproj" />
