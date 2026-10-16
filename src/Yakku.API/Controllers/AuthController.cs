@@ -33,7 +33,7 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("send")]
-        [EndpointSummary("Send OTP")]
+        [EndpointSummary("Send OTP for User Authentication")]
         [EndpointDescription("Sends OTP for login or registration. New numbers must include a name.")]
         [ProducesResponseType(typeof(ApiResponse<RequestOtpResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -53,7 +53,7 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("verify")]
-        [EndpointSummary("Verify OTP")]
+        [EndpointSummary("Verify OTP and Authenticate User")]
         [EndpointDescription("Verifies OTP, registers new users, and returns access/refresh tokens.")]
         [ProducesResponseType(typeof(ApiResponse<VerifyOtpResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -90,7 +90,7 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("refresh")]
-        [EndpointSummary("Refresh tokens")]
+        [EndpointSummary("Refresh Access Token Using Refresh Token")]
         [EndpointDescription("Exchanges a valid refresh token for a new access/refresh pair.")]
         [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -110,7 +110,7 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("logout")]
-        [EndpointSummary("Logout")]
+        [EndpointSummary("Logout Current Session and Revoke Refresh Token")]
         [EndpointDescription("Revokes the given refresh token and ends that session.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -131,7 +131,7 @@ namespace Yakku.API.Controllers
 
         [Authorize]
         [HttpPost("logout-all")]
-        [EndpointSummary("Logout all sessions")]
+        [EndpointSummary("Revoke All Active Sessions for the Authenticated User")]
         [EndpointDescription("Requires auth. Revokes every active session for the current user.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
