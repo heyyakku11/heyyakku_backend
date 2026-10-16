@@ -52,27 +52,6 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("resend")]
-        [EndpointSummary("Resend OTP")]
-        [EndpointDescription("Resends OTP for an existing challenge after the cooldown.")]
-        [ProducesResponseType(typeof(ApiResponse<RequestOtpResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> ResendOtp(
-            [FromBody] ResendOtpRequest request,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                var result = await _authService.ResendOtpAsync(request, cancellationToken);
-                return Ok(ApiResponse.Ok(result, "OTP sent successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ToErrorResult(ex);
-            }
-        }
-
         [HttpPost("verify")]
         [EndpointSummary("Verify OTP")]
         [EndpointDescription("Verifies OTP, registers new users, and returns access/refresh tokens.")]
