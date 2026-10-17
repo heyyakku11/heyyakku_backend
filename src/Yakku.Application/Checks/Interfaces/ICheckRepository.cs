@@ -23,8 +23,8 @@ namespace Yakku.Application.Checks.Interfaces
 
         Task<UserCheck?> GetUserCheckByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default);
 
-        /// <summary>Adds the user/check mapping. Throws AlreadyUsed when the user already used the check.</summary>
-        Task<bool> TryAddUserCheckAsync(UserCheck userCheck, CancellationToken cancellationToken = default);
+        /// <summary>Adds the user/check mapping and the maker's own answer in one save. False when the share code was taken; throws AlreadyUsed when the user already used the check.</summary>
+        Task<bool> TryAddUserCheckAsync(UserCheck userCheck, UserCheckVote ownerAnswer, CancellationToken cancellationToken = default);
 
         /// <summary>Adds the vote. Throws AlreadyVoted when the voter already answered this item.</summary>
         Task AddVoteAsync(UserCheckVote vote, CancellationToken cancellationToken = default);

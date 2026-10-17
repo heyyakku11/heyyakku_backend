@@ -1375,7 +1375,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("check_id");
 
-                    b.Property<Guid>("CheckOptionId")
+                    b.Property<Guid?>("CheckOptionId")
                         .HasColumnType("uuid")
                         .HasColumnName("check_option_id");
 
@@ -1384,6 +1384,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<string>("CustomAnswer")
+                        .HasColumnType("text")
+                        .HasColumnName("custom_answer");
 
                     b.Property<string>("Reason")
                         .HasColumnType("text")
@@ -1413,6 +1417,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.ToTable("user_check_votes", null, t =>
                         {
+                            t.HasCheckConstraint("CK_user_check_votes_custom_answer_not_blank", "\"custom_answer\" IS NULL OR char_length(btrim(\"custom_answer\")) > 0");
+
+                            t.HasCheckConstraint("CK_user_check_votes_one_choice", "(\"check_option_id\" IS NOT NULL AND \"custom_answer\" IS NULL)\nOR\n(\"check_option_id\" IS NULL AND \"custom_answer\" IS NOT NULL)");
+
                             t.HasCheckConstraint("CK_user_check_votes_reason_not_blank", "\"reason\" IS NULL OR char_length(btrim(\"reason\")) > 0");
                         });
                 });
@@ -1699,8 +1707,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .WithMany("Votes")
                         .HasForeignKey("CheckOptionId", "CheckId")
                         .HasPrincipalKey("Id", "CheckId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("CheckOption");
 

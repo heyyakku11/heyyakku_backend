@@ -58,8 +58,20 @@ namespace Yakku.Application.Checks.Services
         public async Task<UserCheckResponse> MakeAsync(
             Guid checkId,
             Guid userId,
+            MakeCheckRequest request,
             CancellationToken cancellationToken = default)
         {
+            await _voteValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            if (request.CheckId is not null && request.CheckId != checkId)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "checkId in the body does not match the route.",
+                    "checkId");
+            }
+
             // Only checks that are already live can be made; upcoming ones stay hidden until their week.
             var check = await _repository.GetLiveByIdAsync(checkId, CheckWeek.Current(), cancellationToken)
                 ?? throw CheckExceptions.NotFound();
@@ -73,7 +85,10 @@ namespace Yakku.Application.Checks.Services
             for (var attempt = 0; attempt < ShareCodeAttempts; attempt++)
             {
                 var userCheck = UserCheck.Create(userId, check.Id, NewShareCode());
-                if (await _repository.TryAddUserCheckAsync(userCheck, cancellationToken))
+
+                // The maker's own answer is saved together with the check, so a check is never used without one.
+                var ownerAnswer = BuildVote(userCheck.Id, check, userId, request);
+                if (await _repository.TryAddUserCheckAsync(userCheck, ownerAnswer, cancellationToken))
                 {
                     var saved = await _repository.GetUserCheckByIdAsync(userCheck.Id, cancellationToken)
                         ?? throw CheckExceptions.NotFound();
@@ -141,22 +156,7 @@ namespace Yakku.Application.Checks.Services
                 throw VoteExceptions.AlreadyVoted();
             }
 
-            var option = item.Check.Options.FirstOrDefault(candidate => candidate.Id == request.CheckOptionId);
-            if (option is null)
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "Option does not belong to this check.",
-                    "checkOptionId");
-            }
-
-            var vote = UserCheckVote.Create(
-                item.Id,
-                item.CheckId,
-                option.Id,
-                userId,
-                string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim());
+            var vote = BuildVote(item.Id, item.Check, userId, request);
             await _repository.AddVoteAsync(vote, cancellationToken);
 
             return new CheckVoteResponse
@@ -164,9 +164,33 @@ namespace Yakku.Application.Checks.Services
                 Id = vote.Id,
                 UserCheckId = vote.UserCheckId,
                 CheckOptionId = vote.CheckOptionId,
+                CustomAnswer = vote.CustomAnswer,
                 Reason = vote.Reason,
                 CreatedAt = vote.CreatedAt
             };
+        }
+
+        /// <summary>Builds the vote from an already validated request (exactly one of option or custom answer).</summary>
+        private static UserCheckVote BuildVote(Guid userCheckId, Check check, Guid voterId, CastCheckVoteRequest request)
+        {
+            var reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim();
+
+            if (request.CheckOptionId is not null)
+            {
+                var option = check.Options.FirstOrDefault(candidate => candidate.Id == request.CheckOptionId.Value);
+                if (option is null)
+                {
+                    throw new AppException(
+                        400,
+                        ApiErrorCodes.ValidationError,
+                        "Option does not belong to this check.",
+                        "checkOptionId");
+                }
+
+                return UserCheckVote.ForOption(userCheckId, check.Id, option.Id, voterId, reason);
+            }
+
+            return UserCheckVote.ForCustomAnswer(userCheckId, check.Id, request.CustomAnswer!.Trim(), voterId, reason);
         }
 
         private static CheckResponse ToCheckResponse(Check check, UserCheck? used)
@@ -194,7 +218,10 @@ namespace Yakku.Application.Checks.Services
 
             // Results are visible to the owner, or to a voter once they have answered.
             var showResults = isOwner || myVote is not null;
-            var counts = item.Votes.GroupBy(vote => vote.CheckOptionId).ToDictionary(g => g.Key, g => g.Count());
+            var counts = item.Votes
+                .Where(vote => vote.CheckOptionId is not null)
+                .GroupBy(vote => vote.CheckOptionId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
 
             return new UserCheckResponse
             {
@@ -207,7 +234,9 @@ namespace Yakku.Application.Checks.Services
                 ShareCode = item.ShareCode,
                 IsOwner = isOwner,
                 MyVoteOptionId = myVote?.CheckOptionId,
+                MyCustomAnswer = myVote?.CustomAnswer,
                 TotalVotes = showResults ? item.Votes.Count : null,
+                CustomAnswerVotes = showResults ? item.Votes.Count(vote => vote.CustomAnswer is not null) : null,
                 Options = item.Check.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new UserCheckOptionResponse

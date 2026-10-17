@@ -42,7 +42,11 @@ namespace Yakku.Application.Checks.DTOs
         public string ShareCode { get; set; } = string.Empty;
         public bool IsOwner { get; set; }
         public Guid? MyVoteOptionId { get; set; }
+        public string? MyCustomAnswer { get; set; }
         public int? TotalVotes { get; set; }
+
+        /// <summary>How many answers were written in instead of picking an option. Null until results are visible.</summary>
+        public int? CustomAnswerVotes { get; set; }
         public List<UserCheckOptionResponse> Options { get; set; } = new();
         public DateTime CreatedAt { get; set; }
     }
@@ -75,17 +79,27 @@ namespace Yakku.Application.Checks.DTOs
         public List<CheckOptionResponse> Options { get; set; } = new();
     }
 
+    /// <summary>An answer to a check: exactly one of checkOptionId or customAnswer, plus an optional reason.</summary>
     public class CastCheckVoteRequest
     {
-        public Guid CheckOptionId { get; set; }
+        public Guid? CheckOptionId { get; set; }
+        public string? CustomAnswer { get; set; }
         public string? Reason { get; set; }
+    }
+
+    /// <summary>Body of POST /checks/{id}/make: the maker's own answer to the check.</summary>
+    public class MakeCheckRequest : CastCheckVoteRequest
+    {
+        /// <summary>Optional echo of the route id; when sent it must match.</summary>
+        public Guid? CheckId { get; set; }
     }
 
     public class CheckVoteResponse
     {
         public Guid Id { get; set; }
         public Guid UserCheckId { get; set; }
-        public Guid CheckOptionId { get; set; }
+        public Guid? CheckOptionId { get; set; }
+        public string? CustomAnswer { get; set; }
         public string? Reason { get; set; }
         public DateTime CreatedAt { get; set; }
     }

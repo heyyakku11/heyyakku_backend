@@ -119,7 +119,7 @@ public class CheckIntegrationTests
         Assert.False(detail.Used);
         Assert.Equal(404, (await Assert.ThrowsAsync<AppException>(() => service.GetByIdAsync(next.Id, null))).StatusCode);
 
-        var notYetLive = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(next.Id, user.Id));
+        var notYetLive = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(next.Id, user.Id, Answer()));
         Assert.Equal(404, notYetLive.StatusCode);
 
         // Rescheduling the upcoming check into this week makes it live.
@@ -136,7 +136,7 @@ public class CheckIntegrationTests
         var user = await AddUserAsync(context);
         var week = CheckWeek.Current();
         var created = await admin.CreateAsync(CheckWeekTests.NewRequest(week, "used-check"));
-        await service.MakeAsync(created.Id, user.Id);
+        await service.MakeAsync(created.Id, user.Id, Answer());
 
         var edit = CheckWeekTests.NewRequest(week, "renamed");
         var edited = await Assert.ThrowsAsync<AppException>(() => admin.UpdateAsync(created.Id, edit));
@@ -183,9 +183,9 @@ public class CheckIntegrationTests
         var target = before.Last();
         Assert.All(before, c => Assert.False(c.Used));
 
-        var made = await service.MakeAsync(target.Id, user.Id);
-        var duplicate = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(target.Id, user.Id));
-        var otherUser = await service.MakeAsync(target.Id, other.Id);
+        var made = await service.MakeAsync(target.Id, user.Id, Answer());
+        var duplicate = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(target.Id, user.Id, Answer()));
+        var otherUser = await service.MakeAsync(target.Id, other.Id, Answer());
 
         Assert.Equal(ApiErrorCodes.AlreadyUsed, duplicate.ErrorCode);
         Assert.NotEqual(made.ShareCode, otherUser.ShareCode);
@@ -204,7 +204,7 @@ public class CheckIntegrationTests
         var owner = await AddUserAsync(context);
         var voter = await AddUserAsync(context);
         var check = (await service.GetChecksAsync(owner.Id)).First();
-        var made = await service.MakeAsync(check.Id, owner.Id);
+        var made = await service.MakeAsync(check.Id, owner.Id, Answer());
         var optionId = check.Options[0].Id;
 
         var ownerVote = await Assert.ThrowsAsync<AppException>(() =>
@@ -220,7 +220,9 @@ public class CheckIntegrationTests
         Assert.Equal(ApiErrorCodes.AlreadyVoted, twice.ErrorCode);
 
         var results = await service.GetMineByIdAsync(made.Id, owner.Id);
-        Assert.Equal(1, results.TotalVotes);
+        Assert.Equal(2, results.TotalVotes);
+        Assert.Equal(1, results.CustomAnswerVotes);
+        Assert.Equal("my answer", results.MyCustomAnswer);
         Assert.Equal(1, results.Options.Single(o => o.Id == optionId).Votes);
     }
 
@@ -233,13 +235,85 @@ public class CheckIntegrationTests
         var owner = await AddUserAsync(context);
         var voter = await AddUserAsync(context);
         var checks = await service.GetChecksAsync(owner.Id);
-        var made = await service.MakeAsync(checks[0].Id, owner.Id);
+        var made = await service.MakeAsync(checks[0].Id, owner.Id, Answer());
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
             service.VoteAsync(made.ShareCode, voter.Id, new CastCheckVoteRequest { CheckOptionId = checks[1].Options[0].Id }));
 
         Assert.Equal(400, exception.StatusCode);
     }
+
+    [SkippableFact]
+    public async Task Make_RecordsTheMakersOwnAnswer_AsAnOptionOrACustomAnswer()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (service, _) = NewServices(context);
+        var user = await AddUserAsync(context);
+        var checks = await service.GetChecksAsync(user.Id);
+
+        var picked = await service.MakeAsync(
+            checks[0].Id,
+            user.Id,
+            new MakeCheckRequest { CheckId = checks[0].Id, CheckOptionId = checks[0].Options[1].Id, Reason = "Because" });
+        var written = await service.MakeAsync(checks[1].Id, user.Id, new MakeCheckRequest { CustomAnswer = "  Depends on the day  " });
+
+        Assert.Equal(checks[0].Options[1].Id, picked.MyVoteOptionId);
+        Assert.Equal(1, picked.Options.Single(o => o.Id == checks[0].Options[1].Id).Votes);
+        Assert.Null(picked.MyCustomAnswer);
+        Assert.Null(written.MyVoteOptionId);
+        Assert.Equal("Depends on the day", written.MyCustomAnswer);
+        Assert.Equal(1, written.CustomAnswerVotes);
+    }
+
+    [SkippableFact]
+    public async Task Make_RejectsABadAnswer_AndDoesNotUseTheCheck()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (service, _) = NewServices(context);
+        var user = await AddUserAsync(context);
+        var checks = await service.GetChecksAsync(user.Id);
+        var target = checks[0];
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.MakeAsync(target.Id, user.Id, new MakeCheckRequest()));
+        await Assert.ThrowsAsync<ValidationException>(() => service.MakeAsync(
+            target.Id,
+            user.Id,
+            new MakeCheckRequest { CheckOptionId = target.Options[0].Id, CustomAnswer = "both" }));
+        var foreign = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(
+            target.Id,
+            user.Id,
+            new MakeCheckRequest { CheckOptionId = checks[1].Options[0].Id }));
+        var mismatch = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(
+            target.Id,
+            user.Id,
+            new MakeCheckRequest { CheckId = checks[1].Id, CustomAnswer = "x" }));
+
+        Assert.Equal(400, foreign.StatusCode);
+        Assert.Equal("checkId", mismatch.Field);
+        Assert.False((await service.GetChecksAsync(user.Id)).Single(c => c.Id == target.Id).Used);
+    }
+
+    [SkippableFact]
+    public async Task Vote_AFriendCanWriteACustomAnswer()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (service, _) = NewServices(context);
+        var owner = await AddUserAsync(context);
+        var friend = await AddUserAsync(context);
+        var check = (await service.GetChecksAsync(owner.Id)).First();
+        var made = await service.MakeAsync(check.Id, owner.Id, Answer());
+
+        var vote = await service.VoteAsync(made.ShareCode, friend.Id, new CastCheckVoteRequest { CustomAnswer = "Neither" });
+
+        Assert.Null(vote.CheckOptionId);
+        Assert.Equal("Neither", vote.CustomAnswer);
+        Assert.Equal(2, (await service.GetMineByIdAsync(made.Id, owner.Id)).CustomAnswerVotes);
+    }
+
+    private static MakeCheckRequest Answer() => new() { CustomAnswer = "my answer" };
 
     private static (CheckService Service, AdminCheckService Admin) NewServices(YakkuDbContext context)
     {

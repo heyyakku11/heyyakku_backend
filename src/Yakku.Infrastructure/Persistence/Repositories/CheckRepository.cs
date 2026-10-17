@@ -116,9 +116,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(item => item.ShareCode == shareCode, cancellationToken);
         }
 
-        public async Task<bool> TryAddUserCheckAsync(UserCheck userCheck, CancellationToken cancellationToken = default)
+        public async Task<bool> TryAddUserCheckAsync(
+            UserCheck userCheck,
+            UserCheckVote ownerAnswer,
+            CancellationToken cancellationToken = default)
         {
+            // One SaveChanges: the check and the maker's answer are stored together or not at all.
             await _context.UserChecks.AddAsync(userCheck, cancellationToken);
+            await _context.UserCheckVotes.AddAsync(ownerAnswer, cancellationToken);
             try
             {
                 await _context.SaveChangesAsync(cancellationToken);
@@ -126,14 +131,20 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             }
             catch (DbUpdateException exception) when (IsUniqueViolation(exception, OneUsePerUserConstraint))
             {
-                _context.Entry(userCheck).State = EntityState.Detached;
+                Detach(userCheck, ownerAnswer);
                 throw CheckExceptions.AlreadyUsed();
             }
             catch (DbUpdateException exception) when (IsUniqueViolation(exception, ShareCodeConstraint))
             {
-                _context.Entry(userCheck).State = EntityState.Detached;
+                Detach(userCheck, ownerAnswer);
                 return false;
             }
+        }
+
+        private void Detach(UserCheck userCheck, UserCheckVote vote)
+        {
+            _context.Entry(vote).State = EntityState.Detached;
+            _context.Entry(userCheck).State = EntityState.Detached;
         }
 
         public async Task AddVoteAsync(UserCheckVote vote, CancellationToken cancellationToken = default)

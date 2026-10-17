@@ -10,7 +10,7 @@ namespace Yakku.Application.Checks.Interfaces
         /// <summary>One live check; 404 when it does not exist, is inactive, or is not live yet.</summary>
         Task<CheckResponse> GetByIdAsync(Guid id, Guid? userId, CancellationToken cancellationToken = default);
 
-        Task<UserCheckResponse> MakeAsync(Guid checkId, Guid userId, CancellationToken cancellationToken = default);
+        Task<UserCheckResponse> MakeAsync(Guid checkId, Guid userId, MakeCheckRequest request, CancellationToken cancellationToken = default);
 
         Task<List<UserCheckResponse>> GetMineAsync(Guid userId, CancellationToken cancellationToken = default);
 

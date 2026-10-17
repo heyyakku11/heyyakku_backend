@@ -99,6 +99,16 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("user_check_votes", table =>
             {
                 table.HasCheckConstraint(
+                    "CK_user_check_votes_one_choice",
+                    """
+                    ("check_option_id" IS NOT NULL AND "custom_answer" IS NULL)
+                    OR
+                    ("check_option_id" IS NULL AND "custom_answer" IS NOT NULL)
+                    """);
+                table.HasCheckConstraint(
+                    "CK_user_check_votes_custom_answer_not_blank",
+                    "\"custom_answer\" IS NULL OR char_length(btrim(\"custom_answer\")) > 0");
+                table.HasCheckConstraint(
                     "CK_user_check_votes_reason_not_blank",
                     "\"reason\" IS NULL OR char_length(btrim(\"reason\")) > 0");
             });
@@ -107,7 +117,8 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Id).HasColumnName("id");
             builder.Property(x => x.UserCheckId).HasColumnName("user_check_id").IsRequired();
             builder.Property(x => x.CheckId).HasColumnName("check_id").IsRequired();
-            builder.Property(x => x.CheckOptionId).HasColumnName("check_option_id").IsRequired();
+            builder.Property(x => x.CheckOptionId).HasColumnName("check_option_id");
+            builder.Property(x => x.CustomAnswer).HasColumnName("custom_answer").HasColumnType("text");
             builder.Property(x => x.VoterId).HasColumnName("voter_id").IsRequired();
             builder.Property(x => x.Reason).HasColumnName("reason").HasColumnType("text");
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
@@ -133,6 +144,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .WithMany(x => x.Votes)
                 .HasForeignKey(x => new { x.CheckOptionId, x.CheckId })
                 .HasPrincipalKey(x => new { x.Id, x.CheckId })
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }
