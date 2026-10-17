@@ -801,6 +801,76 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("notification_preferences", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.Plan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("INR")
+                        .HasColumnName("currency");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("PriceMinor")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("price_minor");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("IX_plans_code");
+
+                    b.HasIndex("SortOrder")
+                        .IsUnique()
+                        .HasDatabaseName("IX_plans_sort_order");
+
+                    b.ToTable("plans", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_plans_price_not_negative", "\"price_minor\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Poll", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1302,6 +1372,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("PlanId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("a1f3c0de-0000-4000-8000-000000000001"));
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1317,6 +1392,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("PhoneNumber")
                         .IsUnique()
                         .HasDatabaseName("IX_Users_PhoneNumber");
+
+                    b.HasIndex("PlanId")
+                        .HasDatabaseName("IX_Users_PlanId");
 
                     b.ToTable("users", (string)null);
                 });
@@ -1670,6 +1748,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.User", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Plan", "Plan")
+                        .WithMany("Users")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Check", "Check")
@@ -1765,6 +1854,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
                 {
                     b.Navigation("Sessions");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.Plan", b =>
+                {
+                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Poll", b =>

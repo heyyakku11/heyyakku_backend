@@ -11,6 +11,10 @@ namespace Yakku.Domain.Entities
         public DateTime UpdatedAt { get; private set; }
         public DateTime? LoginAt { get; private set; }
 
+        /// <summary>The user's current plan. Every user has one; new users start on the free plan.</summary>
+        public Guid PlanId { get; private set; } = Plan.FreeId;
+
+        public Plan Plan { get; private set; } = null!;
         public UserProfile Profile { get; private set; } = null!;
         public NotificationPreference? NotificationPreference { get; private set; }
         public ICollection<UserSession> Sessions { get; private set; } = new List<UserSession>();
@@ -30,6 +34,7 @@ namespace Yakku.Domain.Entities
             Id = Guid.NewGuid();
             PhoneNumber = phoneNumber;
             Status = UserStatus.Active;
+            PlanId = Plan.FreeId;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
             LoginAt = DateTime.UtcNow;

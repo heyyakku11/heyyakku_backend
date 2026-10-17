@@ -113,36 +113,6 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPatch("{id:guid}")]
-        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Update(
-            Guid id,
-            [FromBody] UpdatePollRequest request,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                var poll = await _pollService.UpdateAsync(
-                    id,
-                    request,
-                    User.GetRequiredUserId(),
-                    cancellationToken);
-                return Ok(ApiResponse.Ok(poll, "Poll updated successfully"));
-            }
-            catch (ValidationException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
-            catch (AppException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
-        }
-
         [HttpPost("{id:guid}/publish")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]

@@ -21,6 +21,14 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasMaxLength(32)
                 .HasDefaultValue(UserStatus.Active);
 
+            // Every user has a plan; rows created without one (or before plans existed) are on the free plan.
+            builder.Property(x => x.PlanId)
+                .IsRequired()
+                .HasDefaultValue(Plan.FreeId);
+
+            builder.HasIndex(x => x.PlanId)
+                .HasDatabaseName("IX_Users_PlanId");
+
             builder.Property(x => x.CreatedAt)
                 .IsRequired();
 

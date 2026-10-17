@@ -15,7 +15,15 @@ namespace Yakku.Application.Users.Mapper
                 Name = user.Profile?.Name ?? string.Empty,
                 AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
                 LoginAt = user.LoginAt,
-                AvatarUrl = null
+                AvatarUrl = null,
+                CurrentPlan = new UserPlanResponse
+                {
+                    Id = user.PlanId,
+                    Code = user.Plan?.Code ?? Plan.FreeCode,
+                    Name = user.Plan?.Name ?? "Free",
+                    Price = (user.Plan?.PriceMinor ?? 0) / 100m,
+                    Currency = user.Plan?.Currency ?? "INR"
+                }
             };
         }
     }

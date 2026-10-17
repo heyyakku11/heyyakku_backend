@@ -21,6 +21,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             return await _context.Users
                 .Include(user => user.Profile)
+                .Include(user => user.Plan)
                 .FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
         }
 
