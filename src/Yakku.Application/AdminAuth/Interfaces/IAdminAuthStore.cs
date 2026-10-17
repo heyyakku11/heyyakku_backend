@@ -60,7 +60,7 @@ namespace Yakku.Application.AdminAuth.Interfaces
         /// <summary>The ADMIN_SECRET_CODE required to complete a registration.</summary>
         string SecretCode { get; }
 
-        /// <summary>The web app base URL (WEB_BASE_URL) used to build email links, without a trailing slash.</summary>
+        /// <summary>The web app base URL (ADMIN_WEB_BASE_URL) used to build admin email links, without a trailing slash.</summary>
         string WebBaseUrl { get; }
     }
 }

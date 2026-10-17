@@ -7,7 +7,7 @@ namespace Yakku.Application.AdminAuth
     {
         public string SecretCode => Read("ADMIN_SECRET_CODE");
 
-        public string WebBaseUrl => Read("WEB_BASE_URL").TrimEnd('/');
+        public string WebBaseUrl => Read("ADMIN_WEB_BASE_URL").TrimEnd('/');
 
         private static string Read(string name)
         {
