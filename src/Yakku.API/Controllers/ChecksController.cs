@@ -19,7 +19,7 @@ namespace Yakku.API.Controllers
             _checkService = checkService;
         }
 
-        /// <summary>Every live check (this week and earlier), earliest first, with the caller's used flag.</summary>
+        /// <summary>Active checks for the current week (Monday to Sunday), with the caller's used flag. Public.</summary>
         [AllowAnonymous]
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<List<CheckResponse>>), StatusCodes.Status200OK)]

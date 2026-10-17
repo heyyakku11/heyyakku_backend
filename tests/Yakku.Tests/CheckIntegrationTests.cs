@@ -103,11 +103,10 @@ public class CheckIntegrationTests
         var list = await service.GetChecksAsync(user.Id);
         var ours = list.Where(c => c.Title.EndsWith(tag)).ToList();
 
-        Assert.Equal([past.Id, current1.Id, current2.Id], ours.Select(c => c.Id));
+        Assert.Equal([current1.Id, current2.Id], ours.Select(c => c.Id));
         Assert.DoesNotContain(list, c => c.Id == next.Id);
-        Assert.True(ours[0].WeekStart < thisWeek);
-        Assert.True(ours[1].WeekStart == thisWeek && ours[2].WeekStart == thisWeek);
-        Assert.True(list.Zip(list.Skip(1)).All(p => p.First.WeekStart <= p.Second.WeekStart));
+        Assert.DoesNotContain(list, c => c.Id == past.Id);
+        Assert.All(list, c => Assert.Equal(thisWeek, c.WeekStart));
 
         var currentOnly = list.Where(c => c.WeekStart == thisWeek).ToList();
         Assert.Contains(currentOnly, c => c.Id == current1.Id);

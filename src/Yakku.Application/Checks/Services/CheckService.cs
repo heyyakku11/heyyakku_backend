@@ -29,7 +29,7 @@ namespace Yakku.Application.Checks.Services
         public async Task<List<CheckResponse>> GetChecksAsync(Guid? userId, CancellationToken cancellationToken = default)
         {
             var currentWeek = CheckWeek.Current();
-            var checks = await _repository.GetLiveAsync(currentWeek, cancellationToken);
+            var checks = await _repository.GetForWeekAsync(currentWeek, cancellationToken);
             var used = userId is null
                 ? new Dictionary<Guid, UserCheck>()
                 : await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);

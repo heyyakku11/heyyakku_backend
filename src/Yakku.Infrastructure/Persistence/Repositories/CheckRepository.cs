@@ -20,14 +20,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public Task<List<Check>> GetLiveAsync(DateOnly throughWeek, CancellationToken cancellationToken = default)
+        public Task<List<Check>> GetForWeekAsync(DateOnly weekStart, CancellationToken cancellationToken = default)
         {
             return _context.Checks
                 .AsNoTracking()
                 .Include(check => check.Options)
-                .Where(check => check.IsActive && check.LiveWeekStart <= throughWeek)
-                .OrderBy(check => check.LiveWeekStart)
-                .ThenBy(check => check.CreatedAt)
+                .Where(check => check.IsActive && check.LiveWeekStart == weekStart)
+                .OrderBy(check => check.CreatedAt)
                 .ThenBy(check => check.Id)
                 .ToListAsync(cancellationToken);
         }

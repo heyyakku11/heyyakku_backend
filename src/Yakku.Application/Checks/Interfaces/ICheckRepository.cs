@@ -5,10 +5,10 @@ namespace Yakku.Application.Checks.Interfaces
     public interface ICheckRepository
     {
         /// <summary>
-        /// Active checks (with options) already live: scheduled for <paramref name="throughWeek"/> or earlier.
-        /// Earliest week first, then sequence.
+        /// Active checks (with options) scheduled for the week starting <paramref name="weekStart"/> (Monday to Sunday).
+        /// Oldest first.
         /// </summary>
-        Task<List<Check>> GetLiveAsync(DateOnly throughWeek, CancellationToken cancellationToken = default);
+        Task<List<Check>> GetForWeekAsync(DateOnly weekStart, CancellationToken cancellationToken = default);
 
         /// <summary>An active check that is live as of <paramref name="throughWeek"/>.</summary>
         Task<Check?> GetLiveByIdAsync(Guid id, DateOnly throughWeek, CancellationToken cancellationToken = default);
