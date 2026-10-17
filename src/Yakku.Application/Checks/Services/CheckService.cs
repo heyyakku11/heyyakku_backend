@@ -56,24 +56,29 @@ namespace Yakku.Application.Checks.Services
         }
 
         public async Task<UserCheckResponse> MakeAsync(
-            Guid checkId,
             Guid userId,
             MakeCheckRequest request,
             CancellationToken cancellationToken = default)
         {
-            await _voteValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-            if (request.CheckId is not null && request.CheckId != checkId)
+            if (request.CheckId == Guid.Empty)
             {
                 throw new AppException(
                     400,
                     ApiErrorCodes.ValidationError,
-                    "checkId in the body does not match the route.",
+                    "checkId is required.",
                     "checkId");
             }
 
+            var answer = new CastCheckVoteRequest
+            {
+                CheckOptionId = request.CheckOptionId,
+                CustomAnswer = request.CustomAnswer,
+                Reason = request.Reason
+            };
+            await _voteValidator.ValidateAndThrowAsync(answer, cancellationToken);
+
             // Only checks that are already live can be made; upcoming ones stay hidden until their week.
-            var check = await _repository.GetLiveByIdAsync(checkId, CheckWeek.Current(), cancellationToken)
+            var check = await _repository.GetLiveByIdAsync(request.CheckId, CheckWeek.Current(), cancellationToken)
                 ?? throw CheckExceptions.NotFound();
 
             var used = await _repository.GetUserChecksByCheckAsync(userId, cancellationToken);
@@ -87,7 +92,7 @@ namespace Yakku.Application.Checks.Services
                 var userCheck = UserCheck.Create(userId, check.Id, NewShareCode());
 
                 // The maker's own answer is saved together with the check, so a check is never used without one.
-                var ownerAnswer = BuildVote(userCheck.Id, check, userId, request);
+                var ownerAnswer = BuildVote(userCheck.Id, check, userId, answer);
                 if (await _repository.TryAddUserCheckAsync(userCheck, ownerAnswer, cancellationToken))
                 {
                     var saved = await _repository.GetUserCheckByIdAsync(userCheck.Id, cancellationToken)

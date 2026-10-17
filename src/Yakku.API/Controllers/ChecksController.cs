@@ -34,18 +34,17 @@ namespace Yakku.API.Controllers
         /// The body carries the caller's own answer: exactly one of checkOptionId or customAnswer, plus an optional reason.
         /// A bearer token is required.
         /// </summary>
-        [HttpPost("{id:guid}/make")]
+        [HttpPost("make")]
         [ProducesResponseType(typeof(ApiResponse<UserCheckResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Make(
-            Guid id,
             [FromBody] MakeCheckRequest request,
             CancellationToken cancellationToken)
         {
-            var result = await _checkService.MakeAsync(id, User.GetRequiredUserId(), request, cancellationToken);
+            var result = await _checkService.MakeAsync(User.GetRequiredUserId(), request, cancellationToken);
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Check created successfully"));
         }
 

@@ -87,11 +87,13 @@ namespace Yakku.Application.Checks.DTOs
         public string? Reason { get; set; }
     }
 
-    /// <summary>Body of POST /checks/{id}/make: the maker's own answer to the check.</summary>
-    public class MakeCheckRequest : CastCheckVoteRequest
+    /// <summary>Body of POST /checks/make: the check being made plus the maker's own answer to it.</summary>
+    public class MakeCheckRequest
     {
-        /// <summary>Optional echo of the route id; when sent it must match.</summary>
-        public Guid? CheckId { get; set; }
+        public Guid CheckId { get; set; }
+        public Guid? CheckOptionId { get; set; }
+        public string? Reason { get; set; }
+        public string? CustomAnswer { get; set; }
     }
 
     public class CheckVoteResponse

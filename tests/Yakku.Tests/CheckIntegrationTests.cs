@@ -118,7 +118,7 @@ public class CheckIntegrationTests
         Assert.False(detail.Used);
         Assert.Equal(404, (await Assert.ThrowsAsync<AppException>(() => service.GetByIdAsync(next.Id, null))).StatusCode);
 
-        var notYetLive = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(next.Id, user.Id, Answer()));
+        var notYetLive = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(user.Id, Answer(next.Id)));
         Assert.Equal(404, notYetLive.StatusCode);
 
         // Rescheduling the upcoming check into this week makes it live.
@@ -135,7 +135,7 @@ public class CheckIntegrationTests
         var user = await AddUserAsync(context);
         var week = CheckWeek.Current();
         var created = await admin.CreateAsync(CheckWeekTests.NewRequest(week, "used-check"));
-        await service.MakeAsync(created.Id, user.Id, Answer());
+        await service.MakeAsync(user.Id, Answer(created.Id));
 
         var edit = CheckWeekTests.NewRequest(week, "renamed");
         var edited = await Assert.ThrowsAsync<AppException>(() => admin.UpdateAsync(created.Id, edit));
@@ -182,9 +182,9 @@ public class CheckIntegrationTests
         var target = before.Last();
         Assert.All(before, c => Assert.False(c.Used));
 
-        var made = await service.MakeAsync(target.Id, user.Id, Answer());
-        var duplicate = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(target.Id, user.Id, Answer()));
-        var otherUser = await service.MakeAsync(target.Id, other.Id, Answer());
+        var made = await service.MakeAsync(user.Id, Answer(target.Id));
+        var duplicate = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(user.Id, Answer(target.Id)));
+        var otherUser = await service.MakeAsync(other.Id, Answer(target.Id));
 
         Assert.Equal(ApiErrorCodes.AlreadyUsed, duplicate.ErrorCode);
         Assert.NotEqual(made.ShareCode, otherUser.ShareCode);
@@ -203,7 +203,7 @@ public class CheckIntegrationTests
         var owner = await AddUserAsync(context);
         var voter = await AddUserAsync(context);
         var check = (await service.GetChecksAsync(owner.Id)).First();
-        var made = await service.MakeAsync(check.Id, owner.Id, Answer());
+        var made = await service.MakeAsync(owner.Id, Answer(check.Id));
         var optionId = check.Options[0].Id;
 
         var ownerVote = await Assert.ThrowsAsync<AppException>(() =>
@@ -234,7 +234,7 @@ public class CheckIntegrationTests
         var owner = await AddUserAsync(context);
         var voter = await AddUserAsync(context);
         var checks = await service.GetChecksAsync(owner.Id);
-        var made = await service.MakeAsync(checks[0].Id, owner.Id, Answer());
+        var made = await service.MakeAsync(owner.Id, Answer(checks[0].Id));
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
             service.VoteAsync(made.ShareCode, voter.Id, new CastCheckVoteRequest { CheckOptionId = checks[1].Options[0].Id }));
@@ -252,10 +252,9 @@ public class CheckIntegrationTests
         var checks = await service.GetChecksAsync(user.Id);
 
         var picked = await service.MakeAsync(
-            checks[0].Id,
             user.Id,
             new MakeCheckRequest { CheckId = checks[0].Id, CheckOptionId = checks[0].Options[1].Id, Reason = "Because" });
-        var written = await service.MakeAsync(checks[1].Id, user.Id, new MakeCheckRequest { CustomAnswer = "  Depends on the day  " });
+        var written = await service.MakeAsync(user.Id, new MakeCheckRequest { CheckId = checks[1].Id, CustomAnswer = "  Depends on the day  " });
 
         Assert.Equal(checks[0].Options[1].Id, picked.MyVoteOptionId);
         Assert.Equal(1, picked.Options.Single(o => o.Id == checks[0].Options[1].Id).Votes);
@@ -275,22 +274,19 @@ public class CheckIntegrationTests
         var checks = await service.GetChecksAsync(user.Id);
         var target = checks[0];
 
-        await Assert.ThrowsAsync<ValidationException>(() => service.MakeAsync(target.Id, user.Id, new MakeCheckRequest()));
+        await Assert.ThrowsAsync<ValidationException>(() => service.MakeAsync(user.Id, new MakeCheckRequest { CheckId = target.Id }));
         await Assert.ThrowsAsync<ValidationException>(() => service.MakeAsync(
-            target.Id,
             user.Id,
-            new MakeCheckRequest { CheckOptionId = target.Options[0].Id, CustomAnswer = "both" }));
+            new MakeCheckRequest { CheckId = target.Id, CheckOptionId = target.Options[0].Id, CustomAnswer = "both" }));
         var foreign = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(
-            target.Id,
             user.Id,
-            new MakeCheckRequest { CheckOptionId = checks[1].Options[0].Id }));
-        var mismatch = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(
-            target.Id,
+            new MakeCheckRequest { CheckId = target.Id, CheckOptionId = checks[1].Options[0].Id }));
+        var missingCheck = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(
             user.Id,
-            new MakeCheckRequest { CheckId = checks[1].Id, CustomAnswer = "x" }));
+            new MakeCheckRequest { CustomAnswer = "x" }));
 
         Assert.Equal(400, foreign.StatusCode);
-        Assert.Equal("checkId", mismatch.Field);
+        Assert.Equal("checkId", missingCheck.Field);
         Assert.False((await service.GetChecksAsync(user.Id)).Single(c => c.Id == target.Id).Used);
     }
 
@@ -303,7 +299,7 @@ public class CheckIntegrationTests
         var owner = await AddUserAsync(context);
         var friend = await AddUserAsync(context);
         var check = (await service.GetChecksAsync(owner.Id)).First();
-        var made = await service.MakeAsync(check.Id, owner.Id, Answer());
+        var made = await service.MakeAsync(owner.Id, Answer(check.Id));
 
         var vote = await service.VoteAsync(made.ShareCode, friend.Id, new CastCheckVoteRequest { CustomAnswer = "Neither" });
 
@@ -312,7 +308,7 @@ public class CheckIntegrationTests
         Assert.Equal(2, (await service.GetMineByIdAsync(made.Id, owner.Id)).CustomAnswerVotes);
     }
 
-    private static MakeCheckRequest Answer() => new() { CustomAnswer = "my answer" };
+    private static MakeCheckRequest Answer(Guid checkId) => new() { CheckId = checkId, CustomAnswer = "my answer" };
 
     private static (CheckService Service, AdminCheckService Admin) NewServices(YakkuDbContext context)
     {
