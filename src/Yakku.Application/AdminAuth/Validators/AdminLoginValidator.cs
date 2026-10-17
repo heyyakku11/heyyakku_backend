@@ -10,9 +10,7 @@ namespace Yakku.Application.AdminAuth.Validators
             RuleFor(x => x.Email)
                 .NotEmpty()
                 .EmailAddress()
-                .MaximumLength(256)
-                .Must(AdminEmailPolicy.IsAllowed)
-                .WithMessage("Only @heyyakku.com email addresses can log in.");
+                .MaximumLength(256);
 
             RuleFor(x => x.Password)
                 .NotEmpty()

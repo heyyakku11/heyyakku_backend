@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Yakku.API.Auth;
 using Yakku.API.Middleware;
 using Yakku.Application.AdminAuth.DTOs;
@@ -26,6 +27,7 @@ namespace Yakku.API.Controllers
             _adminSessionService = adminSessionService;
         }
 
+        [EnableRateLimiting("admin-auth")]
         [HttpPost("login")]
         [ProducesResponseType(typeof(ApiResponse<AdminAuthResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -50,51 +52,105 @@ namespace Yakku.API.Controllers
             }
         }
 
+        [EnableRateLimiting("admin-auth")]
         [HttpPost("register")]
-        [ProducesResponseType(typeof(ApiResponse<RequestOtpResponse>), StatusCodes.Status200OK)]
+        [EndpointDescription("Registration step 1. Any valid email is accepted. The email and password are kept in a temporary record for 15 minutes; nothing is created or emailed yet. Continue with confirm-secret.")]
+        [ProducesResponseType(typeof(ApiResponse<AdminRegistrationStepResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Register(
+        public Task<IActionResult> Register(
             [FromBody] AdminRegisterRequest request,
             CancellationToken cancellationToken)
         {
-            try
-            {
-                var result = await _adminAuthService.RegisterAsync(request, cancellationToken);
-                return Ok(ApiResponse.Ok(result, "OTP sent successfully"));
-            }
-            catch (ValidationException ex)
-            {
-                return ToValidationErrorResult(ex);
-            }
-            catch (AppException ex)
-            {
-                return ToErrorResult(ex);
-            }
+            return RunAsync(
+                async () => Ok(ApiResponse.Ok(
+                    await _adminAuthService.RegisterAsync(request, cancellationToken),
+                    "Registration started. Enter the admin secret code to continue.")));
         }
 
-        [HttpPost("verify-otp")]
-        [ProducesResponseType(typeof(ApiResponse<AdminAuthResponse>), StatusCodes.Status200OK)]
+        [EnableRateLimiting("admin-auth")]
+        [HttpPost("confirm-secret")]
+        [EndpointDescription("Registration step 2. Checks the pending registration (email and password from step 1) and the admin secret code, then emails a verification link valid for 10 minutes.")]
+        [ProducesResponseType(typeof(ApiResponse<AdminRegistrationStepResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> VerifyOtp(
-            [FromBody] AdminVerifyOtpRequest request,
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public Task<IActionResult> ConfirmSecret(
+            [FromBody] AdminConfirmSecretRequest request,
             CancellationToken cancellationToken)
         {
-            try
+            return RunAsync(
+                async () => Ok(ApiResponse.Ok(
+                    await _adminAuthService.ConfirmSecretAsync(request, cancellationToken),
+                    "Verification email sent")));
+        }
+
+        [EnableRateLimiting("admin-auth")]
+        [HttpPost("verify-email")]
+        [EndpointDescription("Registration step 3. The token from the emailed link creates the admin account. The admin then logs in with the same email and password.")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public Task<IActionResult> VerifyEmail(
+            [FromBody] AdminVerifyEmailRequest request,
+            CancellationToken cancellationToken)
+        {
+            return RunAsync(async () =>
             {
-                var result = await _adminAuthService.VerifyOtpAsync(request, cancellationToken);
-                return Ok(ApiResponse.Ok(result, "Registration successful"));
-            }
-            catch (ValidationException ex)
+                await _adminAuthService.VerifyEmailAsync(request, cancellationToken);
+                return Ok(ApiResponse.Ok<object?>(null, "Registration complete. You can now log in."));
+            });
+        }
+
+        [EnableRateLimiting("admin-auth")]
+        [HttpPost("forgot-password")]
+        [EndpointDescription("Sends a password reset link (valid 10 minutes) when an admin with this email exists. The response is always the same so it cannot be used to discover admin emails.")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        public Task<IActionResult> ForgotPassword(
+            [FromBody] AdminForgotPasswordRequest request,
+            CancellationToken cancellationToken)
+        {
+            return RunAsync(async () =>
             {
-                return ToValidationErrorResult(ex);
-            }
-            catch (AppException ex)
+                await _adminAuthService.ForgotPasswordAsync(request, cancellationToken);
+                return Ok(ApiResponse.Ok<object?>(null, "If an admin account exists for this email, a reset link has been sent."));
+            });
+        }
+
+        [EnableRateLimiting("admin-auth")]
+        [HttpPost("reset-password")]
+        [EndpointDescription("Sets a new password using the token from the reset email. The token works once, and all sessions are signed out.")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        public Task<IActionResult> ResetPassword(
+            [FromBody] AdminResetPasswordRequest request,
+            CancellationToken cancellationToken)
+        {
+            return RunAsync(async () =>
             {
-                return ToErrorResult(ex);
-            }
+                await _adminAuthService.ResetPasswordAsync(request, cancellationToken);
+                return Ok(ApiResponse.Ok<object?>(null, "Password reset successfully. Please log in."));
+            });
+        }
+
+        [Authorize(Policy = "Admin")]
+        [EnableRateLimiting("admin-auth")]
+        [HttpPost("change-password")]
+        [EndpointDescription("Changes the signed-in admin's password. Requires the current password, a new password and its confirmation. All sessions are signed out, so the admin logs in again.")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public Task<IActionResult> ChangePassword(
+            [FromBody] AdminChangePasswordRequest request,
+            CancellationToken cancellationToken)
+        {
+            return RunAsync(async () =>
+            {
+                await _adminAuthService.ChangePasswordAsync(User.GetRequiredUserId(), request, cancellationToken);
+                return Ok(ApiResponse.Ok<object?>(null, "Password changed successfully. Please log in again."));
+            });
         }
 
         [HttpPost("refresh")]
@@ -143,6 +199,22 @@ namespace Yakku.API.Controllers
             {
                 await _adminSessionService.RevokeAllAsync(User.GetRequiredUserId(), cancellationToken);
                 return Ok(ApiResponse.Ok<object?>(null, "Logged out from all sessions successfully"));
+            }
+            catch (AppException ex)
+            {
+                return ToErrorResult(ex);
+            }
+        }
+
+        private static async Task<IActionResult> RunAsync(Func<Task<IActionResult>> action)
+        {
+            try
+            {
+                return await action();
+            }
+            catch (ValidationException ex)
+            {
+                return ToValidationErrorResult(ex);
             }
             catch (AppException ex)
             {

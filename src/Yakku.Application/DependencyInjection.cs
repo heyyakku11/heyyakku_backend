@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Yakku.Application.AdminAuth;
 using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.AdminAuth.Services;
 using Yakku.Application.YakkuDirectory.Interfaces;
@@ -40,6 +41,7 @@ namespace Yakku.Application
             services.AddScoped<ISessionService, SessionService>();
             services.AddScoped<IAdminAuthService, AdminAuthService>();
             services.AddScoped<IAdminSessionService, AdminSessionService>();
+            services.AddSingleton<IAdminAuthSettings, EnvAdminAuthSettings>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IYakkuDirectoryService, YakkuDirectoryService>();
             services.AddScoped<IGuestIdentityService, GuestIdentityService>();

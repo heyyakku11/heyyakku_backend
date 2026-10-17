@@ -48,23 +48,48 @@ namespace Yakku.Infrastructure.Email
             return new ResendEmailSender(httpClient, templateId, logger);
         }
 
-        public async Task<EmailSendResult> SendOtpAsync(
+        public Task<EmailSendResult> SendOtpAsync(
             string email,
             string otp,
             CancellationToken cancellationToken = default)
         {
+            return SendAsync(
+                email,
+                _templateId,
+                "Your Yakku verification code",
+                new Dictionary<string, string>
+                {
+                    ["otp"] = otp,
+                    ["expiry_time"] = ExpiryTime
+                },
+                cancellationToken);
+        }
+
+        public Task<EmailSendResult> SendTemplateAsync(
+            string email,
+            string templateId,
+            string subject,
+            IReadOnlyDictionary<string, string> variables,
+            CancellationToken cancellationToken = default)
+        {
+            return SendAsync(email, templateId, subject, new Dictionary<string, string>(variables), cancellationToken);
+        }
+
+        private async Task<EmailSendResult> SendAsync(
+            string email,
+            string templateId,
+            string subject,
+            Dictionary<string, string> variables,
+            CancellationToken cancellationToken)
+        {
             var payload = new ResendEmailRequest
             {
                 To = [email],
-                Subject = "Your Yakku verification code",
+                Subject = subject,
                 Template = new ResendTemplate
                 {
-                    Id = _templateId,
-                    Variables = new Dictionary<string, string>
-                    {
-                        ["otp"] = otp,
-                        ["expiry_time"] = ExpiryTime
-                    }
+                    Id = templateId,
+                    Variables = variables
                 }
             };
 
@@ -79,21 +104,21 @@ namespace Yakku.Infrastructure.Email
             }
             catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
             {
-                _logger.LogError(exception, "Failed to reach Resend while sending OTP email.");
+                _logger.LogError(exception, "Failed to reach Resend while sending email.");
                 return EmailSendResult.TransientFailure("NetworkError", "Failed to reach email provider.");
             }
 
             if (response.IsSuccessStatusCode)
             {
                 var providerMessageId = await TryReadProviderMessageIdAsync(response, cancellationToken);
-                _logger.LogInformation("OTP email dispatched via Resend.");
+                _logger.LogInformation("Email dispatched via Resend.");
                 return EmailSendResult.Success(providerMessageId);
             }
 
             var errorBody = Truncate(await response.Content.ReadAsStringAsync(cancellationToken));
             var statusCode = (int)response.StatusCode;
             _logger.LogError(
-                "Resend rejected OTP email with status {StatusCode}: {Error}",
+                "Resend rejected email with status {StatusCode}: {Error}",
                 statusCode,
                 errorBody);
 

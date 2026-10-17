@@ -3,7 +3,6 @@ using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Audit;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Email;
@@ -66,9 +65,8 @@ namespace Yakku.Infrastructure.Email
         {
             using var scope = _scopeFactory.CreateScope();
             var otpStore = scope.ServiceProvider.GetRequiredService<IOtpChallengeStore>();
-            var adminOtpStore = scope.ServiceProvider.GetRequiredService<IAdminOtpChallengeStore>();
 
-            if (!await IsChallengeCurrentAsync(otpStore, adminOtpStore, job, stoppingToken))
+            if (!await IsChallengeCurrentAsync(otpStore, job, stoppingToken))
             {
                 _logger.LogInformation(
                     "Skipping OTP email for superseded challenge {ChallengeId}.",
@@ -81,7 +79,7 @@ namespace Yakku.Infrastructure.Email
             {
                 stoppingToken.ThrowIfCancellationRequested();
 
-                if (!await IsChallengeCurrentAsync(otpStore, adminOtpStore, job, stoppingToken))
+                if (!await IsChallengeCurrentAsync(otpStore, job, stoppingToken))
                 {
                     _logger.LogInformation(
                         "Stopping OTP email for superseded challenge {ChallengeId}.",
@@ -121,7 +119,7 @@ namespace Yakku.Infrastructure.Email
 
                 if (result.IsPermanentFailure || attempt >= OtpEmailQueueOptions.MaxAttempts)
                 {
-                    await DeleteMatchingChallengeAsync(otpStore, adminOtpStore, job, stoppingToken);
+                    await DeleteMatchingChallengeAsync(otpStore, job, stoppingToken);
                     _logger.LogWarning(
                         "OTP email permanently failed for challenge {ChallengeId}. Error code: {ErrorCode}",
                         job.ChallengeId,
@@ -162,33 +160,19 @@ namespace Yakku.Infrastructure.Email
 
         private static async Task<bool> IsChallengeCurrentAsync(
             IOtpChallengeStore otpStore,
-            IAdminOtpChallengeStore adminOtpStore,
             EmailJob job,
             CancellationToken cancellationToken)
         {
             var userChallenge = await otpStore.GetAsync(job.RecipientEmail, cancellationToken);
-            if (userChallenge is not null && userChallenge.ChallengeId == job.ChallengeId)
-            {
-                return true;
-            }
-
-            var adminChallenge = await adminOtpStore.GetAsync(job.RecipientEmail, cancellationToken);
-            return adminChallenge is not null && adminChallenge.ChallengeId == job.ChallengeId;
+            return userChallenge is not null && userChallenge.ChallengeId == job.ChallengeId;
         }
 
         private static async Task DeleteMatchingChallengeAsync(
             IOtpChallengeStore otpStore,
-            IAdminOtpChallengeStore adminOtpStore,
             EmailJob job,
             CancellationToken cancellationToken)
         {
             await otpStore.DeleteIfChallengeMatchesAsync(job.RecipientEmail, job.ChallengeId, cancellationToken);
-
-            var adminChallenge = await adminOtpStore.GetAsync(job.RecipientEmail, cancellationToken);
-            if (adminChallenge is not null && adminChallenge.ChallengeId == job.ChallengeId)
-            {
-                await adminOtpStore.DeleteAsync(job.RecipientEmail, cancellationToken);
-            }
         }
 
         private static TimeSpan WithJitter(TimeSpan delay)

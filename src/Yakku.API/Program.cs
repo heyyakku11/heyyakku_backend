@@ -149,6 +149,8 @@ builder.Services.AddRateLimiter(options =>
     };
     options.AddPolicy("media-upload", httpContext => FixedWindow(httpContext, permitLimit: 20));
     options.AddPolicy("poll-votes", httpContext => FixedWindow(httpContext, permitLimit: 30));
+    // Admin register, secret code, email link, password reset and login are brute-force targets.
+    options.AddPolicy("admin-auth", httpContext => FixedWindow(httpContext, permitLimit: 10));
     // Reusing a valid guest and creating one share this limit, so a single address cannot mint guests in bulk.
     var guestCreateLimit = OperationalSettings.Guests.CreateRateLimitPerMinute;
     options.AddPolicy("device-write", httpContext => FixedWindow(httpContext, OperationalSettings.Devices.WriteRateLimitPerMinute));

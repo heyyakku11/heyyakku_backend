@@ -1,11 +1,10 @@
+using System.Security.Cryptography;
+using System.Text;
 using FluentValidation;
 using Yakku.Application.AdminAuth.DTOs;
 using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Audit;
-using Yakku.Application.Auth;
 using Yakku.Application.Auth.DTOs;
-using Yakku.Application.Auth.Interfaces;
-using Yakku.Application.Auth.Models;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Email;
@@ -17,47 +16,67 @@ namespace Yakku.Application.AdminAuth.Services
 {
     public class AdminAuthService : IAdminAuthService
     {
+        /// <summary>How long the temporary registration record lives.</summary>
+        public static readonly TimeSpan PendingRegistrationTtl = TimeSpan.FromMinutes(15);
+
+        /// <summary>How long the email link tokens (verify, reset) live.</summary>
+        public static readonly TimeSpan LinkTokenTtl = TimeSpan.FromMinutes(10);
+
+        public const string LinkTokenExpiryText = "10 minutes";
+        public const int MaxSecretAttempts = 5;
+        public static readonly TimeSpan ForgotPasswordCooldown = TimeSpan.FromSeconds(60);
+
         private readonly IAdminRepository _adminRepository;
-        private readonly IAdminOtpChallengeStore _otpChallengeStore;
-        private readonly IOtpGenerator _otpGenerator;
-        private readonly IOtpEmailQueue _otpEmailQueue;
+        private readonly IAdminAuthStore _store;
+        private readonly IAdminAuthSettings _settings;
+        private readonly IAdminEmailQueue _emailQueue;
         private readonly IAdminSessionService _sessionService;
         private readonly IValidator<AdminRegisterRequest> _registerValidator;
-        private readonly IValidator<AdminVerifyOtpRequest> _verifyOtpValidator;
+        private readonly IValidator<AdminConfirmSecretRequest> _confirmSecretValidator;
+        private readonly IValidator<AdminVerifyEmailRequest> _verifyEmailValidator;
         private readonly IValidator<AdminLoginRequest> _loginValidator;
+        private readonly IValidator<AdminForgotPasswordRequest> _forgotValidator;
+        private readonly IValidator<AdminResetPasswordRequest> _resetValidator;
+        private readonly IValidator<AdminChangePasswordRequest> _changeValidator;
         private readonly IAuditLogWriter _audit;
 
         public AdminAuthService(
             IAdminRepository adminRepository,
-            IAdminOtpChallengeStore otpChallengeStore,
-            IOtpGenerator otpGenerator,
-            IOtpEmailQueue otpEmailQueue,
+            IAdminAuthStore store,
+            IAdminAuthSettings settings,
+            IAdminEmailQueue emailQueue,
             IAdminSessionService sessionService,
             IValidator<AdminRegisterRequest> registerValidator,
-            IValidator<AdminVerifyOtpRequest> verifyOtpValidator,
+            IValidator<AdminConfirmSecretRequest> confirmSecretValidator,
+            IValidator<AdminVerifyEmailRequest> verifyEmailValidator,
             IValidator<AdminLoginRequest> loginValidator,
+            IValidator<AdminForgotPasswordRequest> forgotValidator,
+            IValidator<AdminResetPasswordRequest> resetValidator,
+            IValidator<AdminChangePasswordRequest> changeValidator,
             IAuditLogWriter audit)
         {
             _adminRepository = adminRepository;
-            _otpChallengeStore = otpChallengeStore;
-            _otpGenerator = otpGenerator;
-            _otpEmailQueue = otpEmailQueue;
+            _store = store;
+            _settings = settings;
+            _emailQueue = emailQueue;
             _sessionService = sessionService;
             _registerValidator = registerValidator;
-            _verifyOtpValidator = verifyOtpValidator;
+            _confirmSecretValidator = confirmSecretValidator;
+            _verifyEmailValidator = verifyEmailValidator;
             _loginValidator = loginValidator;
+            _forgotValidator = forgotValidator;
+            _resetValidator = resetValidator;
+            _changeValidator = changeValidator;
             _audit = audit;
         }
 
-        public async Task<RequestOtpResponse> RegisterAsync(
+        public async Task<AdminRegistrationStepResponse> RegisterAsync(
             AdminRegisterRequest request,
             CancellationToken cancellationToken = default)
         {
             await _registerValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var email = NormalizeEmail(request.Email);
-            EnsureAllowedEmail(email);
-
             var admin = await _adminRepository.GetByEmailAsync(email, cancellationToken);
             if (admin is { IsVerified: true })
             {
@@ -68,156 +87,122 @@ namespace Yakku.Application.AdminAuth.Services
                     "email");
             }
 
-            var existing = await _otpChallengeStore.GetAsync(email, cancellationToken);
-            if (existing is not null && DateTime.UtcNow - existing.CreatedAt < OtpOptions.ResendCooldown)
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.OtpResendCooldown,
-                    "Please wait before requesting another OTP.",
-                    "email");
-            }
-
-            var otp = _otpGenerator.Generate();
-            var challengeId = Guid.NewGuid();
-            var challenge = new OtpChallenge
-            {
-                ChallengeId = challengeId,
-                // OtpHash = OtpHasher.Hash(email, otp),
-                OtpHash = otp,
-                Purpose = OtpPurpose.Registration,
-                PasswordHash = AdminPasswordHasher.Hash(request.Password),
-                AttemptCount = 0,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await _otpChallengeStore.SetAsync(email, challenge, OtpOptions.Ttl, cancellationToken);
-
-            await _otpEmailQueue.EnqueueAsync(
-                new EmailJob(challengeId, email, otp),
+            // Registering again replaces the earlier pending record and restarts the 15 minutes.
+            await _store.SetPendingAsync(
+                email,
+                new PendingAdminRegistration
+                {
+                    Email = email,
+                    PasswordHash = AdminPasswordHasher.Hash(request.Password),
+                    CreatedAt = DateTime.UtcNow
+                },
+                PendingRegistrationTtl,
                 cancellationToken);
 
-            return new RequestOtpResponse
-            {
-                Purpose = OtpPurpose.Registration.ToString(),
-                ExpiresInSeconds = OtpOptions.ExpiresInSeconds
-            };
+            await AuditAsync(AuditEvents.Auth.AdminRegistrationStarted, AuditOutcome.Success, null, email);
+
+            return new AdminRegistrationStepResponse { ExpiresInSeconds = (int)PendingRegistrationTtl.TotalSeconds };
         }
 
-        public async Task<AdminAuthResponse> VerifyOtpAsync(
-            AdminVerifyOtpRequest request,
+        public async Task<AdminRegistrationStepResponse> ConfirmSecretAsync(
+            AdminConfirmSecretRequest request,
             CancellationToken cancellationToken = default)
         {
-            try
-            {
-                var response = await VerifyOtpCoreAsync(request, cancellationToken);
-                await AuditSuccessAsync(AuditEvents.Auth.LoggedIn, request.Email, "otp");
-                return response;
-            }
-            catch (AppException exception)
-            {
-                await AuditFailureAsync(AuditEvents.Auth.OtpVerifyFailed, exception, request.Email);
-                throw;
-            }
-        }
-
-        private async Task<AdminAuthResponse> VerifyOtpCoreAsync(
-            AdminVerifyOtpRequest request,
-            CancellationToken cancellationToken)
-        {
-            await _verifyOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
+            await _confirmSecretValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var email = NormalizeEmail(request.Email);
-            EnsureAllowedEmail(email);
+            var pending = await _store.GetPendingAsync(email, cancellationToken)
+                ?? throw RegistrationExpired();
 
-            var challenge = await _otpChallengeStore.GetAsync(email, cancellationToken);
-            if (challenge is null)
+            if (pending.AttemptCount >= MaxSecretAttempts)
             {
-                throw new AppException(
-                    404,
-                    ApiErrorCodes.OtpNotFound,
-                    "OTP not found or has expired.",
-                    "otp");
+                await _store.DeletePendingAsync(email, cancellationToken);
+                await AuditAsync(AuditEvents.Auth.AdminSecretFailed, AuditOutcome.Suspicious, ApiErrorCodes.TooManyAttempts, email);
+                throw TooManyAttempts();
             }
 
-            if (challenge.AttemptCount >= OtpOptions.MaxVerificationAttempts)
+            // Both checks always run so a failure does not reveal which one was wrong.
+            var passwordMatches = AdminPasswordHasher.Verify(request.Password, pending.PasswordHash);
+            var secretMatches = SecretMatches(request.SecretCode, _settings.SecretCode);
+            if (!passwordMatches || !secretMatches)
             {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.OtpAttemptsExceeded,
-                    "Too many invalid OTP attempts. Request a new OTP.",
-                    "otp");
-            }
-
-            // if (!OtpHasher.Verify(email, request.Otp.Trim(), challenge.OtpHash))
-            if (!string.Equals(request.Otp.Trim(), challenge.OtpHash, StringComparison.Ordinal))
-            {
-                challenge.AttemptCount++;
-                var replaced = await _otpChallengeStore.ReplaceKeepingTtlAsync(email, challenge, cancellationToken);
-                if (!replaced)
+                pending.AttemptCount++;
+                if (pending.AttemptCount >= MaxSecretAttempts)
                 {
-                    throw new AppException(
-                        400,
-                        ApiErrorCodes.OtpExpired,
-                        "OTP has expired.",
-                        "otp");
+                    await _store.DeletePendingAsync(email, cancellationToken);
+                }
+                else
+                {
+                    await _store.ReplacePendingKeepingTtlAsync(email, pending, cancellationToken);
                 }
 
-                if (challenge.AttemptCount >= OtpOptions.MaxVerificationAttempts)
-                {
-                    throw new AppException(
-                        400,
-                        ApiErrorCodes.OtpAttemptsExceeded,
-                        "Too many invalid OTP attempts. Request a new OTP.",
-                        "otp");
-                }
-
+                await AuditAsync(AuditEvents.Auth.AdminSecretFailed, AuditOutcome.Suspicious, ApiErrorCodes.InvalidSecretCode, email);
                 throw new AppException(
                     400,
-                    ApiErrorCodes.OtpInvalid,
-                    "Invalid OTP.",
-                    "otp");
+                    ApiErrorCodes.InvalidSecretCode,
+                    "Invalid email, password or secret code.");
             }
 
-            var admin = await _adminRepository.GetByEmailAsync(email, cancellationToken);
-            if (admin is { Status: AdminStatus.Disabled })
+            if (await _adminRepository.GetByEmailAsync(email, cancellationToken) is { IsVerified: true })
             {
-                await _otpChallengeStore.DeleteAsync(email, cancellationToken);
+                await _store.DeletePendingAsync(email, cancellationToken);
                 throw new AppException(
-                    403,
-                    ApiErrorCodes.Forbidden,
-                    "This admin account is disabled.",
+                    409,
+                    ApiErrorCodes.Conflict,
+                    "An admin with this email already exists.",
                     "email");
             }
 
-            if (admin is null)
-            {
-                if (string.IsNullOrWhiteSpace(challenge.PasswordHash))
-                {
-                    await _otpChallengeStore.DeleteAsync(email, cancellationToken);
-                    throw new AppException(
-                        404,
-                        ApiErrorCodes.NotFound,
-                        "Admin not found.",
-                        "email");
-                }
+            var token = NewToken();
+            await _store.SetVerificationTokenAsync(HashToken(token), email, LinkTokenTtl, cancellationToken);
 
-                admin = new Admin(email, challenge.PasswordHash, AdminRole.SuperAdmin);
-                await _adminRepository.AddAsync(admin, cancellationToken);
-            }
-            else if (!admin.IsVerified && !string.IsNullOrWhiteSpace(challenge.PasswordHash))
+            pending.SecretConfirmed = true;
+            await _store.ReplacePendingKeepingTtlAsync(email, pending, cancellationToken);
+
+            await EnqueueEmailAsync(
+                AdminEmailTemplate.Registration,
+                email,
+                "Verify your Yakku admin email",
+                $"{_settings.WebBaseUrl}/verify-email?token={Uri.EscapeDataString(token)}",
+                cancellationToken);
+
+            await AuditAsync(AuditEvents.Auth.AdminSecretConfirmed, AuditOutcome.Success, null, email);
+
+            return new AdminRegistrationStepResponse { ExpiresInSeconds = (int)LinkTokenTtl.TotalSeconds };
+        }
+
+        public async Task VerifyEmailAsync(
+            AdminVerifyEmailRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            await _verifyEmailValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var email = await _store.ConsumeVerificationTokenAsync(HashToken(request.Token.Trim()), cancellationToken)
+                ?? throw InvalidToken();
+
+            var pending = await _store.GetPendingAsync(email, cancellationToken);
+            if (pending is null || !pending.SecretConfirmed)
             {
-                admin.UpdatePassword(challenge.PasswordHash);
+                throw RegistrationExpired();
             }
 
+            if (await _adminRepository.GetByEmailAsync(email, cancellationToken) is not null)
+            {
+                await _store.DeletePendingAsync(email, cancellationToken);
+                throw new AppException(
+                    409,
+                    ApiErrorCodes.Conflict,
+                    "An admin with this email already exists.",
+                    "email");
+            }
+
+            var admin = new Admin(email, pending.PasswordHash, AdminRole.SuperAdmin);
             admin.MarkVerified();
-            admin.RecordLogin();
+            await _adminRepository.AddAsync(admin, cancellationToken);
             await _adminRepository.SaveChangesAsync(cancellationToken);
-            await _otpChallengeStore.DeleteAsync(email, cancellationToken);
+            await _store.DeletePendingAsync(email, cancellationToken);
 
-            return ToAuthResponse(
-                await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken),
-                admin);
+            await AuditAsync(AuditEvents.Auth.AdminEmailVerified, AuditOutcome.Success, null, email, admin.Id);
         }
 
         public async Task<AdminAuthResponse> LoginAsync(
@@ -227,12 +212,16 @@ namespace Yakku.Application.AdminAuth.Services
             try
             {
                 var response = await LoginCoreAsync(request, cancellationToken);
-                await AuditSuccessAsync(AuditEvents.Auth.LoggedIn, request.Email, "password");
+                await AuditAsync(AuditEvents.Auth.LoggedIn, AuditOutcome.Success, null, request.Email, metadata: "password");
                 return response;
             }
             catch (AppException exception)
             {
-                await AuditFailureAsync(AuditEvents.Auth.LoginFailed, exception, request.Email);
+                // Admin accounts are high value: bad passwords are flagged as suspicious.
+                var outcome = exception.ErrorCode == ApiErrorCodes.Unauthorized
+                    ? AuditOutcome.Suspicious
+                    : AuditOutcome.Failure;
+                await AuditAsync(AuditEvents.Auth.LoginFailed, outcome, exception.ErrorCode, request.Email);
                 throw;
             }
         }
@@ -280,35 +269,141 @@ namespace Yakku.Application.AdminAuth.Services
                 admin);
         }
 
-        private Task AuditSuccessAsync(string eventType, string? email, string method)
+        public async Task ForgotPasswordAsync(
+            AdminForgotPasswordRequest request,
+            CancellationToken cancellationToken = default)
         {
-            return _audit.WriteAuthenticationAsync(
-                new AuthenticationAuditEntry(
-                    AuditActorType.Admin,
-                    null,
-                    eventType,
-                    AuditOutcome.Success,
-                    Subject: email,
-                    Metadata: new Dictionary<string, string?> { ["method"] = method }),
-                CancellationToken.None);
+            await _forgotValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var email = NormalizeEmail(request.Email);
+
+            // Every outcome below looks the same to the caller so the route cannot be used to find admin emails.
+            if (!await _store.TryStartForgotPasswordCooldownAsync(email, ForgotPasswordCooldown, cancellationToken))
+            {
+                return;
+            }
+
+            var admin = await _adminRepository.GetByEmailAsync(email, cancellationToken);
+            if (admin is not { IsVerified: true, Status: AdminStatus.Active })
+            {
+                return;
+            }
+
+            var token = NewToken();
+            await _store.SetResetTokenAsync(admin.Id, HashToken(token), LinkTokenTtl, cancellationToken);
+
+            await EnqueueEmailAsync(
+                AdminEmailTemplate.ForgotPassword,
+                admin.Email,
+                "Reset your Yakku admin password",
+                $"{_settings.WebBaseUrl}/reset-password?token={Uri.EscapeDataString(token)}",
+                cancellationToken);
+
+            await AuditAsync(AuditEvents.Auth.PasswordResetRequested, AuditOutcome.Success, null, email, admin.Id);
         }
 
-        private Task AuditFailureAsync(string eventType, AppException exception, string? email)
+        public async Task ResetPasswordAsync(
+            AdminResetPasswordRequest request,
+            CancellationToken cancellationToken = default)
         {
-            // Admin accounts are high value: exhausted OTP attempts and bad passwords are flagged as suspicious.
-            var outcome = exception.ErrorCode is ApiErrorCodes.OtpAttemptsExceeded
-                || (exception.ErrorCode == ApiErrorCodes.Unauthorized && eventType == AuditEvents.Auth.LoginFailed)
-                ? AuditOutcome.Suspicious
-                : AuditOutcome.Failure;
+            await _resetValidator.ValidateAndThrowAsync(request, cancellationToken);
 
+            var adminId = await _store.ConsumeResetTokenAsync(HashToken(request.Token.Trim()), cancellationToken);
+            var admin = adminId is null
+                ? null
+                : await _adminRepository.GetByIdAsync(adminId.Value, cancellationToken);
+            if (admin is not { IsVerified: true, Status: AdminStatus.Active })
+            {
+                await AuditAsync(AuditEvents.Auth.PasswordResetFailed, AuditOutcome.Failure, ApiErrorCodes.InvalidToken, null);
+                throw InvalidToken();
+            }
+
+            admin.UpdatePassword(AdminPasswordHasher.Hash(request.NewPassword));
+            await _adminRepository.SaveChangesAsync(cancellationToken);
+            await _sessionService.RevokeAllAsync(admin.Id, cancellationToken);
+
+            await AuditAsync(AuditEvents.Auth.PasswordResetCompleted, AuditOutcome.Success, null, admin.Email, admin.Id);
+        }
+
+        public async Task ChangePasswordAsync(
+            Guid adminId,
+            AdminChangePasswordRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            await _changeValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var admin = await _adminRepository.GetByIdAsync(adminId, cancellationToken);
+            if (admin is not { IsVerified: true, Status: AdminStatus.Active })
+            {
+                throw new AppException(401, ApiErrorCodes.Unauthorized, "Admin not found.");
+            }
+
+            if (!AdminPasswordHasher.Verify(request.CurrentPassword, admin.PasswordHash))
+            {
+                await AuditAsync(AuditEvents.Auth.PasswordChangeFailed, AuditOutcome.Suspicious, ApiErrorCodes.ValidationError, admin.Email, admin.Id);
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "Current password is incorrect.",
+                    "currentPassword");
+            }
+
+            admin.UpdatePassword(AdminPasswordHasher.Hash(request.NewPassword));
+            await _adminRepository.SaveChangesAsync(cancellationToken);
+
+            // Every session ends, so the admin signs in again with the new password.
+            await _sessionService.RevokeAllAsync(admin.Id, cancellationToken);
+
+            await EnqueueEmailAsync(
+                AdminEmailTemplate.ChangePassword,
+                admin.Email,
+                "Your Yakku admin password was changed",
+                $"{_settings.WebBaseUrl}/login",
+                cancellationToken);
+
+            await AuditAsync(AuditEvents.Auth.PasswordChanged, AuditOutcome.Success, null, admin.Email, admin.Id);
+        }
+
+        private ValueTask EnqueueEmailAsync(
+            AdminEmailTemplate template,
+            string email,
+            string heading,
+            string webUrl,
+            CancellationToken cancellationToken)
+        {
+            return _emailQueue.EnqueueAsync(
+                new AdminEmailJob(
+                    Guid.NewGuid(),
+                    template,
+                    email,
+                    new Dictionary<string, string>
+                    {
+                        [AdminEmailVariables.Heading] = heading,
+                        [AdminEmailVariables.Email] = email,
+                        [AdminEmailVariables.WebUrl] = webUrl,
+                        [AdminEmailVariables.ExpiryTime] = LinkTokenExpiryText
+                    }),
+                cancellationToken);
+        }
+
+        private Task AuditAsync(
+            string eventType,
+            AuditOutcome outcome,
+            string? failureReason,
+            string? email,
+            Guid? adminId = null,
+            string? metadata = null)
+        {
+            // Passwords, tokens and the secret code are never written to the audit log.
             return _audit.WriteAuthenticationAsync(
                 new AuthenticationAuditEntry(
                     AuditActorType.Admin,
-                    null,
+                    adminId,
                     eventType,
                     outcome,
-                    FailureReason: exception.ErrorCode,
-                    Subject: email),
+                    FailureReason: failureReason,
+                    Subject: email,
+                    Metadata: metadata is null ? null : new Dictionary<string, string?> { ["method"] = metadata }),
                 CancellationToken.None);
         }
 
@@ -325,21 +420,54 @@ namespace Yakku.Application.AdminAuth.Services
             };
         }
 
-        private static void EnsureAllowedEmail(string email)
+        private static bool SecretMatches(string provided, string expected)
         {
-            if (!AdminEmailPolicy.IsAllowed(email))
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "Only @heyyakku.com email addresses can register.",
-                    "email");
-            }
+            var providedHash = SHA256.HashData(Encoding.UTF8.GetBytes(provided));
+            var expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(expected));
+            return CryptographicOperations.FixedTimeEquals(providedHash, expectedHash);
+        }
+
+        private static string NewToken()
+        {
+            return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+                .Replace('+', '-')
+                .Replace('/', '_')
+                .TrimEnd('=');
+        }
+
+        private static string HashToken(string token)
+        {
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
         }
 
         private static string NormalizeEmail(string email)
         {
             return email.Trim().ToLowerInvariant();
+        }
+
+        private static AppException RegistrationExpired()
+        {
+            return new AppException(
+                404,
+                ApiErrorCodes.RegistrationExpired,
+                "This registration has expired. Please register again.");
+        }
+
+        private static AppException TooManyAttempts()
+        {
+            return new AppException(
+                400,
+                ApiErrorCodes.TooManyAttempts,
+                "Too many invalid attempts. Please register again.");
+        }
+
+        private static AppException InvalidToken()
+        {
+            return new AppException(
+                400,
+                ApiErrorCodes.InvalidToken,
+                "This link is invalid or has expired.",
+                "token");
         }
     }
 }

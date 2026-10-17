@@ -47,6 +47,26 @@ namespace Yakku.Infrastructure.Redis
             await ExecuteAsync(["SET", key, value, "EX", seconds], cancellationToken);
         }
 
+        /// <summary>Atomically reads and deletes the key (Redis GETDEL), so a value can be used only once.</summary>
+        public async Task<string?> GetDeleteAsync(string key, CancellationToken cancellationToken = default)
+        {
+            var result = await ExecuteAsync(["GETDEL", key], cancellationToken);
+            if (result.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                return null;
+            }
+
+            return result.GetString();
+        }
+
+        /// <summary>Sets the key only if it does not exist (SET NX EX). Returns false when it already existed.</summary>
+        public async Task<bool> SetIfNotExistsAsync(string key, string value, TimeSpan ttl, CancellationToken cancellationToken = default)
+        {
+            var seconds = Math.Max(1, (int)Math.Ceiling(ttl.TotalSeconds));
+            var result = await ExecuteAsync(["SET", key, value, "EX", seconds, "NX"], cancellationToken);
+            return result.ValueKind == JsonValueKind.String;
+        }
+
         public async Task<TimeSpan?> GetTimeToLiveAsync(string key, CancellationToken cancellationToken = default)
         {
             var result = await ExecuteAsync(["TTL", key], cancellationToken);

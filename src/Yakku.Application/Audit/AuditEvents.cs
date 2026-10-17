@@ -21,6 +21,15 @@ namespace Yakku.Application.Audit
             public const string GuestClaimed = "guest.claimed";
             public const string GuestClaimRejected = "guest.claim_rejected";
             public const string GuestClaimFailed = "guest.claim_failed";
+            public const string AdminRegistrationStarted = "admin.registration_started";
+            public const string AdminSecretConfirmed = "admin.secret_confirmed";
+            public const string AdminSecretFailed = "admin.secret_failed";
+            public const string AdminEmailVerified = "admin.email_verified";
+            public const string PasswordResetRequested = "admin.password_reset_requested";
+            public const string PasswordResetCompleted = "admin.password_reset_completed";
+            public const string PasswordResetFailed = "admin.password_reset_failed";
+            public const string PasswordChanged = "admin.password_changed";
+            public const string PasswordChangeFailed = "admin.password_change_failed";
         }
 
         public static class Device
@@ -48,6 +57,7 @@ namespace Yakku.Application.Audit
         public static class Notification
         {
             public const string OtpEmail = "otp_email";
+            public const string AdminEmail = "admin_email";
             public const string Push = "push";
         }
 

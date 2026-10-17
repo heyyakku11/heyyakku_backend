@@ -62,7 +62,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
-            services.AddScoped<IAdminOtpChallengeStore, RedisAdminOtpChallengeStore>();
+            services.AddScoped<IAdminAuthStore, RedisAdminAuthStore>();
             services.AddScoped<ISystemHealthService, SystemHealthService>();
             services.AddSingleton<IFirebaseNotificationProvider, FirebaseNotificationProvider>();
             services.AddSingleton<IEmailSender>(sp =>
@@ -89,6 +89,16 @@ namespace Yakku.Infrastructure
             services.AddSingleton(emailChannel);
             services.AddSingleton<IOtpEmailQueue, OtpEmailQueue>();
             services.AddHostedService<OtpEmailWorker>();
+
+            var adminEmailChannel = Channel.CreateBounded<AdminEmailJob>(new BoundedChannelOptions(OtpEmailQueueOptions.Capacity)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
+            services.AddSingleton(adminEmailChannel);
+            services.AddSingleton<IAdminEmailQueue, AdminEmailQueue>();
+            services.AddHostedService<AdminEmailWorker>();
 
             return services;
         }
