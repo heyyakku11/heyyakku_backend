@@ -1,12 +1,10 @@
 namespace Yakku.Application.AdminAuth.Interfaces
 {
-    /// <summary>A registration waiting for the secret code and the email link.</summary>
+    /// <summary>A registration (secret code already accepted) waiting for the emailed link to be opened.</summary>
     public sealed class PendingAdminRegistration
     {
         public string Email { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
-        public int AttemptCount { get; set; }
-        public bool SecretConfirmed { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 
@@ -21,13 +19,15 @@ namespace Yakku.Application.AdminAuth.Interfaces
             TimeSpan ttl,
             CancellationToken cancellationToken = default);
 
-        /// <summary>Overwrites the pending record without extending its lifetime; false when it has expired.</summary>
-        Task<bool> ReplacePendingKeepingTtlAsync(
-            string email,
-            PendingAdminRegistration pending,
-            CancellationToken cancellationToken = default);
-
         Task DeletePendingAsync(string email, CancellationToken cancellationToken = default);
+
+        /// <summary>Wrong secret code attempts recorded for this email in the current window.</summary>
+        Task<int> GetSecretFailuresAsync(string email, CancellationToken cancellationToken = default);
+
+        /// <summary>Counts one wrong secret code; the count expires after <paramref name="window"/> from the first failure.</summary>
+        Task RecordSecretFailureAsync(string email, TimeSpan window, CancellationToken cancellationToken = default);
+
+        Task ClearSecretFailuresAsync(string email, CancellationToken cancellationToken = default);
 
         Task SetVerificationTokenAsync(
             string tokenHash,

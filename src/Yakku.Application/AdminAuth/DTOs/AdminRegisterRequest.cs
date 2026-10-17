@@ -4,5 +4,6 @@ namespace Yakku.Application.AdminAuth.DTOs
     {
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public string SecretCode { get; set; } = string.Empty;
     }
 }

@@ -32,7 +32,6 @@ namespace Yakku.Application.AdminAuth.Services
         private readonly IAdminEmailQueue _emailQueue;
         private readonly IAdminSessionService _sessionService;
         private readonly IValidator<AdminRegisterRequest> _registerValidator;
-        private readonly IValidator<AdminConfirmSecretRequest> _confirmSecretValidator;
         private readonly IValidator<AdminVerifyEmailRequest> _verifyEmailValidator;
         private readonly IValidator<AdminLoginRequest> _loginValidator;
         private readonly IValidator<AdminForgotPasswordRequest> _forgotValidator;
@@ -47,7 +46,6 @@ namespace Yakku.Application.AdminAuth.Services
             IAdminEmailQueue emailQueue,
             IAdminSessionService sessionService,
             IValidator<AdminRegisterRequest> registerValidator,
-            IValidator<AdminConfirmSecretRequest> confirmSecretValidator,
             IValidator<AdminVerifyEmailRequest> verifyEmailValidator,
             IValidator<AdminLoginRequest> loginValidator,
             IValidator<AdminForgotPasswordRequest> forgotValidator,
@@ -61,7 +59,6 @@ namespace Yakku.Application.AdminAuth.Services
             _emailQueue = emailQueue;
             _sessionService = sessionService;
             _registerValidator = registerValidator;
-            _confirmSecretValidator = confirmSecretValidator;
             _verifyEmailValidator = verifyEmailValidator;
             _loginValidator = loginValidator;
             _forgotValidator = forgotValidator;
@@ -77,8 +74,29 @@ namespace Yakku.Application.AdminAuth.Services
             await _registerValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var email = NormalizeEmail(request.Email);
-            var admin = await _adminRepository.GetByEmailAsync(email, cancellationToken);
-            if (admin is { IsVerified: true })
+
+            // Nothing is stored for a wrong code, so failures are counted per email to stop code guessing.
+            if (await _store.GetSecretFailuresAsync(email, cancellationToken) >= MaxSecretAttempts)
+            {
+                await AuditAsync(AuditEvents.Auth.AdminSecretFailed, AuditOutcome.Suspicious, ApiErrorCodes.TooManyAttempts, email);
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.TooManyAttempts,
+                    "Too many invalid attempts. Please try again later.");
+            }
+
+            if (!SecretMatches(request.SecretCode, _settings.SecretCode))
+            {
+                await _store.RecordSecretFailureAsync(email, PendingRegistrationTtl, cancellationToken);
+                await AuditAsync(AuditEvents.Auth.AdminSecretFailed, AuditOutcome.Suspicious, ApiErrorCodes.InvalidSecretCode, email);
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.InvalidSecretCode,
+                    "Invalid secret code.",
+                    "secretCode");
+            }
+
+            if (await _adminRepository.GetByEmailAsync(email, cancellationToken) is { IsVerified: true })
             {
                 throw new AppException(
                     409,
@@ -87,7 +105,9 @@ namespace Yakku.Application.AdminAuth.Services
                     "email");
             }
 
-            // Registering again replaces the earlier pending record and restarts the 15 minutes.
+            await _store.ClearSecretFailuresAsync(email, cancellationToken);
+
+            // The temporary record waits for the email link. Registering again replaces it and restarts the 15 minutes.
             await _store.SetPendingAsync(
                 email,
                 new PendingAdminRegistration
@@ -99,65 +119,8 @@ namespace Yakku.Application.AdminAuth.Services
                 PendingRegistrationTtl,
                 cancellationToken);
 
-            await AuditAsync(AuditEvents.Auth.AdminRegistrationStarted, AuditOutcome.Success, null, email);
-
-            return new AdminRegistrationStepResponse { ExpiresInSeconds = (int)PendingRegistrationTtl.TotalSeconds };
-        }
-
-        public async Task<AdminRegistrationStepResponse> ConfirmSecretAsync(
-            AdminConfirmSecretRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            await _confirmSecretValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-            var email = NormalizeEmail(request.Email);
-            var pending = await _store.GetPendingAsync(email, cancellationToken)
-                ?? throw RegistrationExpired();
-
-            if (pending.AttemptCount >= MaxSecretAttempts)
-            {
-                await _store.DeletePendingAsync(email, cancellationToken);
-                await AuditAsync(AuditEvents.Auth.AdminSecretFailed, AuditOutcome.Suspicious, ApiErrorCodes.TooManyAttempts, email);
-                throw TooManyAttempts();
-            }
-
-            // Both checks always run so a failure does not reveal which one was wrong.
-            var passwordMatches = AdminPasswordHasher.Verify(request.Password, pending.PasswordHash);
-            var secretMatches = SecretMatches(request.SecretCode, _settings.SecretCode);
-            if (!passwordMatches || !secretMatches)
-            {
-                pending.AttemptCount++;
-                if (pending.AttemptCount >= MaxSecretAttempts)
-                {
-                    await _store.DeletePendingAsync(email, cancellationToken);
-                }
-                else
-                {
-                    await _store.ReplacePendingKeepingTtlAsync(email, pending, cancellationToken);
-                }
-
-                await AuditAsync(AuditEvents.Auth.AdminSecretFailed, AuditOutcome.Suspicious, ApiErrorCodes.InvalidSecretCode, email);
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.InvalidSecretCode,
-                    "Invalid email, password or secret code.");
-            }
-
-            if (await _adminRepository.GetByEmailAsync(email, cancellationToken) is { IsVerified: true })
-            {
-                await _store.DeletePendingAsync(email, cancellationToken);
-                throw new AppException(
-                    409,
-                    ApiErrorCodes.Conflict,
-                    "An admin with this email already exists.",
-                    "email");
-            }
-
             var token = NewToken();
             await _store.SetVerificationTokenAsync(HashToken(token), email, LinkTokenTtl, cancellationToken);
-
-            pending.SecretConfirmed = true;
-            await _store.ReplacePendingKeepingTtlAsync(email, pending, cancellationToken);
 
             await EnqueueEmailAsync(
                 AdminEmailTemplate.Registration,
@@ -166,7 +129,7 @@ namespace Yakku.Application.AdminAuth.Services
                 $"{_settings.WebBaseUrl}/verify-email?token={Uri.EscapeDataString(token)}",
                 cancellationToken);
 
-            await AuditAsync(AuditEvents.Auth.AdminSecretConfirmed, AuditOutcome.Success, null, email);
+            await AuditAsync(AuditEvents.Auth.AdminRegistrationStarted, AuditOutcome.Success, null, email);
 
             return new AdminRegistrationStepResponse { ExpiresInSeconds = (int)LinkTokenTtl.TotalSeconds };
         }
@@ -181,7 +144,7 @@ namespace Yakku.Application.AdminAuth.Services
                 ?? throw InvalidToken();
 
             var pending = await _store.GetPendingAsync(email, cancellationToken);
-            if (pending is null || !pending.SecretConfirmed)
+            if (pending is null)
             {
                 throw RegistrationExpired();
             }
@@ -444,14 +407,6 @@ namespace Yakku.Application.AdminAuth.Services
                 404,
                 ApiErrorCodes.RegistrationExpired,
                 "This registration has expired. Please register again.");
-        }
-
-        private static AppException TooManyAttempts()
-        {
-            return new AppException(
-                400,
-                ApiErrorCodes.TooManyAttempts,
-                "Too many invalid attempts. Please register again.");
         }
 
         private static AppException InvalidToken()

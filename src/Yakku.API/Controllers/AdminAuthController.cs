@@ -54,7 +54,7 @@ namespace Yakku.API.Controllers
 
         [EnableRateLimiting("admin-auth")]
         [HttpPost("register")]
-        [EndpointDescription("Registration step 1. Any valid email is accepted. The email and password are kept in a temporary record for 15 minutes; nothing is created or emailed yet. Continue with confirm-secret.")]
+        [EndpointDescription("Registration step 1. Send email, password and the admin secret code. Any valid email is accepted. If the code matches, the email and password are kept in a temporary record for 15 minutes and a verification link (valid 10 minutes) is emailed. A wrong code creates nothing and is limited to 5 attempts per email.")]
         [ProducesResponseType(typeof(ApiResponse<AdminRegistrationStepResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
@@ -65,29 +65,12 @@ namespace Yakku.API.Controllers
             return RunAsync(
                 async () => Ok(ApiResponse.Ok(
                     await _adminAuthService.RegisterAsync(request, cancellationToken),
-                    "Registration started. Enter the admin secret code to continue.")));
-        }
-
-        [EnableRateLimiting("admin-auth")]
-        [HttpPost("confirm-secret")]
-        [EndpointDescription("Registration step 2. Checks the pending registration (email and password from step 1) and the admin secret code, then emails a verification link valid for 10 minutes.")]
-        [ProducesResponseType(typeof(ApiResponse<AdminRegistrationStepResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public Task<IActionResult> ConfirmSecret(
-            [FromBody] AdminConfirmSecretRequest request,
-            CancellationToken cancellationToken)
-        {
-            return RunAsync(
-                async () => Ok(ApiResponse.Ok(
-                    await _adminAuthService.ConfirmSecretAsync(request, cancellationToken),
-                    "Verification email sent")));
+                    "Verification email sent. Open the link to finish registering.")));
         }
 
         [EnableRateLimiting("admin-auth")]
         [HttpPost("verify-email")]
-        [EndpointDescription("Registration step 3. The token from the emailed link creates the admin account. The admin then logs in with the same email and password.")]
+        [EndpointDescription("Registration step 2. The token from the emailed link creates the admin account. The admin then logs in with the same email and password.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

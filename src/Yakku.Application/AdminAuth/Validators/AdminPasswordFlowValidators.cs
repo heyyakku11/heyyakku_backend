@@ -21,15 +21,6 @@ namespace Yakku.Application.AdminAuth.Validators
         }
     }
 
-    public class AdminConfirmSecretValidator : AbstractValidator<AdminConfirmSecretRequest>
-    {
-        public AdminConfirmSecretValidator()
-        {
-            RuleFor(x => x.Email).ValidEmail();
-            RuleFor(x => x.Password).ValidPassword();
-            RuleFor(x => x.SecretCode).NotEmpty().MaximumLength(256);
-        }
-    }
 
     public class AdminVerifyEmailValidator : AbstractValidator<AdminVerifyEmailRequest>
     {

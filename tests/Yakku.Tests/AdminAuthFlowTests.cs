@@ -20,19 +20,74 @@ public class AdminAuthFlowTests
     private const string Password = "S3cure-Passw0rd";
 
     [Fact]
-    public async Task Register_AcceptsAnyEmailDomain_KeepsATemporaryRecord_AndSendsNoEmail()
+    public async Task Register_WithTheRightSecret_AcceptsAnyEmailDomain_KeepsATemporaryRecord_AndSendsOneEmail()
     {
         var h = new Harness();
 
-        var response = await h.Service.RegisterAsync(new AdminRegisterRequest { Email = "Someone@Gmail.com", Password = Password });
+        var response = await h.Service.RegisterAsync(Register("Someone@Gmail.com", Secret));
 
-        Assert.Equal(15 * 60, response.ExpiresInSeconds);
+        Assert.Equal(10 * 60, response.ExpiresInSeconds);
         var pending = await h.Store.GetPendingAsync("someone@gmail.com");
         Assert.NotNull(pending);
         Assert.NotEqual(Password, pending!.PasswordHash);
-        Assert.False(pending.SecretConfirmed);
-        Assert.Empty(h.Emails.Jobs);
         Assert.Empty(h.Admins.All);
+
+        var job = Assert.Single(h.Emails.Jobs);
+        Assert.Equal(AdminEmailTemplate.Registration, job.Template);
+        Assert.Equal("someone@gmail.com", job.RecipientEmail);
+        Assert.Equal("someone@gmail.com", job.Variables[AdminEmailVariables.Email]);
+        Assert.Equal("10 minutes", job.Variables[AdminEmailVariables.ExpiryTime]);
+        Assert.False(string.IsNullOrWhiteSpace(job.Variables[AdminEmailVariables.Heading]));
+        Assert.StartsWith("https://admin.example.test/verify-email?token=", job.Variables[AdminEmailVariables.WebUrl]);
+    }
+
+    [Fact]
+    public async Task Register_WithAWrongSecret_StoresNothingAndSendsNoEmail()
+    {
+        var h = new Harness();
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            h.Service.RegisterAsync(Register("a@example.com", "wrong-secret")));
+
+        Assert.Equal(ApiErrorCodes.InvalidSecretCode, exception.ErrorCode);
+        Assert.Null(await h.Store.GetPendingAsync("a@example.com"));
+        Assert.Empty(h.Emails.Jobs);
+        Assert.Contains(h.Audit.Authentication, e =>
+            e.EventType == AuditEvents.Auth.AdminSecretFailed && e.Outcome == AuditOutcome.Suspicious);
+    }
+
+    [Fact]
+    public async Task Register_LocksAnEmailAfterFiveWrongSecrets_EvenForTheRightOne()
+    {
+        var h = new Harness();
+
+        for (var i = 0; i < AdminAuthService.MaxSecretAttempts; i++)
+        {
+            var wrong = await Assert.ThrowsAsync<AppException>(() =>
+                h.Service.RegisterAsync(Register("a@example.com", "wrong-secret")));
+            Assert.Equal(ApiErrorCodes.InvalidSecretCode, wrong.ErrorCode);
+        }
+
+        var locked = await Assert.ThrowsAsync<AppException>(() =>
+            h.Service.RegisterAsync(Register("a@example.com", Secret)));
+
+        Assert.Equal(ApiErrorCodes.TooManyAttempts, locked.ErrorCode);
+        Assert.Empty(h.Emails.Jobs);
+    }
+
+    [Fact]
+    public async Task Register_WithTheRightSecret_ResetsTheFailureCount()
+    {
+        var h = new Harness();
+        for (var i = 0; i < 3; i++)
+        {
+            await Assert.ThrowsAsync<AppException>(() =>
+                h.Service.RegisterAsync(Register("a@example.com", "wrong-secret")));
+        }
+
+        await h.Service.RegisterAsync(Register("a@example.com", Secret));
+
+        Assert.Equal(0, await h.Store.GetSecretFailuresAsync("a@example.com"));
     }
 
     [Fact]
@@ -42,87 +97,30 @@ public class AdminAuthFlowTests
         await h.RegisterAndVerifyAsync("owner@example.com");
 
         var exception = await Assert.ThrowsAsync<AppException>(() =>
-            h.Service.RegisterAsync(new AdminRegisterRequest { Email = "owner@example.com", Password = Password }));
+            h.Service.RegisterAsync(Register("owner@example.com", Secret)));
 
         Assert.Equal(409, exception.StatusCode);
     }
 
     [Fact]
-    public async Task ConfirmSecret_WithoutARegistration_IsExpired()
+    public async Task Register_RequiresAllThreeFields()
     {
         var h = new Harness();
 
-        var exception = await Assert.ThrowsAsync<AppException>(() =>
-            h.Service.ConfirmSecretAsync(Confirm("none@example.com", Secret)));
-
-        Assert.Equal(ApiErrorCodes.RegistrationExpired, exception.ErrorCode);
-    }
-
-    [Fact]
-    public async Task ConfirmSecret_WrongSecret_LocksTheRegistrationAfterFiveAttempts()
-    {
-        var h = new Harness();
-        await h.Service.RegisterAsync(new AdminRegisterRequest { Email = "a@example.com", Password = Password });
-
-        for (var i = 0; i < AdminAuthService.MaxSecretAttempts; i++)
-        {
-            var exception = await Assert.ThrowsAsync<AppException>(() =>
-                h.Service.ConfirmSecretAsync(Confirm("a@example.com", "wrong-secret")));
-            Assert.Equal(ApiErrorCodes.InvalidSecretCode, exception.ErrorCode);
-        }
-
-        Assert.Null(await h.Store.GetPendingAsync("a@example.com"));
-        var afterLock = await Assert.ThrowsAsync<AppException>(() =>
-            h.Service.ConfirmSecretAsync(Confirm("a@example.com", Secret)));
-        Assert.Equal(ApiErrorCodes.RegistrationExpired, afterLock.ErrorCode);
+        await Assert.ThrowsAsync<ValidationException>(() => h.Service.RegisterAsync(
+            new AdminRegisterRequest { Email = "a@example.com", Password = Password, SecretCode = "" }));
+        await Assert.ThrowsAsync<ValidationException>(() => h.Service.RegisterAsync(
+            new AdminRegisterRequest { Email = "not-an-email", Password = Password, SecretCode = Secret }));
+        await Assert.ThrowsAsync<ValidationException>(() => h.Service.RegisterAsync(
+            new AdminRegisterRequest { Email = "a@example.com", Password = "short", SecretCode = Secret }));
         Assert.Empty(h.Emails.Jobs);
-        Assert.Contains(h.Audit.Authentication, e =>
-            e.EventType == AuditEvents.Auth.AdminSecretFailed && e.Outcome == AuditOutcome.Suspicious);
-    }
-
-    [Fact]
-    public async Task ConfirmSecret_WrongPassword_Fails_EvenWithTheRightSecret()
-    {
-        var h = new Harness();
-        await h.Service.RegisterAsync(new AdminRegisterRequest { Email = "a@example.com", Password = Password });
-
-        var exception = await Assert.ThrowsAsync<AppException>(() =>
-            h.Service.ConfirmSecretAsync(new AdminConfirmSecretRequest
-            {
-                Email = "a@example.com",
-                Password = "Another-Passw0rd",
-                SecretCode = Secret
-            }));
-
-        Assert.Equal(ApiErrorCodes.InvalidSecretCode, exception.ErrorCode);
-        Assert.Empty(h.Emails.Jobs);
-    }
-
-    [Fact]
-    public async Task ConfirmSecret_Success_SendsOneRegistrationEmailWithTheTemplateVariables()
-    {
-        var h = new Harness();
-        await h.Service.RegisterAsync(new AdminRegisterRequest { Email = "a@example.com", Password = Password });
-
-        var response = await h.Service.ConfirmSecretAsync(Confirm("a@example.com", Secret));
-
-        Assert.Equal(10 * 60, response.ExpiresInSeconds);
-        var job = Assert.Single(h.Emails.Jobs);
-        Assert.Equal(AdminEmailTemplate.Registration, job.Template);
-        Assert.Equal("a@example.com", job.RecipientEmail);
-        Assert.Equal("a@example.com", job.Variables[AdminEmailVariables.Email]);
-        Assert.Equal("10 minutes", job.Variables[AdminEmailVariables.ExpiryTime]);
-        Assert.False(string.IsNullOrWhiteSpace(job.Variables[AdminEmailVariables.Heading]));
-        Assert.StartsWith("https://admin.example.test/verify-email?token=", job.Variables[AdminEmailVariables.WebUrl]);
-        Assert.Empty(h.Admins.All);
     }
 
     [Fact]
     public async Task VerifyEmail_CreatesTheAdmin_TheLinkWorksOnce_AndTheSamePasswordLogsIn()
     {
         var h = new Harness();
-        await h.Service.RegisterAsync(new AdminRegisterRequest { Email = "a@example.com", Password = Password });
-        await h.Service.ConfirmSecretAsync(Confirm("a@example.com", Secret));
+        await h.Service.RegisterAsync(Register("a@example.com", Secret));
         var token = h.Emails.LastToken();
 
         await h.Service.VerifyEmailAsync(new AdminVerifyEmailRequest { Token = token });
@@ -144,8 +142,7 @@ public class AdminAuthFlowTests
     public async Task VerifyEmail_AnExpiredOrUnknownToken_IsRejected()
     {
         var h = new Harness();
-        await h.Service.RegisterAsync(new AdminRegisterRequest { Email = "a@example.com", Password = Password });
-        await h.Service.ConfirmSecretAsync(Confirm("a@example.com", Secret));
+        await h.Service.RegisterAsync(Register("a@example.com", Secret));
         var token = h.Emails.LastToken();
         h.Store.ExpireTokens();
 
@@ -163,8 +160,7 @@ public class AdminAuthFlowTests
     public async Task VerifyEmail_AfterThePendingRecordExpired_AsksToRegisterAgain()
     {
         var h = new Harness();
-        await h.Service.RegisterAsync(new AdminRegisterRequest { Email = "a@example.com", Password = Password });
-        await h.Service.ConfirmSecretAsync(Confirm("a@example.com", Secret));
+        await h.Service.RegisterAsync(Register("a@example.com", Secret));
         var token = h.Emails.LastToken();
         await h.Store.DeletePendingAsync("a@example.com");
 
@@ -344,7 +340,8 @@ public class AdminAuthFlowTests
         Assert.DoesNotContain(h.Emails.LastToken(), text);
     }
 
-    private static AdminConfirmSecretRequest Confirm(string email, string secret) => new()
+
+    private static AdminRegisterRequest Register(string email, string secret) => new()
     {
         Email = email,
         Password = Password,
@@ -362,7 +359,6 @@ public class AdminAuthFlowTests
                 Emails,
                 Sessions,
                 new AdminRegisterValidator(),
-                new AdminConfirmSecretValidator(),
                 new AdminVerifyEmailValidator(),
                 new AdminLoginValidator(),
                 new AdminForgotPasswordValidator(),
@@ -380,8 +376,7 @@ public class AdminAuthFlowTests
 
         public async Task<Admin> RegisterAndVerifyAsync(string email)
         {
-            await Service.RegisterAsync(new AdminRegisterRequest { Email = email, Password = Password });
-            await Service.ConfirmSecretAsync(Confirm(email, Secret));
+            await Service.RegisterAsync(Register(email, Secret));
             await Service.VerifyEmailAsync(new AdminVerifyEmailRequest { Token = Emails.LastToken() });
             return Admins.All.Single(a => a.Email == email.ToLowerInvariant());
         }
@@ -456,6 +451,7 @@ public class AdminAuthFlowTests
         private readonly Dictionary<string, Guid> _reset = [];
         private readonly Dictionary<Guid, string> _resetCurrent = [];
         private readonly HashSet<string> _cooldown = [];
+        private readonly Dictionary<string, int> _failures = [];
 
         public void ExpireTokens()
         {
@@ -474,20 +470,24 @@ public class AdminAuthFlowTests
             return Task.CompletedTask;
         }
 
-        public Task<bool> ReplacePendingKeepingTtlAsync(string email, PendingAdminRegistration pending, CancellationToken cancellationToken = default)
-        {
-            if (!_pending.ContainsKey(email))
-            {
-                return Task.FromResult(false);
-            }
-
-            _pending[email] = pending;
-            return Task.FromResult(true);
-        }
-
         public Task DeletePendingAsync(string email, CancellationToken cancellationToken = default)
         {
             _pending.Remove(email);
+            return Task.CompletedTask;
+        }
+
+        public Task<int> GetSecretFailuresAsync(string email, CancellationToken cancellationToken = default)
+            => Task.FromResult(_failures.GetValueOrDefault(email));
+
+        public Task RecordSecretFailureAsync(string email, TimeSpan window, CancellationToken cancellationToken = default)
+        {
+            _failures[email] = _failures.GetValueOrDefault(email) + 1;
+            return Task.CompletedTask;
+        }
+
+        public Task ClearSecretFailuresAsync(string email, CancellationToken cancellationToken = default)
+        {
+            _failures.Remove(email);
             return Task.CompletedTask;
         }
 

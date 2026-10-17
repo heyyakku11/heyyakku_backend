@@ -16,6 +16,10 @@ namespace Yakku.Application.AdminAuth.Validators
                 .NotEmpty()
                 .MinimumLength(8)
                 .MaximumLength(128);
+
+            RuleFor(x => x.SecretCode)
+                .NotEmpty()
+                .MaximumLength(256);
         }
     }
 }

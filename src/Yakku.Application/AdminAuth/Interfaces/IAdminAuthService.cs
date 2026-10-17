@@ -4,17 +4,11 @@ namespace Yakku.Application.AdminAuth.Interfaces
 {
     public interface IAdminAuthService
     {
-        /// <summary>Step 1: keeps the email and password in a temporary record (15 minutes).</summary>
+        /// <summary>Registration step 1: checks the admin secret code, keeps the email and password in a temporary record (15 minutes) and emails the verification link (10 minutes).</summary>
         Task<AdminRegistrationStepResponse> RegisterAsync(
             AdminRegisterRequest request,
             CancellationToken cancellationToken = default);
 
-        /// <summary>Step 2: checks the pending record and the admin secret code, then emails the verification link.</summary>
-        Task<AdminRegistrationStepResponse> ConfirmSecretAsync(
-            AdminConfirmSecretRequest request,
-            CancellationToken cancellationToken = default);
-
-        /// <summary>Step 3: the emailed link token creates the admin account.</summary>
         Task VerifyEmailAsync(
             AdminVerifyEmailRequest request,
             CancellationToken cancellationToken = default);

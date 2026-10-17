@@ -59,6 +59,17 @@ namespace Yakku.Infrastructure.Redis
             return result.GetString();
         }
 
+        /// <summary>Adds one to a counter. The first increment starts the expiry; later ones keep it.</summary>
+        public async Task IncrementAsync(string key, TimeSpan ttl, CancellationToken cancellationToken = default)
+        {
+            var result = await ExecuteAsync(["INCR", key], cancellationToken);
+            if (result.ValueKind == JsonValueKind.Number && result.GetInt64() == 1)
+            {
+                var seconds = Math.Max(1, (int)Math.Ceiling(ttl.TotalSeconds));
+                await ExecuteAsync(["EXPIRE", key, seconds], cancellationToken);
+            }
+        }
+
         /// <summary>Sets the key only if it does not exist (SET NX EX). Returns false when it already existed.</summary>
         public async Task<bool> SetIfNotExistsAsync(string key, string value, TimeSpan ttl, CancellationToken cancellationToken = default)
         {

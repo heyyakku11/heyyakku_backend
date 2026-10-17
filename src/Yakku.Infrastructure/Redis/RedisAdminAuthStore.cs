@@ -29,20 +29,20 @@ namespace Yakku.Infrastructure.Redis
             return _redis.SetAsync(PendingKey(email), JsonSerializer.Serialize(pending, JsonOptions), ttl, cancellationToken);
         }
 
-        public async Task<bool> ReplacePendingKeepingTtlAsync(
-            string email,
-            PendingAdminRegistration pending,
-            CancellationToken cancellationToken = default)
+        public async Task<int> GetSecretFailuresAsync(string email, CancellationToken cancellationToken = default)
         {
-            var key = PendingKey(email);
-            var ttl = await _redis.GetTimeToLiveAsync(key, cancellationToken);
-            if (ttl is null)
-            {
-                return false;
-            }
+            var value = await _redis.GetAsync(SecretFailuresKey(email), cancellationToken);
+            return int.TryParse(value, out var count) ? count : 0;
+        }
 
-            await _redis.SetAsync(key, JsonSerializer.Serialize(pending, JsonOptions), ttl.Value, cancellationToken);
-            return true;
+        public Task RecordSecretFailureAsync(string email, TimeSpan window, CancellationToken cancellationToken = default)
+        {
+            return _redis.IncrementAsync(SecretFailuresKey(email), window, cancellationToken);
+        }
+
+        public Task ClearSecretFailuresAsync(string email, CancellationToken cancellationToken = default)
+        {
+            return _redis.DeleteAsync(SecretFailuresKey(email), cancellationToken);
         }
 
         public Task DeletePendingAsync(string email, CancellationToken cancellationToken = default)
@@ -103,6 +103,8 @@ namespace Yakku.Infrastructure.Redis
         }
 
         private static string PendingKey(string email) => $"admin:reg:{email}";
+
+        private static string SecretFailuresKey(string email) => $"admin:secret-failures:{email}";
 
         private static string VerifyKey(string tokenHash) => $"admin:verify:{tokenHash}";
 

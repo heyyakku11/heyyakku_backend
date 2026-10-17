@@ -1,12 +1,5 @@
 namespace Yakku.Application.AdminAuth.DTOs
 {
-    public class AdminConfirmSecretRequest
-    {
-        public string Email { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-        public string SecretCode { get; set; } = string.Empty;
-    }
-
     public class AdminVerifyEmailRequest
     {
         public string Token { get; set; } = string.Empty;
