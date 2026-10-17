@@ -3,8 +3,7 @@ namespace Yakku.Application.Email
     public enum AdminEmailTemplate
     {
         Registration,
-        ForgotPassword,
-        ChangePassword
+        ForgotPassword
     }
 
     /// <summary>Template variable names shared by all admin emails. Rename here if the Resend templates differ.</summary>

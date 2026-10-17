@@ -308,7 +308,7 @@ public class AdminAuthFlowTests
     }
 
     [Fact]
-    public async Task ChangePassword_UpdatesThePassword_SignsOutEverySession_AndSendsTheNotificationEmail()
+    public async Task ChangePassword_UpdatesThePassword_SignsOutEverySession_AndSendsNoEmail()
     {
         var h = new Harness();
         var admin = await h.RegisterAndVerifyAsync("a@example.com");
@@ -324,10 +324,7 @@ public class AdminAuthFlowTests
             });
 
         Assert.Contains(admin.Id, h.Sessions.RevokedAdmins);
-        var job = Assert.Single(h.Emails.Jobs);
-        Assert.Equal(AdminEmailTemplate.ChangePassword, job.Template);
-        Assert.Equal("a@example.com", job.Variables[AdminEmailVariables.Email]);
-        Assert.Equal("10 minutes", job.Variables[AdminEmailVariables.ExpiryTime]);
+        Assert.Empty(h.Emails.Jobs);
         await h.Service.LoginAsync(new AdminLoginRequest { Email = "a@example.com", Password = "Brand-New-Passw0rd" });
     }
 
@@ -447,7 +444,7 @@ public class AdminAuthFlowTests
 
         public string LastToken()
         {
-            var url = Jobs.Last(j => j.Template != AdminEmailTemplate.ChangePassword).Variables[AdminEmailVariables.WebUrl];
+            var url = Jobs.Last().Variables[AdminEmailVariables.WebUrl];
             return Uri.UnescapeDataString(url[(url.IndexOf("token=", StringComparison.Ordinal) + "token=".Length)..]);
         }
     }

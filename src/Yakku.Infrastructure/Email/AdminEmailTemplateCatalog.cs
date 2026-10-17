@@ -17,7 +17,6 @@ namespace Yakku.Infrastructure.Email
             {
                 AdminEmailTemplate.Registration => "RESEND_ADMIN_REGISTER_TEMPLATE_ID",
                 AdminEmailTemplate.ForgotPassword => "RESEND_ADMIN_FORGOT_PASSWORD_TEMPLATE_ID",
-                AdminEmailTemplate.ChangePassword => "RESEND_ADMIN_CHANGE_PASSWORD_TEMPLATE_ID",
                 _ => throw new ArgumentOutOfRangeException(nameof(template), template, null)
             };
         }

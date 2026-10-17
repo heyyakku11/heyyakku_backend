@@ -354,13 +354,6 @@ namespace Yakku.Application.AdminAuth.Services
             // Every session ends, so the admin signs in again with the new password.
             await _sessionService.RevokeAllAsync(admin.Id, cancellationToken);
 
-            await EnqueueEmailAsync(
-                AdminEmailTemplate.ChangePassword,
-                admin.Email,
-                "Your Yakku admin password was changed",
-                $"{_settings.WebBaseUrl}/login",
-                cancellationToken);
-
             await AuditAsync(AuditEvents.Auth.PasswordChanged, AuditOutcome.Success, null, admin.Email, admin.Id);
         }
 
