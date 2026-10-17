@@ -12,11 +12,6 @@ namespace Yakku.Application.Checks.Validators
                 .Must(date => date != default)
                 .WithMessage("Week start is required.");
 
-            RuleFor(x => x.SequenceNo)
-                .GreaterThan(0)
-                .When(x => x.SequenceNo is not null)
-                .WithMessage("Sequence number must be positive.");
-
             RuleFor(x => x.Title).NotEmpty().MaximumLength(100);
             RuleFor(x => x.Question).NotEmpty().MaximumLength(500);
             RuleFor(x => x.Sticker).NotEmpty().MaximumLength(100);

@@ -26,21 +26,33 @@ namespace Yakku.Application.Checks.Services
             _voteValidator = voteValidator;
         }
 
-        public async Task<List<CheckResponse>> GetChecksAsync(Guid userId, CancellationToken cancellationToken = default)
+        public async Task<List<CheckResponse>> GetChecksAsync(Guid? userId, CancellationToken cancellationToken = default)
         {
             var currentWeek = CheckWeek.Current();
             var checks = await _repository.GetLiveAsync(currentWeek, cancellationToken);
-            var used = await _repository.GetUserChecksByCheckAsync(userId, cancellationToken);
+            var used = userId is null
+                ? new Dictionary<Guid, UserCheck>()
+                : await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
 
             return checks
-                .Select(check => ToCheckResponse(check, currentWeek, used.GetValueOrDefault(check.Id)))
+                .Select(check => ToCheckResponse(check, used.GetValueOrDefault(check.Id)))
                 .ToList();
         }
 
-        public async Task<List<CheckResponse>> GetCurrentAsync(Guid userId, CancellationToken cancellationToken = default)
+        public async Task<CheckResponse> GetByIdAsync(Guid id, Guid? userId, CancellationToken cancellationToken = default)
         {
-            var all = await GetChecksAsync(userId, cancellationToken);
-            return all.Where(check => check.IsCurrent).ToList();
+            var currentWeek = CheckWeek.Current();
+            var check = await _repository.GetLiveByIdAsync(id, currentWeek, cancellationToken)
+                ?? throw CheckExceptions.NotFound();
+
+            UserCheck? used = null;
+            if (userId is not null)
+            {
+                var usedByCheck = await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
+                used = usedByCheck.GetValueOrDefault(check.Id);
+            }
+
+            return ToCheckResponse(check, used);
         }
 
         public async Task<UserCheckResponse> MakeAsync(
@@ -97,7 +109,7 @@ namespace Yakku.Application.Checks.Services
 
         public async Task<UserCheckResponse> GetSharedAsync(
             string shareCode,
-            Guid userId,
+            Guid? userId,
             CancellationToken cancellationToken = default)
         {
             var item = await _repository.GetUserCheckByShareCodeAsync(shareCode, cancellationToken)
@@ -157,13 +169,12 @@ namespace Yakku.Application.Checks.Services
             };
         }
 
-        private static CheckResponse ToCheckResponse(Check check, DateOnly currentWeek, UserCheck? used)
+        private static CheckResponse ToCheckResponse(Check check, UserCheck? used)
         {
             return new CheckResponse
             {
                 Id = check.Id,
                 WeekStart = check.LiveWeekStart,
-                SequenceNo = check.SequenceNo,
                 Title = check.Title,
                 Question = check.Question,
                 BackgroundColor = check.BackgroundColor,
@@ -172,14 +183,11 @@ namespace Yakku.Application.Checks.Services
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new CheckOptionResponse { Id = option.Id, Text = option.Text })
                     .ToList(),
-                IsCurrent = check.LiveWeekStart == currentWeek,
                 Used = used is not null,
-                UserCheckId = used?.Id,
-                ShareCode = used?.ShareCode
             };
         }
 
-        private static UserCheckResponse ToUserCheckResponse(UserCheck item, Guid viewerId)
+        private static UserCheckResponse ToUserCheckResponse(UserCheck item, Guid? viewerId)
         {
             var isOwner = item.UserId == viewerId;
             var myVote = item.Votes.FirstOrDefault(vote => vote.VoterId == viewerId);

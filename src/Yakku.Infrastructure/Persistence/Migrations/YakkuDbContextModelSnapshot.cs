@@ -251,10 +251,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("question");
 
-                    b.Property<int>("SequenceNo")
-                        .HasColumnType("integer")
-                        .HasColumnName("sequence_no");
-
                     b.Property<string>("Sticker")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -275,9 +271,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LiveWeekStart", "SequenceNo")
-                        .IsUnique()
-                        .HasDatabaseName("IX_checks_live_week_start_sequence_no");
+                    b.HasIndex("LiveWeekStart", "CreatedAt")
+                        .HasDatabaseName("IX_checks_live_week_start_created_at");
 
                     b.ToTable("checks", null, t =>
                         {

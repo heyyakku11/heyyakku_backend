@@ -98,7 +98,6 @@ public class CheckIntegrationTests
         var next = await admin.CreateAsync(CheckWeekTests.NewRequest(thisWeek.AddDays(7), $"next-{tag}"));
 
         Assert.Equal(thisWeek, current1.WeekStart);
-        Assert.Equal(current1.SequenceNo + 1, current2.SequenceNo);
         Assert.Equal("upcoming", next.Status);
 
         var list = await service.GetChecksAsync(user.Id);
@@ -106,13 +105,19 @@ public class CheckIntegrationTests
 
         Assert.Equal([past.Id, current1.Id, current2.Id], ours.Select(c => c.Id));
         Assert.DoesNotContain(list, c => c.Id == next.Id);
-        Assert.False(ours[0].IsCurrent);
-        Assert.True(ours[1].IsCurrent && ours[2].IsCurrent);
+        Assert.True(ours[0].WeekStart < thisWeek);
+        Assert.True(ours[1].WeekStart == thisWeek && ours[2].WeekStart == thisWeek);
         Assert.True(list.Zip(list.Skip(1)).All(p => p.First.WeekStart <= p.Second.WeekStart));
 
-        var currentOnly = await service.GetCurrentAsync(user.Id);
+        var currentOnly = list.Where(c => c.WeekStart == thisWeek).ToList();
         Assert.Contains(currentOnly, c => c.Id == current1.Id);
         Assert.DoesNotContain(currentOnly, c => c.Id == past.Id);
+
+        var detail = await service.GetByIdAsync(current1.Id, user.Id);
+        Assert.Equal($"cur1-{tag}", detail.Title);
+        Assert.Equal(2, detail.Options.Count);
+        Assert.False(detail.Used);
+        Assert.Equal(404, (await Assert.ThrowsAsync<AppException>(() => service.GetByIdAsync(next.Id, null))).StatusCode);
 
         var notYetLive = await Assert.ThrowsAsync<AppException>(() => service.MakeAsync(next.Id, user.Id));
         Assert.Equal(404, notYetLive.StatusCode);

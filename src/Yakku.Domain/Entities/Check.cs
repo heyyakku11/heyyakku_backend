@@ -14,8 +14,6 @@ namespace Yakku.Domain.Entities
         /// <summary>The Monday (UTC) of the week the check goes live.</summary>
         public DateOnly LiveWeekStart { get; private set; }
 
-        /// <summary>Order among the checks that go live in the same week.</summary>
-        public int SequenceNo { get; private set; }
         public string Title { get; private set; } = string.Empty;
         public string Question { get; private set; } = string.Empty;
         public string BackgroundColor { get; private set; } = string.Empty;
@@ -33,7 +31,6 @@ namespace Yakku.Domain.Entities
 
         public static Check Create(
             DateOnly liveWeekStart,
-            int sequenceNo,
             string title,
             string question,
             string backgroundColor,
@@ -45,7 +42,6 @@ namespace Yakku.Domain.Entities
             {
                 Id = Guid.NewGuid(),
                 LiveWeekStart = liveWeekStart,
-                SequenceNo = sequenceNo,
                 Title = title,
                 Question = question,
                 BackgroundColor = backgroundColor,
@@ -60,7 +56,6 @@ namespace Yakku.Domain.Entities
 
         public void Update(
             DateOnly liveWeekStart,
-            int sequenceNo,
             string title,
             string question,
             string backgroundColor,
@@ -68,7 +63,6 @@ namespace Yakku.Domain.Entities
             bool isActive)
         {
             LiveWeekStart = liveWeekStart;
-            SequenceNo = sequenceNo;
             Title = title;
             Question = question;
             BackgroundColor = backgroundColor;

@@ -13,16 +13,12 @@ namespace Yakku.Application.Checks.DTOs
 
         /// <summary>The Monday of the week this check went live.</summary>
         public DateOnly WeekStart { get; set; }
-        public int SequenceNo { get; set; }
         public string Title { get; set; } = string.Empty;
         public string Question { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
         public string Sticker { get; set; } = string.Empty;
         public List<CheckOptionResponse> Options { get; set; } = new();
-        public bool IsCurrent { get; set; }
         public bool Used { get; set; }
-        public Guid? UserCheckId { get; set; }
-        public string? ShareCode { get; set; }
     }
 
     public class UserCheckOptionResponse
@@ -56,8 +52,6 @@ namespace Yakku.Application.Checks.DTOs
     {
         public DateOnly WeekStart { get; set; }
 
-        /// <summary>Order within the week. Omit on create to append after the week's last check.</summary>
-        public int? SequenceNo { get; set; }
         public string Title { get; set; } = string.Empty;
         public string Question { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
@@ -70,7 +64,6 @@ namespace Yakku.Application.Checks.DTOs
     {
         public Guid Id { get; set; }
         public DateOnly WeekStart { get; set; }
-        public int SequenceNo { get; set; }
         public string Title { get; set; } = string.Empty;
         public string Question { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;

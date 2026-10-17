@@ -20,23 +20,25 @@ namespace Yakku.API.Controllers
             _checkService = checkService;
         }
 
-        /// <summary>Every live check (this week and earlier), earliest first, with isCurrent and the caller used flag.</summary>
+        /// <summary>Every live check (this week and earlier), earliest first, with the caller's used flag.</summary>
+        [AllowAnonymous]
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<List<CheckResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
         {
-            var result = await _checkService.GetChecksAsync(User.GetRequiredUserId(), cancellationToken);
+            var result = await _checkService.GetChecksAsync(CurrentUserId(), cancellationToken);
             return Ok(ApiResponse.Ok(result, "Checks retrieved successfully"));
         }
 
-        /// <summary>Only the checks scheduled for the current week.</summary>
-        [HttpGet("current")]
-        [ProducesResponseType(typeof(ApiResponse<List<CheckResponse>>), StatusCodes.Status200OK)]
+        /// <summary>Details of one live check, with the caller's used flag.</summary>
+        [AllowAnonymous]
+        [HttpGet("{id:guid}")]
+        [ProducesResponseType(typeof(ApiResponse<CheckResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetCurrent(CancellationToken cancellationToken)
+        public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
         {
-            var result = await _checkService.GetCurrentAsync(User.GetRequiredUserId(), cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Current checks retrieved successfully"));
+            var result = await _checkService.GetByIdAsync(id, CurrentUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Check retrieved successfully"));
         }
 
         /// <summary>Makes a live check (current or past week) into the caller's own shareable check. Once per check.</summary>
@@ -69,12 +71,13 @@ namespace Yakku.API.Controllers
         }
 
         /// <summary>Opens a shared check by its share code.</summary>
+        [AllowAnonymous]
         [HttpGet("shared/{shareCode}")]
         [ProducesResponseType(typeof(ApiResponse<UserCheckResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetShared(string shareCode, CancellationToken cancellationToken)
         {
-            var result = await _checkService.GetSharedAsync(shareCode, User.GetRequiredUserId(), cancellationToken);
+            var result = await _checkService.GetSharedAsync(shareCode, CurrentUserId(), cancellationToken);
             return Ok(ApiResponse.Ok(result, "Check retrieved successfully"));
         }
 
@@ -92,6 +95,12 @@ namespace Yakku.API.Controllers
         {
             var result = await _checkService.VoteAsync(shareCode, User.GetRequiredUserId(), request, cancellationToken);
             return Ok(ApiResponse.Ok(result, "Vote submitted successfully"));
+        }
+
+        /// <summary>The signed-in user's id, or null for anonymous callers on the public routes.</summary>
+        private Guid? CurrentUserId()
+        {
+            return User.TryGetUserId(out var userId) ? userId : null;
         }
     }
 }

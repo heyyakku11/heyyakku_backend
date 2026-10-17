@@ -35,10 +35,8 @@ namespace Yakku.Application.Checks.Services
             await _validator.ValidateAndThrowAsync(request, cancellationToken);
 
             var week = CheckWeek.StartOf(request.WeekStart);
-            var sequenceNo = request.SequenceNo ?? await _repository.NextSequenceNoAsync(week, cancellationToken);
             var check = Check.Create(
                 week,
-                sequenceNo,
                 request.Title.Trim(),
                 request.Question.Trim(),
                 request.BackgroundColor.ToUpperInvariant(),
@@ -46,7 +44,7 @@ namespace Yakku.Application.Checks.Services
                 request.Options.Select(option => option.Trim()));
             if (!request.IsActive)
             {
-                check.Update(week, sequenceNo, check.Title, check.Question, check.BackgroundColor, check.Sticker, false);
+                check.Update(week, check.Title, check.Question, check.BackgroundColor, check.Sticker, false);
             }
 
             await _repository.AddCheckAsync(check, cancellationToken);
@@ -65,9 +63,6 @@ namespace Yakku.Application.Checks.Services
                 ?? throw CheckExceptions.NotFound();
 
             var week = CheckWeek.StartOf(request.WeekStart);
-            var weekChanged = week != check.LiveWeekStart;
-            var sequenceNo = request.SequenceNo
-                ?? (weekChanged ? await _repository.NextSequenceNoAsync(week, cancellationToken) : check.SequenceNo);
 
             var options = request.Options.Select(option => option.Trim()).ToList();
             var optionsChanged = !check.Options
@@ -87,7 +82,7 @@ namespace Yakku.Application.Checks.Services
                 throw new AppException(
                     409,
                     ApiErrorCodes.Conflict,
-                    "This check has already been used. Only its week, order and active state can change.");
+                    "This check has already been used. Only its week and active state can change.");
             }
 
             if (!used && optionsChanged)
@@ -97,7 +92,6 @@ namespace Yakku.Application.Checks.Services
 
             check.Update(
                 week,
-                sequenceNo,
                 used ? check.Title : request.Title.Trim(),
                 used ? check.Question : request.Question.Trim(),
                 used ? check.BackgroundColor : request.BackgroundColor.ToUpperInvariant(),
@@ -131,7 +125,6 @@ namespace Yakku.Application.Checks.Services
             {
                 Id = check.Id,
                 WeekStart = check.LiveWeekStart,
-                SequenceNo = check.SequenceNo,
                 Title = check.Title,
                 Question = check.Question,
                 BackgroundColor = check.BackgroundColor,

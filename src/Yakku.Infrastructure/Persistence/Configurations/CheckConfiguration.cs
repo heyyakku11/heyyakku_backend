@@ -21,7 +21,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Id).HasColumnName("id");
             builder.Property(x => x.LiveWeekStart).HasColumnName("live_week_start").HasColumnType("date").IsRequired();
-            builder.Property(x => x.SequenceNo).HasColumnName("sequence_no").IsRequired();
             builder.Property(x => x.Title).HasColumnName("title").HasMaxLength(100).IsRequired();
             builder.Property(x => x.Question).HasColumnName("question").HasMaxLength(500).IsRequired();
             builder.Property(x => x.BackgroundColor).HasColumnName("background_color").HasMaxLength(7).IsRequired();
@@ -30,10 +29,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired().HasDefaultValueSql("now()");
 
-            // sequence_no orders the checks that go live in the same week.
-            builder.HasIndex(x => new { x.LiveWeekStart, x.SequenceNo })
-                .IsUnique()
-                .HasDatabaseName("IX_checks_live_week_start_sequence_no");
+            // Checks go live by week; within a week they are listed by creation time.
+            builder.HasIndex(x => new { x.LiveWeekStart, x.CreatedAt })
+                .HasDatabaseName("IX_checks_live_week_start_created_at");
 
             builder.HasMany(x => x.Options)
                 .WithOne(x => x.Check)

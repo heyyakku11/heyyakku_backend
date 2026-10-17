@@ -37,7 +37,6 @@ namespace Yakku.Application.Checks.Interfaces
         /// <summary>A tracked check with its options, for editing.</summary>
         Task<Check?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
 
-        Task<int> NextSequenceNoAsync(DateOnly weekStart, CancellationToken cancellationToken = default);
 
         Task<bool> HasUserChecksAsync(Guid checkId, CancellationToken cancellationToken = default);
 
@@ -45,7 +44,7 @@ namespace Yakku.Application.Checks.Interfaces
 
         Task RemoveCheckAsync(Check check, CancellationToken cancellationToken = default);
 
-        /// <summary>Saves tracked admin changes; a clash on (week, sequence) becomes a 409.</summary>
+        /// <summary>Saves tracked admin changes; saves the changes.</summary>
         Task SaveChecksAsync(CancellationToken cancellationToken = default);
     }
 }

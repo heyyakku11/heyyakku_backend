@@ -10,7 +10,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
     public class CheckRepository : ICheckRepository
     {
         private const string OneUsePerUserConstraint = "IX_user_checks_user_id_check_id";
-        private const string SequencePerWeekConstraint = "IX_checks_live_week_start_sequence_no";
         private const string ShareCodeConstraint = "IX_user_checks_share_code";
         private const string OneVotePerItemConstraint = "IX_user_check_votes_user_check_id_voter_id";
 
@@ -28,7 +27,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .Include(check => check.Options)
                 .Where(check => check.IsActive && check.LiveWeekStart <= throughWeek)
                 .OrderBy(check => check.LiveWeekStart)
-                .ThenBy(check => check.SequenceNo)
+                .ThenBy(check => check.CreatedAt)
+                .ThenBy(check => check.Id)
                 .ToListAsync(cancellationToken);
         }
 
@@ -52,7 +52,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
             return query
                 .OrderBy(check => check.LiveWeekStart)
-                .ThenBy(check => check.SequenceNo)
+                .ThenBy(check => check.CreatedAt)
+                .ThenBy(check => check.Id)
                 .ToListAsync(cancellationToken);
         }
 
@@ -61,14 +62,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return _context.Checks
                 .Include(check => check.Options)
                 .FirstOrDefaultAsync(check => check.Id == id, cancellationToken);
-        }
-
-        public async Task<int> NextSequenceNoAsync(DateOnly weekStart, CancellationToken cancellationToken = default)
-        {
-            var max = await _context.Checks
-                .Where(check => check.LiveWeekStart == weekStart)
-                .MaxAsync(check => (int?)check.SequenceNo, cancellationToken);
-            return (max ?? 0) + 1;
         }
 
         public Task<bool> HasUserChecksAsync(Guid checkId, CancellationToken cancellationToken = default)
@@ -89,18 +82,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public async Task SaveChecksAsync(CancellationToken cancellationToken = default)
         {
-            try
-            {
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException exception) when (IsUniqueViolation(exception, SequencePerWeekConstraint))
-            {
-                throw new Yakku.Application.Common.Exceptions.AppException(
-                    409,
-                    Yakku.Application.Common.Responses.ApiErrorCodes.Conflict,
-                    "Another check in that week already uses this order number.",
-                    "sequenceNo");
-            }
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<Dictionary<Guid, UserCheck>> GetUserChecksByCheckAsync(

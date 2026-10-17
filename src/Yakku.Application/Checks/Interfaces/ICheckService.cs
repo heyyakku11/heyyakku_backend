@@ -5,10 +5,10 @@ namespace Yakku.Application.Checks.Interfaces
     public interface ICheckService
     {
         /// <summary>Every check that is live (scheduled for this week or an earlier one), earliest first.</summary>
-        Task<List<CheckResponse>> GetChecksAsync(Guid userId, CancellationToken cancellationToken = default);
+        Task<List<CheckResponse>> GetChecksAsync(Guid? userId, CancellationToken cancellationToken = default);
 
-        /// <summary>Only the checks scheduled for the current week.</summary>
-        Task<List<CheckResponse>> GetCurrentAsync(Guid userId, CancellationToken cancellationToken = default);
+        /// <summary>One live check; 404 when it does not exist, is inactive, or is not live yet.</summary>
+        Task<CheckResponse> GetByIdAsync(Guid id, Guid? userId, CancellationToken cancellationToken = default);
 
         Task<UserCheckResponse> MakeAsync(Guid checkId, Guid userId, CancellationToken cancellationToken = default);
 
@@ -16,7 +16,7 @@ namespace Yakku.Application.Checks.Interfaces
 
         Task<UserCheckResponse> GetMineByIdAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
 
-        Task<UserCheckResponse> GetSharedAsync(string shareCode, Guid userId, CancellationToken cancellationToken = default);
+        Task<UserCheckResponse> GetSharedAsync(string shareCode, Guid? userId, CancellationToken cancellationToken = default);
 
         Task<CheckVoteResponse> VoteAsync(
             string shareCode,
