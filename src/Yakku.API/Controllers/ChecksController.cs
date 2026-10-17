@@ -29,17 +29,6 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Checks retrieved successfully"));
         }
 
-        /// <summary>Details of one live check, with the caller's used flag.</summary>
-        [AllowAnonymous]
-        [HttpGet("{id:guid}")]
-        [ProducesResponseType(typeof(ApiResponse<CheckResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
-        {
-            var result = await _checkService.GetByIdAsync(id, CurrentUserId(), cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Check retrieved successfully"));
-        }
-
         /// <summary>
         /// Makes a live check (current or past week) into the caller's own shareable check, once per check.
         /// The body carries the caller's own answer: exactly one of checkOptionId or customAnswer, plus an optional reason.
