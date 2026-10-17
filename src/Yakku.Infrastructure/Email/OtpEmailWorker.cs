@@ -35,23 +35,30 @@ namespace Yakku.Infrastructure.Email
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await foreach (var job in _reader.ReadAllAsync(stoppingToken))
+            try
             {
-                try
+                await foreach (var job in _reader.ReadAllAsync(stoppingToken))
                 {
-                    await ProcessJobAsync(job, stoppingToken);
+                    try
+                    {
+                        await ProcessJobAsync(job, stoppingToken);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogError(
+                            exception,
+                            "Unhandled fault while processing OTP email job {ChallengeId}",
+                            job.ChallengeId);
+                    }
                 }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception exception)
-                {
-                    _logger.LogError(
-                        exception,
-                        "Unhandled fault while processing OTP email job {ChallengeId}",
-                        job.ChallengeId);
-                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Host is stopping: leave quietly.
             }
         }
 

@@ -28,6 +28,10 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<PollAuditLog> PollAuditLogs => Set<PollAuditLog>();
         public DbSet<NotificationAuditLog> NotificationAuditLogs => Set<NotificationAuditLog>();
         public DbSet<SystemLog> SystemLogs => Set<SystemLog>();
+        public DbSet<Check> Checks => Set<Check>();
+        public DbSet<CheckOption> CheckOptions => Set<CheckOption>();
+        public DbSet<UserCheck> UserChecks => Set<UserCheck>();
+        public DbSet<UserCheckVote> UserCheckVotes => Set<UserCheckVote>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

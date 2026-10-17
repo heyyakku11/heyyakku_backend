@@ -5,6 +5,7 @@ using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Audit;
 using Yakku.Application.Guests;
 using Yakku.Application.Auth.Interfaces;
+using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Email;
 using Yakku.Application.Email.Interfaces;
@@ -57,7 +58,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<IAdminSessionRepository, AdminSessionRepository>();
             services.AddScoped<IGuestRepository, GuestRepository>();
             services.AddScoped<IVoteRepository, VoteRepository>();
-            services.AddScoped<IDeviceRepository, DeviceRepository>();
+            services.AddScoped<ICheckRepository, CheckRepository>();            services.AddScoped<IDeviceRepository, DeviceRepository>();
             services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();

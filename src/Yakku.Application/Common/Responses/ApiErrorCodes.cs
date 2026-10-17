@@ -10,6 +10,7 @@ namespace Yakku.Application.Common.Responses
         public const string Conflict = "CONFLICT";
         public const string DeviceConflict = "DEVICE_CONFLICT";
         public const string AlreadyVoted = "ALREADY_VOTED";
+        public const string AlreadyUsed = "ALREADY_USED";
         public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
         public const string UnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE";
         public const string RateLimited = "RATE_LIMITED";

@@ -1,11 +1,15 @@
+using Amazon.Runtime.Internal.Util;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Diagnostics;
 using Yakku.API.Guests;
 using Yakku.API.Middleware;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Guests.DTOs;
+using Microsoft.Extensions.Logging;
+
 
 namespace Yakku.API.Controllers
 {
@@ -15,10 +19,12 @@ namespace Yakku.API.Controllers
     public class GuestsController : ControllerBase
     {
         private readonly GuestCookieService _guestCookieService;
+        private readonly ILogger<GuestCookieService> _logger;
 
-        public GuestsController(GuestCookieService guestCookieService)
+        public GuestsController(GuestCookieService guestCookieService, ILogger<GuestCookieService> logger)
         {
             _guestCookieService = guestCookieService;
+            _logger = logger;
         }
 
         [HttpPost]
@@ -30,6 +36,7 @@ namespace Yakku.API.Controllers
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]
         public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
+            var stopwatch = Stopwatch.StartNew();  //remove later
             // One identity per session: a caller already signed in has no use for a guest identity.
             if (User.Identity?.IsAuthenticated == true)
             {
@@ -47,6 +54,10 @@ namespace Yakku.API.Controllers
                 ExpiresAt = result.ExpiresAt,
                 GuestToken = result.RawTokenToSet
             };
+            stopwatch.Stop();
+            _logger.LogInformation(
+               "guest timing | POST guests controller total took {ElapsedMs} ms",
+               stopwatch.Elapsed.TotalMilliseconds);
 
             return Ok(ApiResponse.Ok(response, "Guest created successfully"));
         }

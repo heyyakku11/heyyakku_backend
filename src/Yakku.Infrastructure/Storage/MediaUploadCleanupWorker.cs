@@ -25,34 +25,41 @@ namespace Yakku.Infrastructure.Storage
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             using var timer = new PeriodicTimer(_interval);
-            while (await timer.WaitForNextTickAsync(stoppingToken))
+            try
             {
-                try
+                while (await timer.WaitForNextTickAsync(stoppingToken))
                 {
-                    await using var scope = _scopeFactory.CreateAsyncScope();
-                    var cleanup = scope.ServiceProvider.GetRequiredService<IMediaUploadCleanupService>();
-                    await cleanup.CleanupAsync(stoppingToken);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception exception)
-                {
-                    _logger.LogWarning(
-                        "Media upload cleanup did not finish ({ExceptionType}).",
-                        exception.GetType().Name);
+                    try
+                    {
+                        await using var scope = _scopeFactory.CreateAsyncScope();
+                        var cleanup = scope.ServiceProvider.GetRequiredService<IMediaUploadCleanupService>();
+                        await cleanup.CleanupAsync(stoppingToken);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogWarning(
+                            "Media upload cleanup did not finish ({ExceptionType}).",
+                            exception.GetType().Name);
 
-                    await using var failureScope = _scopeFactory.CreateAsyncScope();
-                    await failureScope.ServiceProvider.GetRequiredService<IAuditLogWriter>().WriteSystemAsync(
-                        new SystemLogEntry(
-                            SystemLogCategory.BackgroundJob,
-                            SystemLogSeverity.Error,
-                            nameof(MediaUploadCleanupWorker),
-                            "Media upload cleanup failed.",
-                            ExceptionType: exception.GetType().Name),
-                        CancellationToken.None);
+                        await using var failureScope = _scopeFactory.CreateAsyncScope();
+                        await failureScope.ServiceProvider.GetRequiredService<IAuditLogWriter>().WriteSystemAsync(
+                            new SystemLogEntry(
+                                SystemLogCategory.BackgroundJob,
+                                SystemLogSeverity.Error,
+                                nameof(MediaUploadCleanupWorker),
+                                "Media upload cleanup failed.",
+                                ExceptionType: exception.GetType().Name),
+                            CancellationToken.None);
+                    }
                 }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Host is stopping: leave quietly.
             }
         }
 

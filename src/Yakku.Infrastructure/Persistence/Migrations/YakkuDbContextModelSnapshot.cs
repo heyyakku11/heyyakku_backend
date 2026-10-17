@@ -216,6 +216,107 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.Check", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BackgroundColor")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("background_color");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<DateOnly>("LiveWeekStart")
+                        .HasColumnType("date")
+                        .HasColumnName("live_week_start");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("question");
+
+                    b.Property<int>("SequenceNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("sequence_no");
+
+                    b.Property<string>("Sticker")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sticker");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LiveWeekStart", "SequenceNo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_checks_live_week_start_sequence_no");
+
+                    b.ToTable("checks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_checks_background_color", "\"background_color\" ~ '^#[0-9A-Fa-f]{6}$'");
+
+                            t.HasCheckConstraint("CK_checks_live_week_start_monday", "EXTRACT(ISODOW FROM \"live_week_start\") = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CheckOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CheckId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("check_id");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CheckId", "SortOrder")
+                        .IsUnique()
+                        .HasDatabaseName("IX_check_options_check_id_sort_order");
+
+                    b.ToTable("check_options", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1225,6 +1326,102 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CheckId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("check_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("ShareCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("share_code");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CheckId")
+                        .HasDatabaseName("IX_user_checks_check_id");
+
+                    b.HasIndex("ShareCode")
+                        .IsUnique()
+                        .HasDatabaseName("IX_user_checks_share_code");
+
+                    b.HasIndex("UserId", "CheckId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_user_checks_user_id_check_id");
+
+                    b.ToTable("user_checks", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserCheckVote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CheckId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("check_id");
+
+                    b.Property<Guid>("CheckOptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("check_option_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("UserCheckId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_check_id");
+
+                    b.Property<Guid>("VoterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("voter_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CheckOptionId")
+                        .HasDatabaseName("IX_user_check_votes_check_option_id");
+
+                    b.HasIndex("VoterId")
+                        .HasDatabaseName("IX_user_check_votes_voter_id");
+
+                    b.HasIndex("CheckOptionId", "CheckId");
+
+                    b.HasIndex("UserCheckId", "VoterId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_user_check_votes_user_check_id_voter_id");
+
+                    b.ToTable("user_check_votes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_check_votes_reason_not_blank", "\"reason\" IS NULL OR char_length(btrim(\"reason\")) > 0");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1315,6 +1512,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Admin");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CheckOption", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Check", "Check")
+                        .WithMany("Options")
+                        .HasForeignKey("CheckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Check");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
@@ -1459,6 +1667,53 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Check", "Check")
+                        .WithMany("UserChecks")
+                        .HasForeignKey("CheckId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Check");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserCheckVote", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.UserCheck", "UserCheck")
+                        .WithMany("Votes")
+                        .HasForeignKey("UserCheckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", "Voter")
+                        .WithMany()
+                        .HasForeignKey("VoterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.CheckOption", "CheckOption")
+                        .WithMany("Votes")
+                        .HasForeignKey("CheckOptionId", "CheckId")
+                        .HasPrincipalKey("Id", "CheckId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CheckOption");
+
+                    b.Navigation("UserCheck");
+
+                    b.Navigation("Voter");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserProfile", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.User", "User")
@@ -1491,6 +1746,18 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.Admin", b =>
                 {
                     b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.Check", b =>
+                {
+                    b.Navigation("Options");
+
+                    b.Navigation("UserChecks");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CheckOption", b =>
+                {
+                    b.Navigation("Votes");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
@@ -1535,6 +1802,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Navigation("UploadSessions");
 
+                    b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>
+                {
                     b.Navigation("Votes");
                 });
 #pragma warning restore 612, 618

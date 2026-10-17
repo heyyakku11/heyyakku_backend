@@ -6,6 +6,8 @@ using Yakku.Application.YakkuDirectory.Interfaces;
 using Yakku.Application.YakkuDirectory.Services;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Services;
+using Yakku.Application.Checks.Interfaces;
+using Yakku.Application.Checks.Services;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Devices.Services;
 using Yakku.Application.Guests.Interfaces;
@@ -44,6 +46,8 @@ namespace Yakku.Application
             services.AddScoped<IGuestMediaClaimService, GuestMediaClaimService>();
             services.AddScoped<IGuestCleanupService, GuestCleanupService>();
             services.AddScoped<IVoteService, VoteService>();
+            services.AddScoped<ICheckService, CheckService>();
+            services.AddScoped<IAdminCheckService, AdminCheckService>();
             services.AddScoped<IDeviceService, DeviceService>();
             services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
             services.AddScoped<INotificationService, NotificationService>();

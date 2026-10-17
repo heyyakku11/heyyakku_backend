@@ -54,7 +54,6 @@ namespace Yakku.Application.Audit
         public static class Jobs
         {
             public const string GuestCleanup = "guest_cleanup";
-            public const string AuditRetention = "audit_retention";
-        }
+            public const string AuditRetention = "audit_retention";        }
     }
 }
