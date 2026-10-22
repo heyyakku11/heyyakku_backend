@@ -311,11 +311,27 @@ namespace Yakku.Application.Auth.Services
                     "phoneNumber");
             }
 
+            // Logging in again inside the grace period discards the scheduled account deletion.
+            var restored = user.CancelDeletion();
             user.RecordLogin();
             await _userRepository.SaveChangesAsync(cancellationToken);
             await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
 
-            return await ToResponseAsync(user, OtpPurpose.Login, cancellationToken);
+            if (restored)
+            {
+                await _audit.WriteAuthenticationAsync(
+                    new AuthenticationAuditEntry(
+                        AuditActorType.User,
+                        user.Id,
+                        AuditEvents.Auth.AccountDeletionCancelled,
+                        AuditOutcome.Success,
+                        Subject: phoneNumber),
+                    CancellationToken.None);
+            }
+
+            var response = await ToResponseAsync(user, OtpPurpose.Login, cancellationToken);
+            response.AccountRestored = restored;
+            return response;
         }
 
         private async Task<string> CreateUniqueAnonymousNameAsync(CancellationToken cancellationToken)

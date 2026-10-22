@@ -1364,6 +1364,12 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("DeletionRequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletionScheduledFor")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("LoginAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1388,6 +1394,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DeletionScheduledFor")
+                        .HasDatabaseName("IX_Users_DeletionScheduledFor")
+                        .HasFilter("\"DeletionScheduledFor\" IS NOT NULL");
 
                     b.HasIndex("PhoneNumber")
                         .IsUnique()

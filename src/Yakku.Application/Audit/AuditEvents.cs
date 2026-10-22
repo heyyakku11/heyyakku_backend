@@ -29,6 +29,10 @@ namespace Yakku.Application.Audit
             public const string PasswordResetFailed = "admin.password_reset_failed";
             public const string PasswordChanged = "admin.password_changed";
             public const string PasswordChangeFailed = "admin.password_change_failed";
+            public const string AccountDeletionRequested = "account.deletion_requested";
+            public const string AccountDeletionCancelled = "account.deletion_cancelled";
+            public const string AccountDeleted = "account.deleted";
+            public const string AccountDeleteFailed = "account.delete_failed";
         }
 
         public static class Device
@@ -63,6 +67,8 @@ namespace Yakku.Application.Audit
         public static class Jobs
         {
             public const string GuestCleanup = "guest_cleanup";
-            public const string AuditRetention = "audit_retention";        }
+            public const string AuditRetention = "audit_retention";
+            public const string AccountDeletion = "account_deletion";
+        }
     }
 }

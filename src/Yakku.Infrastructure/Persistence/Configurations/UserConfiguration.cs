@@ -35,6 +35,14 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.UpdatedAt)
                 .IsRequired();
 
+            builder.Property(x => x.DeletionRequestedAt);
+            builder.Property(x => x.DeletionScheduledFor);
+
+            // The purge job scans for due rows; only users pending deletion are indexed.
+            builder.HasIndex(x => x.DeletionScheduledFor)
+                .HasDatabaseName("IX_Users_DeletionScheduledFor")
+                .HasFilter("\"DeletionScheduledFor\" IS NOT NULL");
+
             builder.HasIndex(x => x.PhoneNumber)
                 .IsUnique()
                 .HasDatabaseName("IX_Users_PhoneNumber");

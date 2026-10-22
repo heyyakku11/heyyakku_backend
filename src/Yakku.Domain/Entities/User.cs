@@ -11,6 +11,14 @@ namespace Yakku.Domain.Entities
         public DateTime UpdatedAt { get; private set; }
         public DateTime? LoginAt { get; private set; }
 
+        /// <summary>When the user asked to delete the account. Null while the account is not pending deletion.</summary>
+        public DateTime? DeletionRequestedAt { get; private set; }
+
+        /// <summary>When the account is permanently purged unless the user logs in again before then.</summary>
+        public DateTime? DeletionScheduledFor { get; private set; }
+
+        public bool IsPendingDeletion => DeletionScheduledFor.HasValue;
+
         /// <summary>The user's current plan. Every user has one; new users start on the free plan.</summary>
         public Guid PlanId { get; private set; } = Plan.FreeId;
 
@@ -45,6 +53,28 @@ namespace Yakku.Domain.Entities
         {
             LoginAt = DateTime.UtcNow;
             UpdatedAt = LoginAt.Value;
+        }
+
+        /// <summary>Schedules the account for permanent deletion after <paramref name="gracePeriod"/>.</summary>
+        public void RequestDeletion(DateTime utcNow, TimeSpan gracePeriod)
+        {
+            DeletionRequestedAt = utcNow;
+            DeletionScheduledFor = utcNow + gracePeriod;
+            UpdatedAt = utcNow;
+        }
+
+        /// <summary>Discards a pending deletion. Returns false when none was pending.</summary>
+        public bool CancelDeletion()
+        {
+            if (!IsPendingDeletion)
+            {
+                return false;
+            }
+
+            DeletionRequestedAt = null;
+            DeletionScheduledFor = null;
+            UpdatedAt = DateTime.UtcNow;
+            return true;
         }
     }
 }

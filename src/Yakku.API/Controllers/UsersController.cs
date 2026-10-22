@@ -20,13 +20,16 @@ namespace Yakku.API.Controllers
         private readonly IPollService _pollService;
         private readonly ISavedPollService _savedPollService;
         private readonly INotificationService _notificationService;
+        private readonly IAccountDeletionService _accountDeletionService;
 
         public UsersController(
             IUserService userService,
             IPollService pollService,
             ISavedPollService savedPollService,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IAccountDeletionService accountDeletionService)
         {
+            _accountDeletionService = accountDeletionService;
             _userService = userService;
             _pollService = pollService;
             _savedPollService = savedPollService;
@@ -43,6 +46,23 @@ namespace Yakku.API.Controllers
             return user is null
                 ? NotFound(ApiResponse.NotFound<UserProfileResponse>("User not found"))
                 : Ok(ApiResponse.Ok(user, "User retrieved successfully"));
+        }
+
+        /// <summary>
+        /// Schedules the account for permanent deletion and signs the user out everywhere. Logging in again
+        /// before the returned date cancels the deletion.
+        /// </summary>
+        [HttpDelete("me")]
+        [ProducesResponseType(typeof(ApiResponse<AccountDeletionResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteMe(CancellationToken cancellationToken)
+        {
+            var result = await _accountDeletionService.RequestDeletionAsync(
+                User.GetRequiredUserId(),
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(result, "Account scheduled for deletion"));
         }
 
         [HttpGet("asked-polls")]

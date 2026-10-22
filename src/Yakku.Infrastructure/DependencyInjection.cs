@@ -15,6 +15,7 @@ using Yakku.Application.Notifications.Interfaces;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.System.Interfaces;
+using Yakku.Application.Users.Interfaces;
 using Yakku.Application.Votes.Interfaces;
 using Yakku.Infrastructure.Audit;
 using Yakku.Infrastructure.Configuration;
@@ -53,6 +54,8 @@ namespace Yakku.Infrastructure
             services.AddHostedService<AuditRetentionWorker>();
             services.AddScoped<ISavedPollRepository, SavedPollRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IAccountDeletionRepository, AccountDeletionRepository>();
+            services.AddHostedService<AccountDeletionWorker>();
             services.AddScoped<IUserSessionRepository, UserSessionRepository>();
             services.AddScoped<IAdminRepository, AdminRepository>();
             services.AddScoped<IAdminSessionRepository, AdminSessionRepository>();

@@ -43,6 +43,7 @@ namespace Yakku.Application
             services.AddScoped<IAdminSessionService, AdminSessionService>();
             services.AddSingleton<IAdminAuthSettings, EnvAdminAuthSettings>();
             services.AddScoped<IUserService, UserService>();
+            services.AddScoped<IAccountDeletionService, AccountDeletionService>();
             services.AddScoped<IYakkuDirectoryService, YakkuDirectoryService>();
             services.AddScoped<IGuestIdentityService, GuestIdentityService>();
             services.AddScoped<IGuestMediaClaimService, GuestMediaClaimService>();

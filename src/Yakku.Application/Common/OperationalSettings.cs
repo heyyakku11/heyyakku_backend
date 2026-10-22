@@ -24,6 +24,21 @@ namespace Yakku.Application.Common
             public const int CreateRateLimitPerMinute = 20;
         }
 
+        public static class AccountDeletion
+        {
+            /// <summary>Days between a delete request and the permanent purge; logging in again cancels it.</summary>
+            public const int GraceDays = 30;
+
+            /// <summary>How often the purge job runs.</summary>
+            public const int IntervalMinutes = 60;
+
+            /// <summary>Accounts purged per run.</summary>
+            public const int BatchSize = 25;
+
+            /// <summary>Delay before the first purge run after startup.</summary>
+            public const int InitialDelayMinutes = 3;
+        }
+
         public static class Devices
         {
             /// <summary>Register / update / unregister requests per caller per minute.</summary>
