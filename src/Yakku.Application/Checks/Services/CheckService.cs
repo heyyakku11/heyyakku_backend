@@ -246,7 +246,10 @@ namespace Yakku.Application.Checks.Services
                     {
                         Id = option.Id,
                         Text = option.Text,
-                        Votes = showResults ? counts.GetValueOrDefault(option.Id) : null
+                        Votes = showResults ? counts.GetValueOrDefault(option.Id) : null,
+                        WhyCount = showResults
+                            ? item.Votes.Count(vote => vote.CheckOptionId == option.Id && vote.Reason != null)
+                            : null
                     })
                     .ToList(),
                 CreatedAt = item.CreatedAt

@@ -153,6 +153,7 @@ namespace Yakku.Application.Polls.Mapper
                 Text = option.Text,
                 SortOrder = option.SortOrder,
                 VoteCount = voteCount,
+                WhyCount = counts.WhyCountFor(option.Id),
                 Percentage = ToPercentage(voteCount, counts.TotalVotes)
             };
         }

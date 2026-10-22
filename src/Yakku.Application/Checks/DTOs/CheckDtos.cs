@@ -28,6 +28,9 @@ namespace Yakku.Application.Checks.DTOs
 
         /// <summary>Null until the caller is allowed to see results (the owner, or after voting).</summary>
         public int? Votes { get; set; }
+
+        /// <summary>Number of voters who gave a reason for this option. Null while results are hidden.</summary>
+        public int? WhyCount { get; set; }
     }
 
     /// <summary>A check a user made, as seen by its owner or by someone opening the share link.</summary>
