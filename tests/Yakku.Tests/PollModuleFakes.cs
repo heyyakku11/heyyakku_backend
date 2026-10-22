@@ -129,6 +129,11 @@ internal sealed class InMemoryPollRepository : IPollRepository
         _polls.Remove(poll);
     }
 
+    public Task<Poll?> GetByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_polls.FirstOrDefault(poll => poll.ShareCode == shareCode));
+    }
+
     public Task<Poll?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(_polls.FirstOrDefault(poll => poll.Id == id));

@@ -338,6 +338,23 @@ namespace Yakku.Application.Polls.Services
             return await ToResponseAsync(poll, viewerId, cancellationToken);
         }
 
+        public async Task<PollResponse> GetPollByShareCodeAsync(
+            string shareCode,
+            Guid? viewerId,
+            CancellationToken cancellationToken = default)
+        {
+            var poll = string.IsNullOrWhiteSpace(shareCode) || shareCode.Length > ShareCodeGenerator.MaxLength
+                ? null
+                : await _pollRepository.GetByShareCodeAsync(shareCode, cancellationToken);
+            if (poll is null)
+            {
+                throw NotFound("Poll not found");
+            }
+
+            EnsureReadable(poll, viewerId);
+            return await ToResponseAsync(poll, viewerId, cancellationToken);
+        }
+
         public async Task<PollResultsResponse> GetResultsAsync(
             Guid pollId,
             Guid? viewerId,
@@ -645,14 +662,18 @@ namespace Yakku.Application.Polls.Services
                 throw NotFound("Poll not found");
             }
 
+            EnsureReadable(poll, viewerId);
+            return poll;
+        }
+
+        private static void EnsureReadable(PollEntity poll, Guid? viewerId)
+        {
             var isOwner = viewerId is Guid userId && userId == poll.CreatorId;
             var isPublicActive = poll.Status == PollStatus.Active && poll.Visibility == PollVisibility.Public;
             if (!isPublicActive && !isOwner)
             {
                 throw NotFound("Poll not found");
             }
-
-            return poll;
         }
 
         private async Task<PollEntity> GetOwnedPollAsync(

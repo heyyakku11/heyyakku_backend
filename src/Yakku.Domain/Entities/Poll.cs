@@ -6,6 +6,9 @@ namespace Yakku.Domain.Entities
     {
         public Guid Id { get; private set; }
         public Guid CreatorId { get; private set; }
+
+        /// <summary>Unique, auto-generated code used in shared links instead of the poll id.</summary>
+        public string ShareCode { get; private set; } = string.Empty;
         public string Question { get; private set; } = string.Empty;
         public PollContentType ContentType { get; private set; }
         public PollStatus Status { get; private set; }
@@ -40,6 +43,7 @@ namespace Yakku.Domain.Entities
             Visibility = visibility;
             ExpiresAt = expiresAt;
             CreatedAt = DateTime.UtcNow;
+            ShareCode = ShareCodeGenerator.New(creatorId, CreatedAt);
             UpdatedAt = CreatedAt;
         }
 

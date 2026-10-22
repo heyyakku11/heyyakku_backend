@@ -11,8 +11,6 @@ namespace Yakku.Application.Checks.Services
 {
     public class CheckService : ICheckService
     {
-        private const string ShareCodeAlphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        private const int ShareCodeLength = 10;
         private const int ShareCodeAttempts = 5;
 
         private readonly ICheckRepository _repository;
@@ -89,7 +87,7 @@ namespace Yakku.Application.Checks.Services
 
             for (var attempt = 0; attempt < ShareCodeAttempts; attempt++)
             {
-                var userCheck = UserCheck.Create(userId, check.Id, NewShareCode());
+                var userCheck = UserCheck.Create(userId, check.Id, ShareCodeGenerator.New(userId, DateTime.UtcNow));
 
                 // The maker's own answer is saved together with the check, so a check is never used without one.
                 var ownerAnswer = BuildVote(userCheck.Id, check, userId, answer);
@@ -255,9 +253,5 @@ namespace Yakku.Application.Checks.Services
             };
         }
 
-        private static string NewShareCode()
-        {
-            return RandomNumberGenerator.GetString(ShareCodeAlphabet, ShareCodeLength);
-        }
     }
 }

@@ -25,6 +25,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             _context.Polls.Remove(poll);
         }
 
+        public async Task<Poll?> GetByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default)
+        {
+            return await _context.Polls
+                .Include(poll => poll.Options)
+                .Include(poll => poll.Media)
+                .FirstOrDefaultAsync(poll => poll.ShareCode == shareCode, cancellationToken);
+        }
+
         public async Task<Poll?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Polls

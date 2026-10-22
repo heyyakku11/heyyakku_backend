@@ -903,6 +903,12 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("question");
 
+                    b.Property<string>("ShareCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("share_code");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -936,6 +942,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_polls_expires_at")
                         .HasFilter("\"expires_at\" IS NOT NULL");
 
+                    b.HasIndex("ShareCode")
+                        .IsUnique()
+                        .HasDatabaseName("IX_polls_share_code");
+
                     b.HasIndex("CreatorId", "CreatedAt")
                         .IsDescending(false, true)
                         .HasDatabaseName("IX_polls_created_by_created_at");
@@ -945,6 +955,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_polls_content_type", "\"content_type\" IN ('QUESTION', 'IMAGE', 'VIDEO', 'AUDIO')");
 
                             t.HasCheckConstraint("CK_polls_question_not_blank", "char_length(btrim(\"question\")) > 0");
+
+                            t.HasCheckConstraint("CK_polls_share_code_not_blank", "char_length(btrim(\"share_code\")) > 0");
 
                             t.HasCheckConstraint("CK_polls_status", "\"status\" IN ('DRAFT', 'ACTIVE', 'CLOSED', 'EXPIRED')");
 
@@ -1428,8 +1440,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ShareCode")
                         .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("share_code");
 
                     b.Property<Guid>("UserId")
@@ -1449,7 +1461,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_user_checks_user_id_check_id");
 
-                    b.ToTable("user_checks", (string)null);
+                    b.ToTable("user_checks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_checks_share_code_not_blank", "char_length(btrim(\"share_code\")) > 0");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserCheckVote", b =>

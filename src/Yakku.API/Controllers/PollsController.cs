@@ -66,6 +66,27 @@ namespace Yakku.API.Controllers
             }
         }
 
+        /// <summary>Loads a poll by the share code carried in shared links. Same visibility rules as get-by-id.</summary>
+        [AllowAnonymous]
+        [HttpGet("share/{shareCode}")]
+        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetByShareCode(string shareCode, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var poll = await _pollService.GetPollByShareCodeAsync(
+                    shareCode,
+                    CurrentUserId(),
+                    cancellationToken);
+                return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
+            }
+            catch (AppException ex)
+            {
+                return ApiExceptionResults.From(ex);
+            }
+        }
+
         [AllowAnonymous]
         [HttpGet("{id:guid}/results")]
         [ProducesResponseType(typeof(ApiResponse<PollResultsResponse>), StatusCodes.Status200OK)]

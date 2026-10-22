@@ -3,6 +3,7 @@ namespace Yakku.Application.Polls.DTOs
     public class PollSummaryResponse
     {
         public Guid Id { get; set; }
+        public string ShareCode { get; set; } = string.Empty;
         public string Question { get; set; } = string.Empty;
         public string ContentType { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;

@@ -12,6 +12,7 @@ namespace Yakku.Application.Polls.Mapper
             return new PollResponse
             {
                 Id = poll.Id,
+                ShareCode = poll.ShareCode,
                 Question = poll.Question,
                 ContentType = ToEnumString(poll.ContentType),
                 Status = ToEnumString(poll.Status),
@@ -35,6 +36,7 @@ namespace Yakku.Application.Polls.Mapper
             return new PollSummaryResponse
             {
                 Id = poll.Id,
+                ShareCode = poll.ShareCode,
                 Question = poll.Question,
                 ContentType = ToEnumString(poll.ContentType),
                 Status = ToEnumString(poll.Status),
@@ -51,6 +53,7 @@ namespace Yakku.Application.Polls.Mapper
             return new UserPollResponse
             {
                 PollId = poll.Id,
+                ShareCode = poll.ShareCode,
                 Question = poll.Question,
                 ContentType = ToEnumString(poll.ContentType),
                 Status = ToEnumString(poll.Status),
@@ -104,6 +107,7 @@ namespace Yakku.Application.Polls.Mapper
             return new UserPollDetailResponse
             {
                 PollId = poll.Id,
+                ShareCode = poll.ShareCode,
                 Question = poll.Question,
                 ContentType = ToEnumString(poll.ContentType),
                 Status = ToEnumString(poll.Status),

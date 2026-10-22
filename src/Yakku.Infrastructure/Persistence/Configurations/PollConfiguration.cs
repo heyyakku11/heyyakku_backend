@@ -23,6 +23,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 table.HasCheckConstraint(
                     "CK_polls_question_not_blank",
                     "char_length(btrim(\"question\")) > 0");
+                table.HasCheckConstraint(
+                    "CK_polls_share_code_not_blank",
+                    "char_length(btrim(\"share_code\")) > 0");
             });
             builder.HasKey(x => x.Id);
 
@@ -32,6 +35,15 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.CreatorId)
                 .HasColumnName("created_by")
                 .IsRequired();
+
+            builder.Property(x => x.ShareCode)
+                .HasColumnName("share_code")
+                .HasMaxLength(ShareCodeGenerator.MaxLength)
+                .IsRequired();
+
+            builder.HasIndex(x => x.ShareCode)
+                .IsUnique()
+                .HasDatabaseName("IX_polls_share_code");
 
             builder.Property(x => x.ContentType)
                 .HasColumnName("content_type")

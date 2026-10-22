@@ -11,6 +11,8 @@ namespace Yakku.Application.Polls.Interfaces
 
         Task<PollEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+        Task<PollEntity?> GetByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default);
+
         Task<PollEntity?> GetByIdAndCreatorAsync(
             Guid id,
             Guid creatorId,

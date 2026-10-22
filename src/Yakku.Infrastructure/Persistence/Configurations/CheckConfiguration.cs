@@ -65,13 +65,18 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<UserCheck> builder)
         {
-            builder.ToTable("user_checks");
+            builder.ToTable("user_checks", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_user_checks_share_code_not_blank",
+                    "char_length(btrim(\"share_code\")) > 0");
+            });
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Id).HasColumnName("id");
             builder.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
             builder.Property(x => x.CheckId).HasColumnName("check_id").IsRequired();
-            builder.Property(x => x.ShareCode).HasColumnName("share_code").HasMaxLength(32).IsRequired();
+            builder.Property(x => x.ShareCode).HasColumnName("share_code").HasMaxLength(ShareCodeGenerator.MaxLength).IsRequired();
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
 
             builder.HasIndex(x => new { x.UserId, x.CheckId })
