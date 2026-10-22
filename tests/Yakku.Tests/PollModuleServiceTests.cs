@@ -351,12 +351,51 @@ public class PollModuleServiceTests
         await harness.Votes.CastAsync(created.Id, Guid.NewGuid(), new CastVoteRequest { PollId = created.Id, PollOptionId = created.Options[0].Id, Reason = "Because" }, CancellationToken.None);
         await harness.Votes.CastAsync(created.Id, Guid.NewGuid(), new CastVoteRequest { PollId = created.Id, CustomAnswer = "Rust" }, CancellationToken.None);
 
+        // Below the reveal limit only the progress, question and option text come back.
+        var locked = await harness.Polls.GetResultsAsync(created.Id, harness.UserId);
+
+        Assert.False(locked.ResultsUnlocked);
+        Assert.Equal(5, locked.MinVotes);
+        Assert.Equal(2, locked.VoteProgress);
+        Assert.Equal(2, locked.TotalVoteCount);
+        Assert.Equal(0, locked.CustomAnswerCount);
+        Assert.Equal(0, locked.TotalWhyCount);
+        Assert.All(locked.Options, option =>
+        {
+            Assert.Equal(0, option.VoteCount);
+            Assert.False(string.IsNullOrEmpty(option.Text));
+        });
+
+        for (var i = 0; i < 3; i++)
+        {
+            await harness.Votes.CastAsync(created.Id, Guid.NewGuid(), new CastVoteRequest { PollId = created.Id, PollOptionId = created.Options[1].Id }, CancellationToken.None);
+        }
+
         var results = await harness.Polls.GetResultsAsync(created.Id, harness.UserId);
 
-        Assert.Equal(2, results.TotalVoteCount);
+        Assert.True(results.ResultsUnlocked);
+        Assert.Equal(5, results.TotalVoteCount);
         Assert.Equal(1, results.CustomAnswerCount);
         Assert.Equal(1, results.TotalWhyCount);
         Assert.Equal(1, results.Options.Single(option => option.Id == created.Options[0].Id).VoteCount);
+        Assert.Equal(3, results.Options.Single(option => option.Id == created.Options[1].Id).VoteCount);
+    }
+
+    [Fact]
+    public async Task Results_DoNotCountTheCreatorsOwnVoteTowardsTheLimit()
+    {
+        var harness = new PollHarness();
+        var created = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+        await harness.Votes.CastAsync(created.Id, harness.UserId, new CastVoteRequest { PollId = created.Id, PollOptionId = created.Options[0].Id }, CancellationToken.None);
+        for (var i = 0; i < 4; i++)
+        {
+            await harness.Votes.CastAsync(created.Id, Guid.NewGuid(), new CastVoteRequest { PollId = created.Id, PollOptionId = created.Options[0].Id }, CancellationToken.None);
+        }
+
+        var results = await harness.Polls.GetResultsAsync(created.Id, harness.UserId);
+
+        Assert.False(results.ResultsUnlocked);
+        Assert.Equal(4, results.VoteProgress);
     }
 
     [Fact]

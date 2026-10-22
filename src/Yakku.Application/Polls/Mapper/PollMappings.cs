@@ -7,8 +7,9 @@ namespace Yakku.Application.Polls.Mapper
 {
     internal static class PollMappings
     {
-        public static PollResponse ToResponse(this PollEntity poll, PollVoteCountSnapshot counts)
+        public static PollResponse ToResponse(this PollEntity poll, PollVoteCountSnapshot snapshot)
         {
+            var counts = snapshot.ForDisplay();
             return new PollResponse
             {
                 Id = poll.Id,
@@ -22,6 +23,9 @@ namespace Yakku.Application.Polls.Mapper
                 MediaReadiness = poll.Media is null ? "none" : "ready",
                 Media = poll.Media is null ? null : ToMediaResponse(poll.Media),
                 TotalVoteCount = counts.TotalVotes,
+                MinVotes = counts.MinVotes,
+                VoteProgress = counts.OtherVotes,
+                ResultsUnlocked = counts.ResultsUnlocked,
                 CustomAnswerCount = counts.CustomAnswerCount,
                 TotalWhyCount = counts.WhyCount,
                 Options = poll.Options
@@ -31,8 +35,9 @@ namespace Yakku.Application.Polls.Mapper
             };
         }
 
-        public static PollSummaryResponse ToSummaryResponse(this PollEntity poll, PollVoteCountSnapshot counts)
+        public static PollSummaryResponse ToSummaryResponse(this PollEntity poll, PollVoteCountSnapshot snapshot)
         {
+            var counts = snapshot.ForDisplay();
             return new PollSummaryResponse
             {
                 Id = poll.Id,
@@ -43,13 +48,17 @@ namespace Yakku.Application.Polls.Mapper
                 Visibility = ToEnumString(poll.Visibility),
                 CreatedAt = poll.CreatedAt,
                 TotalVoteCount = counts.TotalVotes,
+                MinVotes = counts.MinVotes,
+                VoteProgress = counts.OtherVotes,
+                ResultsUnlocked = counts.ResultsUnlocked,
                 CustomAnswerCount = counts.CustomAnswerCount,
                 TotalWhyCount = counts.WhyCount
             };
         }
 
-        public static UserPollResponse ToUserPollResponse(this PollEntity poll, PollVoteCountSnapshot counts)
+        public static UserPollResponse ToUserPollResponse(this PollEntity poll, PollVoteCountSnapshot snapshot)
         {
+            var counts = snapshot.ForDisplay();
             return new UserPollResponse
             {
                 PollId = poll.Id,
@@ -60,6 +69,9 @@ namespace Yakku.Application.Polls.Mapper
                 Visibility = ToEnumString(poll.Visibility),
                 CreatedAt = poll.CreatedAt,
                 TotalVoteCount = counts.TotalVotes,
+                MinVotes = counts.MinVotes,
+                VoteProgress = counts.OtherVotes,
+                ResultsUnlocked = counts.ResultsUnlocked,
                 CustomAnswerCount = counts.CustomAnswerCount,
                 TotalWhyCount = counts.WhyCount,
                 PollOptions = poll.Options
@@ -78,8 +90,9 @@ namespace Yakku.Application.Polls.Mapper
         public static UserPollDetailResponse ToUserPollDetailResponse(
             this PollEntity poll,
             PollVote? creatorVote,
-            PollVoteCountSnapshot counts)
+            PollVoteCountSnapshot snapshot)
         {
+            var counts = snapshot.ForDisplay();
             var pollOptions = poll.Options
                 .OrderBy(option => option.SortOrder)
                 .Select(option => new UserPollDetailOptionResponse
@@ -115,10 +128,13 @@ namespace Yakku.Application.Polls.Mapper
                 ExpiresAt = poll.ExpiresAt,
                 CreatedAt = poll.CreatedAt,
                 TotalVoteCount = counts.TotalVotes,
+                MinVotes = counts.MinVotes,
+                VoteProgress = counts.OtherVotes,
+                ResultsUnlocked = counts.ResultsUnlocked,
                 CustomAnswerCount = counts.CustomAnswerCount,
                 TotalWhyCount = counts.WhyCount,
                 PollOptions = pollOptions,
-                YouVsCrowd = new YouVsCrowdResponse
+                YouVsCrowd = !counts.ResultsUnlocked ? new YouVsCrowdResponse() : new YouVsCrowdResponse
                 {
                     YourOptionId = yourOptionId,
                     YourOptionText = yourOptionResponse?.Text ?? creatorVote?.CustomAnswer,

@@ -11,9 +11,14 @@ namespace Yakku.Application.Users.DTOs
         public DateTime? ExpiresAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public int TotalVoteCount { get; set; }
+        public int MinVotes { get; set; }
+        public int VoteProgress { get; set; }
+        public bool ResultsUnlocked { get; set; }
         public int CustomAnswerCount { get; set; }
         public int TotalWhyCount { get; set; }
         public List<UserPollDetailOptionResponse> PollOptions { get; set; } = [];
+
+        /// <summary>Empty until results are unlocked.</summary>
         public YouVsCrowdResponse YouVsCrowd { get; set; } = new();
     }
 

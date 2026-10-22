@@ -14,6 +14,9 @@ namespace Yakku.Application.Polls.DTOs
     {
         public Guid PollId { get; set; }
         public int TotalVoteCount { get; set; }
+        public int MinVotes { get; set; }
+        public int VoteProgress { get; set; }
+        public bool ResultsUnlocked { get; set; }
         public int CustomAnswerCount { get; set; }
         public int TotalWhyCount { get; set; }
         public List<PollOptionResultResponse> Options { get; set; } = [];

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using FluentValidation;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Interfaces;
+using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Votes;
@@ -219,8 +220,12 @@ namespace Yakku.Application.Checks.Services
             var isOwner = item.UserId == viewerId;
             var myVote = item.Votes.FirstOrDefault(vote => vote.VoterId == viewerId);
 
-            // Results are visible to the owner, or to a voter once they have answered.
-            var showResults = isOwner || myVote is not null;
+            // The owner's own answer does not count towards the reveal limit.
+            var voteProgress = item.Votes.Count(vote => vote.VoterId != item.UserId);
+            var unlocked = voteProgress >= OperationalSettings.Results.MinVotesToReveal;
+
+            // Results are visible once the limit is reached, to the owner or to a voter who has answered.
+            var showResults = unlocked && (isOwner || myVote is not null);
             var counts = item.Votes
                 .Where(vote => vote.CheckOptionId is not null)
                 .GroupBy(vote => vote.CheckOptionId!.Value)
@@ -239,6 +244,9 @@ namespace Yakku.Application.Checks.Services
                 MyVoteOptionId = myVote?.CheckOptionId,
                 MyCustomAnswer = myVote?.CustomAnswer,
                 TotalVotes = showResults ? item.Votes.Count : null,
+                MinVotes = OperationalSettings.Results.MinVotesToReveal,
+                VoteProgress = voteProgress,
+                ResultsUnlocked = unlocked,
                 CustomAnswerVotes = showResults ? item.Votes.Count(vote => vote.CustomAnswer is not null) : null,
                 Options = item.Check.Options
                     .OrderBy(option => option.SortOrder)

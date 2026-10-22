@@ -10,6 +10,9 @@ namespace Yakku.Application.Users.DTOs
         public string Visibility { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public int TotalVoteCount { get; set; }
+        public int MinVotes { get; set; }
+        public int VoteProgress { get; set; }
+        public bool ResultsUnlocked { get; set; }
         public int CustomAnswerCount { get; set; }
         public int TotalWhyCount { get; set; }
         public List<UserPollOptionResponse> PollOptions { get; set; } = [];

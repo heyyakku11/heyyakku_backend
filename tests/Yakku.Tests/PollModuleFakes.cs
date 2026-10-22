@@ -224,7 +224,8 @@ internal sealed class InMemoryPollRepository : IPollRepository
                 group.Key.PollId,
                 group.Key.PollOptionId,
                 group.Count(),
-                group.Count(vote => vote.Reason != null)));
+                group.Count(vote => vote.Reason != null),
+                group.Count(vote => _polls.FirstOrDefault(poll => poll.Id == vote.PollId)?.CreatorId != vote.VoterId)));
         return Task.FromResult(PollVoteCountSnapshot.Combine(rows));
     }
 

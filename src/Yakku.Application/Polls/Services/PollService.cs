@@ -362,11 +362,14 @@ namespace Yakku.Application.Polls.Services
         {
             var poll = await GetReadablePollAsync(pollId, viewerId, cancellationToken);
             var counts = await _pollRepository.GetVoteCountsAsync([poll.Id], cancellationToken);
-            var snapshot = counts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty;
+            var snapshot = (counts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty).ForDisplay();
             return new PollResultsResponse
             {
                 PollId = poll.Id,
                 TotalVoteCount = snapshot.TotalVotes,
+                MinVotes = snapshot.MinVotes,
+                VoteProgress = snapshot.OtherVotes,
+                ResultsUnlocked = snapshot.ResultsUnlocked,
                 CustomAnswerCount = snapshot.CustomAnswerCount,
                 TotalWhyCount = snapshot.WhyCount,
                 Options = poll.Options

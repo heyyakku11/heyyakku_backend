@@ -189,18 +189,30 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var rows = await _context.PollVotes
                 .AsNoTracking()
                 .Where(vote => pollIds.Contains(vote.PollId))
-                .GroupBy(vote => new { vote.PollId, vote.PollOptionId })
+                .Join(
+                    _context.Polls,
+                    vote => vote.PollId,
+                    poll => poll.Id,
+                    (vote, poll) => new
+                    {
+                        vote.PollId,
+                        vote.PollOptionId,
+                        HasReason = vote.Reason != null,
+                        IsOther = vote.VoterId != poll.CreatorId
+                    })
+                .GroupBy(item => new { item.PollId, item.PollOptionId })
                 .Select(group => new
                 {
                     group.Key.PollId,
                     group.Key.PollOptionId,
                     Count = group.Count(),
-                    WhyCount = group.Count(vote => vote.Reason != null)
+                    WhyCount = group.Count(item => item.HasReason),
+                    OtherCount = group.Count(item => item.IsOther)
                 })
                 .ToListAsync(cancellationToken);
 
             return PollVoteCountSnapshot.Combine(rows.Select(row =>
-                new PollVoteCountRow(row.PollId, row.PollOptionId, row.Count, row.WhyCount)));
+                new PollVoteCountRow(row.PollId, row.PollOptionId, row.Count, row.WhyCount, row.OtherCount)));
         }
 
         public async Task<int> TryMarkActiveAsync(

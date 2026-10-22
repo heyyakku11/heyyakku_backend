@@ -65,6 +65,12 @@ namespace Yakku.Application.Common
             public const int InitialDelayMinutes = 2;
         }
 
+        public static class Results
+        {
+            /// <summary>Votes from others a poll or check needs before its results are revealed.</summary>
+            public const int MinVotesToReveal = 5;
+        }
+
         public static class Monitoring
         {
             /// <summary>Requests slower than this are written to system_logs.</summary>

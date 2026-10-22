@@ -48,6 +48,15 @@ namespace Yakku.Application.Checks.DTOs
         public string? MyCustomAnswer { get; set; }
         public int? TotalVotes { get; set; }
 
+        /// <summary>Votes needed from others before results are revealed.</summary>
+        public int MinVotes { get; set; }
+
+        /// <summary>Votes from others so far (the owner's own answer is not counted).</summary>
+        public int VoteProgress { get; set; }
+
+        /// <summary>True once <see cref="VoteProgress"/> reaches <see cref="MinVotes"/>.</summary>
+        public bool ResultsUnlocked { get; set; }
+
         /// <summary>How many answers were written in instead of picking an option. Null until results are visible.</summary>
         public int? CustomAnswerVotes { get; set; }
         public List<UserCheckOptionResponse> Options { get; set; } = new();
