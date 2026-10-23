@@ -33,24 +33,6 @@ internal sealed class InMemoryGuestRepository : IGuestRepository
         return GetByTokenHashAsync(tokenHash, cancellationToken);
     }
 
-    public Task<IReadOnlyList<Guest>> ListAsync(
-        bool? active,
-        DateTime utcNow,
-        CancellationToken cancellationToken = default)
-    {
-        IEnumerable<Guest> query = _guests;
-        if (active == true)
-        {
-            query = query.Where(guest => guest.ExpiresAt > utcNow);
-        }
-        else if (active == false)
-        {
-            query = query.Where(guest => guest.ExpiresAt <= utcNow);
-        }
-
-        return Task.FromResult<IReadOnlyList<Guest>>(query.ToList());
-    }
-
     public Task<IReadOnlyList<Guid>> ListExpiredIdsAsync(
         DateTime expiredBeforeUtc,
         int batchSize,

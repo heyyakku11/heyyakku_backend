@@ -171,7 +171,7 @@ public class GuestMediaUploadTests
                 new CreatePollValidator(),
                 new UpdatePollValidator(),
                 Audit);
-            Claim = new GuestMediaClaimService(Guests, hasher, SessionStore, new InMemoryDeviceRepository(), Audit);
+            Claim = new GuestMediaClaimService(Guests, hasher, SessionStore, new InMemoryDeviceRepository(), new InMemoryGuestVoteClaims(), Audit);
         }
 
         public RecordingAuditLogWriter Audit { get; } = new();

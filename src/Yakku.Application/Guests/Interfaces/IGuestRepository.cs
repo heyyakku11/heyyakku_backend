@@ -14,8 +14,6 @@ namespace Yakku.Application.Guests.Interfaces
         /// </summary>
         Task<Guest?> GetByTokenHashForUpdateAsync(string tokenHash, CancellationToken cancellationToken = default);
 
-        Task<IReadOnlyList<Guest>> ListAsync(bool? active, DateTime utcNow, CancellationToken cancellationToken = default);
-
         /// <summary>Ids of guests whose <c>ExpiresAt</c> is at or before the cutoff, oldest first.</summary>
         Task<IReadOnlyList<Guid>> ListExpiredIdsAsync(
             DateTime expiredBeforeUtc,

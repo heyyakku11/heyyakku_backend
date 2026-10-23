@@ -15,21 +15,6 @@ namespace Yakku.Application.Polls.Interfaces
             Guid creatorId,
             CancellationToken cancellationToken = default);
 
-        Task<CreatorPollsPage> GetPollsAsync(
-            string? cursor,
-            string? contentType,
-            CancellationToken cancellationToken = default);
-
-        Task<PollResponse> GetPollDetailsAsync(
-            Guid pollId,
-            Guid? viewerId,
-            CancellationToken cancellationToken = default);
-
-        Task<PollResponse> GetPollByShareCodeAsync(
-            string shareCode,
-            Guid? viewerId,
-            CancellationToken cancellationToken = default);
-
         Task<PollResultsResponse> GetResultsAsync(
             Guid pollId,
             Guid? viewerId,

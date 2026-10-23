@@ -242,24 +242,23 @@ namespace Yakku.Application.PushNotifications.Services
                     "userId");
             }
 
-            var eligibleCount = devices.Count(IsEligible);
-            if (eligibleCount == 0)
+            // A notification goes only to devices whose login session is still live. Logging out, a session being
+            // evicted or expiring ends delivery to that device, even if its own flags were never switched off.
+            var targets = await _devices.GetPushTargetsByUserIdAsync(userId, DateTime.UtcNow, cancellationToken);
+            if (targets.Count == 0)
             {
-                var hasActive = devices.Any(device => device.IsActive);
                 throw new AppException(
                     400,
                     ApiErrorCodes.ValidationError,
-                    hasActive
-                        ? "No devices with a push token are available for this user."
-                        : "No active devices found for this user.",
+                    "No device with an active login session and a push token is available for this user.",
                     "userId");
             }
 
-            var result = await SendToDevicesAsync(devices, payload, cancellationToken);
+            var result = await SendToDevicesAsync(targets, payload, cancellationToken);
             return new PushUserNotificationResult
             {
                 UserId = userId,
-                TotalDevices = result.TotalDevices,
+                TotalDevices = devices.Count,
                 EligibleDevices = result.EligibleDevices,
                 Successful = result.Successful,
                 Failed = result.Failed,

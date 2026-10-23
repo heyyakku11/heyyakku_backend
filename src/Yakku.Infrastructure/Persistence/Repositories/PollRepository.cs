@@ -18,19 +18,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         public async Task AddAsync(Poll poll, CancellationToken cancellationToken = default)
         {
             await _context.Polls.AddAsync(poll, cancellationToken);
+
+            // Saved with the poll, so the universal share code always resolves to it.
+            await _context.ShareCodes.AddAsync(ShareCode.ForPoll(poll), cancellationToken);
         }
 
         public void Delete(Poll poll)
         {
             _context.Polls.Remove(poll);
-        }
-
-        public async Task<Poll?> GetByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default)
-        {
-            return await _context.Polls
-                .Include(poll => poll.Options)
-                .Include(poll => poll.Media)
-                .FirstOrDefaultAsync(poll => poll.ShareCode == shareCode, cancellationToken);
         }
 
         public async Task<Poll?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -77,54 +72,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .OrderByDescending(poll => poll.CreatedAt)
                 .ThenByDescending(poll => poll.Id)
                 .Take(take)
-                .ToListAsync(cancellationToken);
-        }
-
-        public async Task<IReadOnlyList<Poll>> GetVisiblePollsAsync(
-            DateTime? cursorCreatedAt,
-            Guid? cursorId,
-            int take,
-            PollContentType? contentType,
-            CancellationToken cancellationToken = default)
-        {
-            var query = _context.Polls
-                .AsNoTracking()
-                .Include(poll => poll.Options)
-                .Include(poll => poll.Media)
-                .Where(poll => poll.Status == PollStatus.Active);
-
-            if (contentType is PollContentType selectedType)
-            {
-                query = query.Where(poll => poll.ContentType == selectedType);
-            }
-
-            if (cursorCreatedAt is not null && cursorId is not null)
-            {
-                query = query.Where(poll =>
-                    poll.CreatedAt < cursorCreatedAt.Value
-                    || (poll.CreatedAt == cursorCreatedAt.Value && poll.Id < cursorId.Value));
-            }
-
-            return await query
-                .OrderByDescending(poll => poll.CreatedAt)
-                .ThenByDescending(poll => poll.Id)
-                .Take(take)
-                .ToListAsync(cancellationToken);
-        }
-
-        public async Task<IReadOnlyList<Poll>> ListByStatusAsync(
-            PollStatus? status,
-            CancellationToken cancellationToken = default)
-        {
-            var query = _context.Polls.AsNoTracking().AsQueryable();
-            if (status is PollStatus selected)
-            {
-                query = query.Where(poll => poll.Status == selected);
-            }
-
-            return await query
-                .OrderByDescending(poll => poll.CreatedAt)
-                .ThenByDescending(poll => poll.Id)
                 .ToListAsync(cancellationToken);
         }
 

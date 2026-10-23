@@ -42,6 +42,19 @@ internal sealed class InMemoryDeviceRepository : IDeviceRepository
     public Task<IReadOnlyList<Device>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<Device>>(_devices.Where(device => device.UserId == userId).ToList());
 
+    /// <summary>Ids of devices that have a live login session; the real repository derives this from the sessions.</summary>
+    public HashSet<Guid> DevicesWithLiveSession { get; } = [];
+
+    public Task<IReadOnlyList<Device>> GetPushTargetsByUserIdAsync(
+        Guid userId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<Device>>(_devices
+            .Where(device => device.UserId == userId
+                && device.CanReceivePush
+                && DevicesWithLiveSession.Contains(device.Id))
+            .ToList());
+
     public Task<int> TransferGuestDevicesAsync(Guid guestId, Guid userId, CancellationToken cancellationToken = default)
     {
         var moved = _devices.Where(device => device.GuestId == guestId).ToList();

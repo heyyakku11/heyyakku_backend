@@ -927,8 +927,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAt")
                         .IsDescending()
-                        .HasDatabaseName("IX_polls_active_public_created_at")
-                        .HasFilter("\"status\" = 'ACTIVE' AND \"visibility\" = 'PUBLIC'");
+                        .HasDatabaseName("IX_polls_active_created_at")
+                        .HasFilter("\"status\" = 'ACTIVE'");
 
                     b.HasIndex("ExpiresAt")
                         .HasDatabaseName("IX_polls_expires_at")
@@ -951,8 +951,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_polls_share_code_not_blank", "char_length(btrim(\"share_code\")) > 0");
 
                             t.HasCheckConstraint("CK_polls_status", "\"status\" IN ('DRAFT', 'ACTIVE', 'CLOSED', 'EXPIRED')");
-
-                            t.HasCheckConstraint("CK_polls_visibility", "\"visibility\" IN ('PUBLIC', 'PRIVATE')");
                         });
                 });
 
@@ -1275,6 +1273,55 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("saved_polls", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.ShareCode", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("PollId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("poll_id");
+
+                    b.Property<Guid?>("UserCheckId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_check_id");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("PollId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_share_codes_poll_id")
+                        .HasFilter("\"poll_id\" IS NOT NULL");
+
+                    b.HasIndex("UserCheckId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_share_codes_user_check_id")
+                        .HasFilter("\"user_check_id\" IS NOT NULL");
+
+                    b.ToTable("share_codes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_share_codes_code_not_blank", "char_length(btrim(\"code\")) > 0");
+
+                            t.HasCheckConstraint("CK_share_codes_content_type", "\"content_type\" IN ('POLL', 'CHECK')");
+
+                            t.HasCheckConstraint("CK_share_codes_one_target", "(\"content_type\" = 'POLL' AND \"poll_id\" IS NOT NULL AND \"user_check_id\" IS NULL)\nOR\n(\"content_type\" = 'CHECK' AND \"poll_id\" IS NULL AND \"user_check_id\" IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.SystemLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1503,6 +1550,14 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("VoterId")
                         .HasColumnType("uuid")
                         .HasColumnName("voter_id");
+
+                    b.Property<string>("VoterRole")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("USER")
+                        .HasColumnName("voter_role");
 
                     b.HasKey("Id");
 
@@ -1765,6 +1820,19 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.ShareCode", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Poll", null)
+                        .WithMany()
+                        .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Yakku.Domain.Entities.UserCheck", null)
+                        .WithMany()
+                        .HasForeignKey("UserCheckId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.User", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Plan", "Plan")
@@ -1803,12 +1871,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Yakku.Domain.Entities.User", "Voter")
-                        .WithMany()
-                        .HasForeignKey("VoterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Yakku.Domain.Entities.CheckOption", "CheckOption")
                         .WithMany("Votes")
                         .HasForeignKey("CheckOptionId", "CheckId")
@@ -1818,8 +1880,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("CheckOption");
 
                     b.Navigation("UserCheck");
-
-                    b.Navigation("Voter");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserProfile", b =>

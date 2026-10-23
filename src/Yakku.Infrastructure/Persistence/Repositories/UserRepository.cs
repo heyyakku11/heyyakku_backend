@@ -32,26 +32,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(user => user.PhoneNumber == phoneNumber, cancellationToken);
         }
 
-        public async Task<IReadOnlyList<User>> ListAsync(
-            UserStatus? status,
-            CancellationToken cancellationToken = default)
-        {
-            var query = _context.Users
-                .AsNoTracking()
-                .Include(user => user.Profile)
-                .AsQueryable();
-
-            if (status is UserStatus selected)
-            {
-                query = query.Where(user => user.Status == selected);
-            }
-
-            return await query
-                .OrderByDescending(user => user.CreatedAt)
-                .ThenByDescending(user => user.Id)
-                .ToListAsync(cancellationToken);
-        }
-
         public async Task<bool> AnonymousNameExistsAsync(string anonymousName, CancellationToken cancellationToken = default)
         {
             return await _context.UserProfiles

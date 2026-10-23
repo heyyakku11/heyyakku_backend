@@ -34,6 +34,16 @@ namespace Yakku.Application.Devices.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// The user's devices that may receive push right now: active, with a push token, and linked to at least one
+        /// login session that is neither revoked nor expired at <paramref name="utcNow"/>. A device whose only
+        /// sessions have ended (logout, eviction, expiry) is not returned, whatever its own flags say.
+        /// </summary>
+        Task<IReadOnlyList<Device>> GetPushTargetsByUserIdAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Moves every installation owned by the guest to the user in one statement. Call it inside the guest
         /// claim transaction. Returns the number of installations transferred.
         /// </summary>

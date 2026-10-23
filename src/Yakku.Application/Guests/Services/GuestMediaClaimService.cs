@@ -12,6 +12,7 @@ namespace Yakku.Application.Guests.Services
         private readonly IGuestTokenHasher _tokenHasher;
         private readonly IMediaUploadSessionRepository _sessions;
         private readonly IDeviceRepository _devices;
+        private readonly IGuestVoteClaimRepository _votes;
         private readonly IAuditLogWriter _audit;
 
         public GuestMediaClaimService(
@@ -19,12 +20,14 @@ namespace Yakku.Application.Guests.Services
             IGuestTokenHasher tokenHasher,
             IMediaUploadSessionRepository sessions,
             IDeviceRepository devices,
+            IGuestVoteClaimRepository votes,
             IAuditLogWriter audit)
         {
             _guests = guests;
             _tokenHasher = tokenHasher;
             _sessions = sessions;
             _devices = devices;
+            _votes = votes;
             _audit = audit;
         }
 
@@ -43,6 +46,7 @@ namespace Yakku.Application.Guests.Services
             Guid? guestId = null;
             var transferred = 0;
             var devicesTransferred = 0;
+            var votes = new GuestVoteClaimResult(0, 0);
 
             await _guests.ExecuteInTransactionAsync(async transactionToken =>
             {
@@ -63,12 +67,13 @@ namespace Yakku.Application.Guests.Services
 
                 transferred = await _sessions.ClaimGuestSessionsAsync(guest.Id, userId, transactionToken);
                 devicesTransferred = await _devices.TransferGuestDevicesAsync(guest.Id, userId, transactionToken);
+                votes = await _votes.ClaimAsync(guest.Id, userId, transactionToken);
                 _guests.Delete(guest);
                 await _guests.SaveChangesAsync(transactionToken);
                 result = GuestClaimResult.Claimed;
             }, cancellationToken);
 
-            await AuditOutcomeAsync(result, userId, guestId, transferred, devicesTransferred);
+            await AuditOutcomeAsync(result, userId, guestId, transferred, devicesTransferred, votes);
             return result;
         }
 
@@ -96,7 +101,13 @@ namespace Yakku.Application.Guests.Services
             }
         }
 
-        private Task AuditOutcomeAsync(GuestClaimResult result, Guid userId, Guid? guestId, int transferred, int devicesTransferred)
+        private Task AuditOutcomeAsync(
+            GuestClaimResult result,
+            Guid userId,
+            Guid? guestId,
+            int transferred,
+            int devicesTransferred,
+            GuestVoteClaimResult votes)
         {
             if (result == GuestClaimResult.NoToken || result == GuestClaimResult.NotFound)
             {
@@ -107,7 +118,9 @@ namespace Yakku.Application.Guests.Services
             {
                 ["guestId"] = guestId?.ToString(),
                 ["sessionsTransferred"] = transferred.ToString(),
-                ["devicesTransferred"] = devicesTransferred.ToString()
+                ["devicesTransferred"] = devicesTransferred.ToString(),
+                ["votesTransferred"] = votes.Transferred.ToString(),
+                ["votesDropped"] = votes.Dropped.ToString()
             };
 
             var entry = result == GuestClaimResult.Claimed

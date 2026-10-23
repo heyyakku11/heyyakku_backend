@@ -116,17 +116,21 @@ In Development, OTP is logged (`LoggingEmailSender`), not emailed.
 | `POST` | `/api/auth/refresh` | — | Rotate refresh token |
 | `POST` | `/api/auth/logout` | — | Revoke session |
 | `GET` | `/api/users/me` | JWT | Current user profile |
-| `GET` | `/api/users/me/polls` | JWT | Current user’s polls (`cursor` query) |
 | `POST` | `/api/v1/polls` | JWT | Create poll as **active** (`question` / `image` / `video` / `audio`; media types require completed upload) |
-| `PATCH` | `/api/v1/polls/{id}` | JWT | Update draft only (legacy; new polls are active on create) |
-| `POST` | `/api/v1/polls/{id}/publish` | JWT | Publish draft only (legacy; not needed for new creates) |
-| `GET` | `/api/v1/polls/{id}` | JWT or anonymous | Get poll (signed media URL when ready) |
-| `POST` | `/api/v1/polls/{id}/votes` | JWT | Cast vote |
+| `GET` | `/api/v1/polls/asked` | JWT | Polls I created, newest first (`cursor` query) |
+| `GET` | `/api/v1/polls/answered` | JWT | Polls I voted on, most recently voted first (`cursor` query) |
+| `GET` | `/api/v1/polls/saved` | JWT | Polls I saved, most recently saved first (`cursor` query) |
+| `GET` | `/api/v1/polls/{id}` | JWT | My own poll with details and results (`404` if it is not mine). Others use the share link |
+| `POST` | `/api/v1/polls/{id}/close` | JWT | Close my poll so it stops accepting votes (`409` if not active) |
+| `DELETE` | `/api/v1/polls/{id}` | JWT | Delete my poll with its options, votes and media (`409` if its status does not allow it) |
+| `PUT` | `/api/v1/polls/{id}/save` | JWT | Save a poll (idempotent) |
+| `DELETE` | `/api/v1/polls/{id}/save` | JWT | Unsave a poll (idempotent) |
+| `GET` | `/api/v1/shares/{shareCode}` | anonymous, JWT or guest | **Universal share link.** Resolves a poll *or* a made check (`contentType` `POLL`/`CHECK`) to one response shape: question, options, `voting` (`canVote`, `hasVoted`, `myVote`) and `stats`. Counts and percentages appear only when `stats.resultsVisible` (see [Voting](#voting-polls-and-checks)) |
+| `POST` | `/api/v1/votes` | JWT **or** guest | **Unified vote** on a poll or a check: `{ shareCode, optionId \| customAnswer, reason? }`. `201` with the same shape as the share GET; `409` on a repeat vote, `403` for the owner of a check, `404` unknown/unreadable, `400` closed/expired/invalid option. Rate-limited |
 | `POST` | `/api/v1/guests` | — | Create **or reuse** a guest: a valid `yakku_guest` cookie / `X-Guest-Token` returns the same guest with `guestToken: null`; a new `guestToken` (and cookie) is issued only when none is valid. Rate-limited per IP; `409` if the caller is already signed in |
 | `POST` | `/api/v1/auth/verify` | — | Verify OTP; best-effort, atomic claim of the caller's valid guest, then the guest is deleted |
-| `POST` | `/api/v1/devices/register` | JWT **or** guest | Register / upsert the caller's installation (one record per installation + platform). `201` when created, `200` when updated. `409 DEVICE_CONFLICT` if the installation or push token belongs to someone else |
-| `PATCH` | `/api/v1/devices/me` | JWT **or** guest | Partial update: push-token rotation, metadata, notification permission. Omitted = unchanged, `""` = clear. Header `X-Installation-Id` names the installation (required for guests; users default to the one linked to their session) |
-| `DELETE` | `/api/v1/devices/me` | JWT **or** guest | Unregister: stops push, clears the token, keeps the record. Repeatable (`204`); `404` if the caller has no such device |
+| `POST` | `/api/v1/devices/register` | JWT | Register / upsert the device the user is on and **link the current login session to it** (one record per installation + platform). Call it after every sign-in. `201` when created, `200` when updated. `409 DEVICE_CONFLICT` if the installation or push token belongs to another account |
+| `PATCH` | `/api/v1/devices/me` | JWT | Partial update of the device linked to the current session: push-token rotation, metadata, notification permission. Omitted = unchanged, `""` = clear. `404` until the session has registered a device. Optional `X-Installation-Id` selects another of the user's own devices |
 | `POST` | `/api/v1/media-upload-sessions` | JWT **or** guest | Start upload (presigned PUT); rate-limited |
 | `GET` | `/api/v1/media-upload-sessions/{id}` | JWT **or** guest | Owner-only upload status |
 | `GET` | `/api/v1/media-upload-sessions/{id}/access` | JWT **or** guest | Short-lived download URL (`uploaded` / `attached` only) |
@@ -135,6 +139,16 @@ In Development, OTP is logged (`LoggingEmailSender`), not emailed.
 | `GET` | `/api/system/health` | — | Postgres / Redis health |
 
 Responses use a shared `ApiResponse` envelope. Guest auth is the HttpOnly `yakku_guest` cookie (7 days, `SameSite=Lax`) **or** header `X-Guest-Token: <guestToken>` (preferred for Flutter). JWT takes precedence when both are present.
+
+## Voting (polls and checks)
+
+A poll is created by a user; a check is an admin-managed template that a user *makes* into their own shareable check (`POST /api/v1/checks/make`). Both are shared with a **share code** and voted on through the same two endpoints, `GET /api/v1/shares/{shareCode}` and `POST /api/v1/votes`. The backend works out whether a code is a poll or a check (`share_codes` registry, unique across both).
+
+- **Who votes:** a signed-in user (Bearer JWT) or a guest (`X-Guest-Token` / `yakku_guest` cookie). One vote per voter per poll or check. The owner of a check cannot vote on it (their own answer was recorded when they made it); the owner of a poll can.
+- **Vote:** exactly one of `optionId` or `customAnswer` ("Other", max 300 characters), plus an optional `reason` (max 500). Votes are stored under a transaction that locks the poll/check row, so a vote cannot land after a close or deactivation.
+- **Results rule (both types):** `stats.voteProgress` counts votes from people other than the owner. Below `stats.minVotesToReveal` (5) only the progress is returned. From 5 on, counts and percentages (`options[].voteCount` / `percentage`, `stats.totalVotes`, `customAnswerPercentage`, `whyCount`) are returned **only to the owner and to anyone who has voted**; everyone else keeps seeing the progress. A voter always sees which option they picked (`options[].isSelected`, `voting.myVote`). Percentages are of all votes including custom answers and the owner's own vote, rounded to two decimals.
+- **Guest votes follow the guest:** when a guest signs in (`POST /api/v1/auth/verify`), their votes are moved to the user in the same transaction. A guest vote on something the user had already voted on is dropped, so the one-vote rule still holds.
+- **Account deletion** removes the user's votes together with their polls and checks.
 
 ## Media uploads (Flutter)
 
@@ -170,7 +184,9 @@ Guests expire 7 days after creation. A background job (`GuestCleanupWorker`) pur
 
 ## Devices
 
-An installation (`installationId` + platform) has **one owner**: a user or a guest, taken from the validated JWT or guest token, never from the request body. A push token belongs to one installation (unique index on its SHA-256; raw tokens are never returned or logged).
+An installation (`installationId` + platform) has **one owner**, taken from the validated JWT and never from the request body. A push token belongs to one installation (unique index on its SHA-256; raw tokens are never returned or logged). Device routes require sign-in; guests do not register devices.
+
+**Sessions and push.** A user can be signed in on several devices at once (up to 5 live sessions). Each login session is linked to the device it runs on (`POST /api/v1/devices/register` sets `user_sessions.device_id`), and a notification to a user is sent only to devices that are active, have a push token and are linked to at least one session that is neither revoked nor expired. So a device stops receiving the moment its session ends (logout, eviction by a newer login, expiry), and a device that never registered after sign-in receives nothing. This is decided from the sessions at send time (`IDeviceRepository.GetPushTargetsByUserIdAsync`), not from a flag that has to be switched off.
 
 | Event | What happens |
 | --- | --- |
@@ -179,8 +195,9 @@ An installation (`installationId` + platform) has **one owner**: a user or a gue
 | Token or installation held by **someone else** | `409 DEVICE_CONFLICT`, no takeover |
 | Notification permission `denied` | Token is cleared, push stops, record is kept |
 | Guest signs in (register or login) | Guest installations move to the user inside the same transaction as the upload-session claim; expired / missing guest credential transfers nothing; a failure rolls everything back and never fails the login |
-| Logout (single session) | Revokes that session only. The installation **stays linked to the account** (ownership never changes silently) but push is disabled, unless another live session still uses it. The next login re-enables it |
-| Logout all | Same, for all the user's installations |
+| Logout (single session) | Revokes that session only. That device receives no push once no live session is linked to it; the installation **stays linked to the account** (ownership never changes silently) and its token is cleared unless another live session still uses it. Other devices of the user are unaffected. The next login must register the device again |
+| Logout all | Every session is revoked, so none of the user's devices receives push |
+| Session evicted by a newer login (more than 5) | The evicted session's device stops receiving push, because it no longer has a live session |
 | Next account on the same phone | May register the installation once the previous owner has no live session on it (i.e. after logout) |
 | Guest purged after expiry | Its remaining installations are deleted with it |
 

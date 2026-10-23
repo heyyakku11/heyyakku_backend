@@ -9,7 +9,6 @@ namespace Yakku.Application.Users.Mapper
         {
             return new UserProfileResponse
             {
-                Id = user.Id,
                 Status = user.Status.ToString(),
                 PhoneNumber = user.PhoneNumber,
                 Name = user.Profile?.Name ?? string.Empty,
@@ -19,10 +18,7 @@ namespace Yakku.Application.Users.Mapper
                 CurrentPlan = new UserPlanResponse
                 {
                     Id = user.PlanId,
-                    Code = user.Plan?.Code ?? Plan.FreeCode,
-                    Name = user.Plan?.Name ?? "Free",
-                    Price = (user.Plan?.PriceMinor ?? 0) / 100m,
-                    Currency = user.Plan?.Currency ?? "INR"
+                    Name = user.Plan?.Name ?? "Free"
                 }
             };
         }

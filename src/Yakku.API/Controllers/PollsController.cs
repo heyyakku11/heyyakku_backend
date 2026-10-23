@@ -1,124 +1,43 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Yakku.API.Auth;
-using Yakku.API.Media;
 using Yakku.API.Middleware;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls.DTOs;
 using Yakku.Application.Polls.Interfaces;
-using Yakku.Application.Votes.DTOs;
-using Yakku.Application.Votes.Interfaces;
-using Yakku.Domain.Enums;
+using Yakku.Application.Users.DTOs;
+using Yakku.Application.Users.Interfaces;
 
 namespace Yakku.API.Controllers
 {
+    /// <summary>
+    /// Everything a signed-in user does with their polls: create, list (asked, answered, saved), open, close,
+    /// delete and save. Voting and public share links live under <c>/api/v1/votes</c> and <c>/api/v1/shares</c>.
+    /// </summary>
     [ApiController]
     [Authorize]
     [Route("api/v1/polls")]
     public class PollsController : ControllerBase
     {
         private readonly IPollService _pollService;
-        private readonly IVoteService _voteService;
-        private readonly MediaCallerResolver _callerResolver;
+        private readonly IUserService _userService;
+        private readonly ISavedPollService _savedPollService;
 
-        public PollsController(IPollService pollService, IVoteService voteService, MediaCallerResolver callerResolver)
+        public PollsController(
+            IPollService pollService,
+            IUserService userService,
+            ISavedPollService savedPollService)
         {
             _pollService = pollService;
-            _voteService = voteService;
-            _callerResolver = callerResolver;
-        }
-
-        [AllowAnonymous]
-        [HttpGet]
-        [EndpointSummary("List Polls")]
-        [EndpointDescription("Returns public polls, newest first, using cursor pagination. Optional contentType filter. Public.")]
-        [ProducesResponseType(typeof(ApiResponse<List<PollResponse>>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetAll(
-            [FromQuery] string? cursor,
-            [FromQuery] string? contentType,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                var result = await _pollService.GetPollsAsync(cursor, contentType, cancellationToken);
-                return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
-            }
-            catch (AppException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
-        }
-
-        [AllowAnonymous]
-        [HttpGet("{id:guid}")]
-        [EndpointSummary("Get Poll")]
-        [EndpointDescription("Returns one poll with its options and vote counts. Public polls are readable without signing in.")]
-        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var poll = await _pollService.GetPollDetailsAsync(
-                    id,
-                    CurrentUserId(),
-                    cancellationToken);
-                return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
-        }
-
-        /// <summary>Loads a poll by the share code carried in shared links. Same visibility rules as get-by-id.</summary>
-        [AllowAnonymous]
-        [HttpGet("share/{shareCode}")]
-        [EndpointSummary("Get Poll by Share Code")]
-        [EndpointDescription("Returns a poll using the share code carried in shared links. Same visibility rules as get-by-id.")]
-        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetByShareCode(string shareCode, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var poll = await _pollService.GetPollByShareCodeAsync(
-                    shareCode,
-                    CurrentUserId(),
-                    cancellationToken);
-                return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
-        }
-
-        [AllowAnonymous]
-        [HttpGet("{id:guid}/results")]
-        [EndpointSummary("Get Poll Results")]
-        [EndpointDescription("Returns per-option vote counts for a poll. Counts stay hidden until enough votes from others are in.")]
-        [ProducesResponseType(typeof(ApiResponse<PollResultsResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetResults(Guid id, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var results = await _pollService.GetResultsAsync(id, CurrentUserId(), cancellationToken);
-                return Ok(ApiResponse.Ok(results, "Poll results retrieved successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
+            _userService = userService;
+            _savedPollService = savedPollService;
         }
 
         [HttpPost]
         [EndpointSummary("Create Poll")]
-        [EndpointDescription("Creates a poll with a question and options for the signed-in user.")]
+        [EndpointDescription("Creates an active poll owned by the signed-in user. Send a question, 2 to 3 options and a content type (question, image, video or audio). Image, video and audio polls require a completed media upload (mediaUploadSessionId). The response includes the poll's shareCode for the universal share link. Returns 201.")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -133,9 +52,8 @@ namespace Yakku.API.Controllers
                     request,
                     User.GetRequiredUserId(),
                     cancellationToken);
-                return CreatedAtAction(
-                    nameof(GetById),
-                    new { id = result.Id },
+                return StatusCode(
+                    StatusCodes.Status201Created,
                     ApiResponse.Ok(result, "Poll created successfully"));
             }
             catch (ValidationException ex)
@@ -148,115 +66,137 @@ namespace Yakku.API.Controllers
             }
         }
 
-        [HttpPost("{id:guid}/publish")]
-        [EndpointSummary("Publish Poll")]
-        [EndpointDescription("Moves a draft poll owned by the signed-in user to active so it can receive votes.")]
-        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
+        [HttpGet("asked")]
+        [EndpointSummary("List Polls I Asked")]
+        [EndpointDescription("Lists the polls the signed-in user created, newest first. Uses cursor pagination: pass the cursor from the previous response's meta to get the next page.")]
+        [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetAsked(
+            [FromQuery] string? cursor,
+            CancellationToken cancellationToken)
+        {
+            var result = await _userService.GetAskedPollsAsync(
+                User.GetRequiredUserId(),
+                cursor,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
+        }
+
+        [HttpGet("answered")]
+        [EndpointSummary("List Polls I Answered")]
+        [EndpointDescription("Lists the polls the signed-in user has voted on, most recently voted first. Uses cursor pagination: pass the cursor from the previous response's meta to get the next page.")]
+        [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetAnswered(
+            [FromQuery] string? cursor,
+            CancellationToken cancellationToken)
+        {
+            var result = await _userService.GetAnsweredPollsAsync(
+                User.GetRequiredUserId(),
+                cursor,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
+        }
+
+        [HttpGet("saved")]
+        [EndpointSummary("List Saved Polls")]
+        [EndpointDescription("Lists the polls the signed-in user has saved, most recently saved first. Uses cursor pagination: pass the cursor from the previous response's meta to get the next page. Returns 400 for an invalid cursor.")]
+        [ProducesResponseType(typeof(ApiResponse<List<PollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetSaved(
+            [FromQuery] string? cursor,
+            CancellationToken cancellationToken)
+        {
+            var result = await _savedPollService.ListAsync(
+                User.GetRequiredUserId(),
+                cursor,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(result.Items, "Saved polls retrieved successfully", result.Meta));
+        }
+
+        [HttpGet("{id:guid}")]
+        [EndpointSummary("Get My Poll")]
+        [EndpointDescription("Returns the details and results of a poll the signed-in user owns, including how their own answer compares with the crowd. Returns 404 when the poll does not exist or belongs to someone else. Other people open a poll through its share link: GET /api/v1/shares/{shareCode}.")]
+        [ProducesResponseType(typeof(ApiResponse<UserPollDetailResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
+        {
+            var poll = await _userService.GetOwnedPollDetailsAsync(
+                User.GetRequiredUserId(),
+                id,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(poll, "Poll retrieved successfully"));
+        }
+
+        [HttpPost("{id:guid}/close")]
+        [EndpointSummary("Close Poll")]
+        [EndpointDescription("Closes a poll the signed-in user owns so it stops accepting votes. Existing votes are kept and results stay available. Returns 404 when the poll does not exist or is not yours, and 409 when it cannot be closed (for example it is not active).")]
+        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Publish(Guid id, CancellationToken cancellationToken)
+        public async Task<IActionResult> Close(Guid id, CancellationToken cancellationToken)
         {
-            try
-            {
-                var poll = await _pollService.PublishAsync(
-                    id,
-                    User.GetRequiredUserId(),
-                    cancellationToken);
-                return Ok(ApiResponse.Ok(poll, "Poll published successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
-        }
+            var poll = await _pollService.ClosePollAsync(
+                id,
+                User.GetRequiredUserId(),
+                cancellationToken);
 
-        [AllowAnonymous]
-        [EnableRateLimiting("poll-votes")]
-        [HttpPost("{id:guid}/votes")]
-        [EndpointSummary("Vote on a Poll")]
-        [EndpointDescription("Casts one vote on the poll, either an option (pollOptionId) or a custom answer, with an optional reason. Accepts a signed-in user (Bearer JWT) or a guest (X-Guest-Token). One vote per voter; a repeat returns 409.")]
-        [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public Task<IActionResult> Vote(
-            Guid id,
-            [FromBody] CastVoteRequest request,
-            CancellationToken cancellationToken)
-        {
-            request.PollId = id;
-            return CastVoteAsync(request, cancellationToken);
-        }
-
-        [AllowAnonymous]
-        [EnableRateLimiting("poll-votes")]
-        [HttpPost("vote")]
-        [EndpointSummary("Vote on a Poll (Id in Body)")]
-        [EndpointDescription("Same as POST /{id}/votes but the poll id is sent in the request body. Accepts a user JWT or a guest token.")]
-        [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public Task<IActionResult> VoteFromBody(
-            [FromBody] CastVoteRequest request,
-            CancellationToken cancellationToken)
-        {
-            return CastVoteAsync(request, cancellationToken);
+            return Ok(ApiResponse.Ok(poll, "Poll closed successfully"));
         }
 
         [HttpDelete("{id:guid}")]
         [EndpointSummary("Delete Poll")]
-        [EndpointDescription("Deletes a poll owned by the signed-in user.")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [EndpointDescription("Permanently deletes a poll the signed-in user owns, together with its options, votes and uploaded media. Returns 404 when the poll does not exist or is not yours, and 409 when its status does not allow deletion.")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         {
-            try
-            {
-                await _pollService.DeletePollAsync(id, User.GetRequiredUserId(), cancellationToken);
-                return NoContent();
-            }
-            catch (AppException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
+            await _pollService.DeletePollAsync(
+                id,
+                User.GetRequiredUserId(),
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok<object?>(null, "Poll deleted successfully"));
         }
 
-        private async Task<IActionResult> CastVoteAsync(
-            CastVoteRequest request,
-            CancellationToken cancellationToken)
+        [HttpPut("{id:guid}/save")]
+        [EndpointSummary("Save Poll")]
+        [EndpointDescription("Adds a poll to the signed-in user's saved polls. Idempotent: saving an already saved poll succeeds and changes nothing. Returns 404 when the poll does not exist.")]
+        [ProducesResponseType(typeof(ApiResponse<SavedPollStateResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Save(Guid id, CancellationToken cancellationToken)
         {
-            try
-            {
-                // Voting accepts a Yakku user (Bearer JWT) or a guest (X-Guest-Token header / cookie).
-                var voter = await _callerResolver.ResolveRequiredAsync(HttpContext, cancellationToken);
-                var result = await _voteService.CastAsync(
-                    request.PollId,
-                    voter.UserId ?? voter.GuestId!.Value,
-                    voter.IsUser ? VoterRole.User : VoterRole.Guest,
-                    request,
-                    cancellationToken);
-                return Ok(ApiResponse.Ok(result, "Vote submitted successfully"));
-            }
-            catch (ValidationException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
-            catch (AppException ex)
-            {
-                return ApiExceptionResults.From(ex);
-            }
+            var result = await _savedPollService.SaveAsync(
+                User.GetRequiredUserId(),
+                id,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(result, "Poll saved successfully"));
         }
 
-        private Guid? CurrentUserId()
+        [HttpDelete("{id:guid}/save")]
+        [EndpointSummary("Unsave Poll")]
+        [EndpointDescription("Removes a poll from the signed-in user's saved polls. Idempotent: removing a poll that is not saved succeeds and changes nothing.")]
+        [ProducesResponseType(typeof(ApiResponse<SavedPollStateResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> Unsave(Guid id, CancellationToken cancellationToken)
         {
-            return User.TryGetUserId(out var userId) ? userId : null;
+            var result = await _savedPollService.UnsaveAsync(
+                User.GetRequiredUserId(),
+                id,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(result, "Poll unsaved successfully"));
         }
     }
 }
-
-

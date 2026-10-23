@@ -127,7 +127,7 @@ public sealed class AccountDeletionIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context, int? deletionRequestedDaysAgo = null)
     {
         var sequence = Interlocked.Increment(ref _sequence);
-        var user = new User($"556{sequence:D10}", $"User {sequence}", $"deleted-anon-{sequence}");
+        var user = new User($"558{sequence:D10}", $"User {sequence}", $"deleted-anon-{sequence}");
         if (deletionRequestedDaysAgo is int days)
         {
             user.RequestDeletion(DateTime.UtcNow.AddDays(-days), Grace);

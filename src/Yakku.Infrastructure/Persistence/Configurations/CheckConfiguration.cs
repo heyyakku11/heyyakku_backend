@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Persistence.Configurations
 {
@@ -125,6 +126,12 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.CheckOptionId).HasColumnName("check_option_id");
             builder.Property(x => x.CustomAnswer).HasColumnName("custom_answer").HasColumnType("text");
             builder.Property(x => x.VoterId).HasColumnName("voter_id").IsRequired();
+            builder.Property(x => x.VoterRole)
+                .HasColumnName("voter_role")
+                .HasUppercaseEnumConversion()
+                .HasMaxLength(20)
+                .IsRequired()
+                .HasDefaultValue(VoterRole.User);
             builder.Property(x => x.Reason).HasColumnName("reason").HasColumnType("text");
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
 
@@ -139,10 +146,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasForeignKey(x => x.UserCheckId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasOne(x => x.Voter)
-                .WithMany()
-                .HasForeignKey(x => x.VoterId)
-                .OnDelete(DeleteBehavior.Cascade);
+            // voter_id holds a user id or a guest id (see voter_role), so it has no foreign key.
 
             // (check_option_id, check_id) guarantees the option belongs to the same check as the shared item.
             builder.HasOne(x => x.CheckOption)

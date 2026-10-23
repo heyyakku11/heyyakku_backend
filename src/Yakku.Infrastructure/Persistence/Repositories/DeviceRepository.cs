@@ -82,6 +82,24 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<IReadOnlyList<Device>> GetPushTargetsByUserIdAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.Devices
+                .Where(device => device.UserId == userId
+                    && device.IsActive
+                    && device.PushToken != null
+                    && device.NotificationPermission != NotificationPermissionStatus.Denied
+                    && _context.UserSessions.Any(session => session.DeviceId == device.Id
+                        && session.UserId == userId
+                        && session.RevokedAt == null
+                        && session.ExpiresAt > utcNow))
+                .OrderByDescending(device => device.LastSeenAt)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<int> TransferGuestDevicesAsync(
             Guid guestId,
             Guid userId,

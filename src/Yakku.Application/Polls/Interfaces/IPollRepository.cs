@@ -11,8 +11,6 @@ namespace Yakku.Application.Polls.Interfaces
 
         Task<PollEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-        Task<PollEntity?> GetByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default);
-
         Task<PollEntity?> GetByIdAndCreatorAsync(
             Guid id,
             Guid creatorId,
@@ -25,13 +23,6 @@ namespace Yakku.Application.Polls.Interfaces
             int take,
             CancellationToken cancellationToken = default);
 
-        Task<IReadOnlyList<PollEntity>> GetVisiblePollsAsync(
-            DateTime? cursorCreatedAt,
-            Guid? cursorId,
-            int take,
-            PollContentType? contentType,
-            CancellationToken cancellationToken = default);
-
         Task<int> TryMarkActiveAsync(
             Guid pollId,
             Guid creatorId,
@@ -39,10 +30,6 @@ namespace Yakku.Application.Polls.Interfaces
 
         Task ExecuteInTransactionAsync(
             Func<CancellationToken, Task> action,
-            CancellationToken cancellationToken = default);
-
-        Task<IReadOnlyList<PollEntity>> ListByStatusAsync(
-            PollStatus? status,
             CancellationToken cancellationToken = default);
 
         Task<IReadOnlyList<AnsweredPollEntry>> GetAnsweredByUserAsync(

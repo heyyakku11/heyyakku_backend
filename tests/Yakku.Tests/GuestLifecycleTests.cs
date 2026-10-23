@@ -266,6 +266,34 @@ public class GuestLifecycleTests
         Assert.Contains(session.ObjectKey, h.Storage.Deleted);
     }
 
+    [Fact]
+    public async Task Claim_MovesTheGuestsVotesToTheUser_AndAuditsTheCounts()
+    {
+        var h = new Harness();
+        var guest = h.SeedGuest();
+        h.VoteClaims.Result = new GuestVoteClaimResult(Transferred: 3, Dropped: 1);
+
+        var result = await h.Claim.ClaimAndDeleteGuestAsync(h.RawToken, h.UserId);
+
+        Assert.Equal(GuestClaimResult.Claimed, result);
+        Assert.Equal((guest.Id, h.UserId), Assert.Single(h.VoteClaims.Calls));
+        var audit = Assert.Single(h.Audit.Authentication, entry => entry.EventType == "guest.claimed");
+        Assert.Equal("3", audit.Metadata!["votesTransferred"]);
+        Assert.Equal("1", audit.Metadata["votesDropped"]);
+    }
+
+    [Fact]
+    public async Task Claim_OfAnExpiredGuest_LeavesTheirVotesAlone()
+    {
+        var h = new Harness();
+        h.SeedGuest(createdDaysAgo: 30);
+
+        var result = await h.Claim.ClaimAndDeleteGuestAsync(h.RawToken, h.UserId);
+
+        Assert.Equal(GuestClaimResult.Expired, result);
+        Assert.Empty(h.VoteClaims.Calls);
+    }
+
     private sealed class Harness
     {
         public Harness()
@@ -277,8 +305,9 @@ public class GuestLifecycleTests
             Sessions = new InMemorySessionRepository();
             Storage = new FakeObjectStorage();
             Audit = new RecordingAuditLogWriter();
+            VoteClaims = new InMemoryGuestVoteClaims();
             Identity = new GuestIdentityService(Guests, new GuestTokenGenerator(), Hasher, Audit);
-            Claim = new GuestMediaClaimService(Guests, Hasher, Sessions, new InMemoryDeviceRepository(), Audit);
+            Claim = new GuestMediaClaimService(Guests, Hasher, Sessions, new InMemoryDeviceRepository(), VoteClaims, Audit);
             Cleanup = new GuestCleanupService(
                 Guests,
                 Sessions,
@@ -300,6 +329,8 @@ public class GuestLifecycleTests
         public FakeObjectStorage Storage { get; }
 
         public RecordingAuditLogWriter Audit { get; }
+
+        public InMemoryGuestVoteClaims VoteClaims { get; }
 
         public GuestIdentityService Identity { get; }
 

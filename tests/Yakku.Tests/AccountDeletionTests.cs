@@ -183,9 +183,6 @@ public class AccountDeletionTests
         public Task<User?> GetByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
             => Task.FromResult(_users.FirstOrDefault(user => user.PhoneNumber == phoneNumber));
 
-        public Task<IReadOnlyList<User>> ListAsync(UserStatus? status, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<User>>(_users);
-
         public Task<bool> AnonymousNameExistsAsync(string anonymousName, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
 

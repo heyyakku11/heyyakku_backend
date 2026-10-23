@@ -11,6 +11,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
     {
         private const string OneUsePerUserConstraint = "IX_user_checks_user_id_check_id";
         private const string ShareCodeConstraint = "IX_user_checks_share_code";
+        private const string ShareCodeRegistryConstraint = "PK_share_codes";
         private const string OneVotePerItemConstraint = "IX_user_check_votes_user_check_id_voter_id";
 
         private readonly YakkuDbContext _context;
@@ -120,9 +121,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             UserCheckVote ownerAnswer,
             CancellationToken cancellationToken = default)
         {
-            // One SaveChanges: the check and the maker's answer are stored together or not at all.
+            // One SaveChanges: the check, the maker's answer and the share code registry row are stored together
+            // or not at all.
+            var registry = ShareCode.ForCheck(userCheck);
             await _context.UserChecks.AddAsync(userCheck, cancellationToken);
             await _context.UserCheckVotes.AddAsync(ownerAnswer, cancellationToken);
+            await _context.ShareCodes.AddAsync(registry, cancellationToken);
             try
             {
                 await _context.SaveChangesAsync(cancellationToken);
@@ -130,18 +134,21 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             }
             catch (DbUpdateException exception) when (IsUniqueViolation(exception, OneUsePerUserConstraint))
             {
-                Detach(userCheck, ownerAnswer);
+                Detach(userCheck, ownerAnswer, registry);
                 throw CheckExceptions.AlreadyUsed();
             }
-            catch (DbUpdateException exception) when (IsUniqueViolation(exception, ShareCodeConstraint))
+            catch (DbUpdateException exception) when (
+                IsUniqueViolation(exception, ShareCodeConstraint)
+                || IsUniqueViolation(exception, ShareCodeRegistryConstraint))
             {
-                Detach(userCheck, ownerAnswer);
+                Detach(userCheck, ownerAnswer, registry);
                 return false;
             }
         }
 
-        private void Detach(UserCheck userCheck, UserCheckVote vote)
+        private void Detach(UserCheck userCheck, UserCheckVote vote, ShareCode registry)
         {
+            _context.Entry(registry).State = EntityState.Detached;
             _context.Entry(vote).State = EntityState.Detached;
             _context.Entry(userCheck).State = EntityState.Detached;
         }

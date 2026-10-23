@@ -39,26 +39,77 @@ Content-Type: application/json
 GET {{Yakku.API_HostAddress}}/api/users/me
 Authorization: Bearer {{accessToken}}
 
-### Get my polls
-GET {{Yakku.API_HostAddress}}/api/users/me/polls
-Authorization: Bearer {{accessToken}}
-
-### Get my polls next page
-GET {{Yakku.API_HostAddress}}/api/users/me/polls?cursor=replace-with-next-cursor
-Authorization: Bearer {{accessToken}}
-
 ### Create poll
-POST {{Yakku.API_HostAddress}}/api/polls
+POST {{Yakku.API_HostAddress}}/api/v1/polls
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
   "question": "Which option do you prefer?",
-  "options": ["Option A", "Option B"]
+  "contentType": "question",
+  "options": [{ "text": "Option A" }, { "text": "Option B" }]
 }
 
-### Get poll by id
-GET {{Yakku.API_HostAddress}}/api/polls/00000000-0000-0000-0000-000000000000
+### List polls I asked (newest first)
+GET {{Yakku.API_HostAddress}}/api/v1/polls/asked
+Authorization: Bearer {{accessToken}}
+
+### List polls I asked, next page
+GET {{Yakku.API_HostAddress}}/api/v1/polls/asked?cursor=replace-with-next-cursor
+Authorization: Bearer {{accessToken}}
+
+### List polls I answered
+GET {{Yakku.API_HostAddress}}/api/v1/polls/answered
+Authorization: Bearer {{accessToken}}
+
+### List saved polls
+GET {{Yakku.API_HostAddress}}/api/v1/polls/saved
+Authorization: Bearer {{accessToken}}
+
+### Get my poll (details and results)
+GET {{Yakku.API_HostAddress}}/api/v1/polls/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{accessToken}}
+
+### Close my poll
+POST {{Yakku.API_HostAddress}}/api/v1/polls/00000000-0000-0000-0000-000000000000/close
+Authorization: Bearer {{accessToken}}
+
+### Delete my poll
+DELETE {{Yakku.API_HostAddress}}/api/v1/polls/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{accessToken}}
+
+### Save a poll
+PUT {{Yakku.API_HostAddress}}/api/v1/polls/00000000-0000-0000-0000-000000000000/save
+Authorization: Bearer {{accessToken}}
+
+### Unsave a poll
+DELETE {{Yakku.API_HostAddress}}/api/v1/polls/00000000-0000-0000-0000-000000000000/save
+Authorization: Bearer {{accessToken}}
+
+### Open a share link (poll or check; optional auth to see hasVoted / myVote)
+GET {{Yakku.API_HostAddress}}/api/v1/shares/replace-with-share-code
+X-Guest-Token: {{guestToken}}
+
+### Vote on a poll or a check by share code (JWT or guest token)
+POST {{Yakku.API_HostAddress}}/api/v1/votes
+Content-Type: application/json
+X-Guest-Token: {{guestToken}}
+
+{
+  "shareCode": "replace-with-share-code",
+  "optionId": "00000000-0000-0000-0000-000000000000",
+  "reason": "Optional reason"
+}
+
+### Vote with a custom answer ("Other")
+POST {{Yakku.API_HostAddress}}/api/v1/votes
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "shareCode": "replace-with-share-code",
+  "customAnswer": "Something else"
+}
 
 ### Delete my account (scheduled for permanent deletion in 30 days; logging in again cancels it)
 DELETE {{Yakku.API_HostAddress}}/api/v1/users/me

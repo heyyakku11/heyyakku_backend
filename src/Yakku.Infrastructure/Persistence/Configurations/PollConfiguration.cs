@@ -18,9 +18,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                     "CK_polls_status",
                     "\"status\" IN ('DRAFT', 'ACTIVE', 'CLOSED', 'EXPIRED')");
                 table.HasCheckConstraint(
-                    "CK_polls_visibility",
-                    "\"visibility\" IN ('PUBLIC', 'PRIVATE')");
-                table.HasCheckConstraint(
                     "CK_polls_question_not_blank",
                     "char_length(btrim(\"question\")) > 0");
                 table.HasCheckConstraint(
@@ -82,8 +79,8 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.HasIndex(x => x.CreatedAt)
                 .IsDescending()
-                .HasFilter("\"status\" = 'ACTIVE' AND \"visibility\" = 'PUBLIC'")
-                .HasDatabaseName("IX_polls_active_public_created_at");
+                .HasFilter("\"status\" = 'ACTIVE'")
+                .HasDatabaseName("IX_polls_active_created_at");
 
             builder.HasIndex(x => x.ExpiresAt)
                 .HasFilter("\"expires_at\" IS NOT NULL")

@@ -1,3 +1,5 @@
+using Yakku.Domain.Enums;
+
 namespace Yakku.Domain.Entities
 {
     /// <summary>
@@ -11,13 +13,15 @@ namespace Yakku.Domain.Entities
         public Guid CheckId { get; private set; }
         public Guid? CheckOptionId { get; private set; }
         public string? CustomAnswer { get; private set; }
+
+        /// <summary>A user id or a guest id, as told by <see cref="VoterRole"/>. Not a foreign key.</summary>
         public Guid VoterId { get; private set; }
+        public VoterRole VoterRole { get; private set; }
         public string? Reason { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
         public UserCheck UserCheck { get; private set; } = null!;
         public CheckOption? CheckOption { get; private set; }
-        public User Voter { get; private set; } = null!;
 
         private UserCheckVote()
         {
@@ -28,9 +32,10 @@ namespace Yakku.Domain.Entities
             Guid checkId,
             Guid checkOptionId,
             Guid voterId,
-            string? reason)
+            string? reason,
+            VoterRole voterRole = VoterRole.User)
         {
-            return Create(userCheckId, checkId, checkOptionId, customAnswer: null, voterId, reason);
+            return Create(userCheckId, checkId, checkOptionId, customAnswer: null, voterId, reason, voterRole);
         }
 
         public static UserCheckVote ForCustomAnswer(
@@ -38,9 +43,10 @@ namespace Yakku.Domain.Entities
             Guid checkId,
             string customAnswer,
             Guid voterId,
-            string? reason)
+            string? reason,
+            VoterRole voterRole = VoterRole.User)
         {
-            return Create(userCheckId, checkId, checkOptionId: null, customAnswer, voterId, reason);
+            return Create(userCheckId, checkId, checkOptionId: null, customAnswer, voterId, reason, voterRole);
         }
 
         private static UserCheckVote Create(
@@ -49,7 +55,8 @@ namespace Yakku.Domain.Entities
             Guid? checkOptionId,
             string? customAnswer,
             Guid voterId,
-            string? reason)
+            string? reason,
+            VoterRole voterRole)
         {
             return new UserCheckVote
             {
@@ -59,6 +66,7 @@ namespace Yakku.Domain.Entities
                 CheckOptionId = checkOptionId,
                 CustomAnswer = customAnswer,
                 VoterId = voterId,
+                VoterRole = voterRole,
                 Reason = reason,
                 CreatedAt = DateTime.UtcNow
             };

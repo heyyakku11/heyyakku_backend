@@ -129,11 +129,6 @@ internal sealed class InMemoryPollRepository : IPollRepository
         _polls.Remove(poll);
     }
 
-    public Task<Poll?> GetByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(_polls.FirstOrDefault(poll => poll.ShareCode == shareCode));
-    }
-
     public Task<Poll?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(_polls.FirstOrDefault(poll => poll.Id == id));
@@ -152,22 +147,6 @@ internal sealed class InMemoryPollRepository : IPollRepository
         CancellationToken cancellationToken = default)
     {
         return Task.FromResult<IReadOnlyList<Poll>>([]);
-    }
-
-    public Task<IReadOnlyList<Poll>> GetVisiblePollsAsync(
-        DateTime? cursorCreatedAt,
-        Guid? cursorId,
-        int take,
-        PollContentType? contentType,
-        CancellationToken cancellationToken = default)
-    {
-        IEnumerable<Poll> query = _polls.Where(poll => poll.Status == PollStatus.Active);
-        if (contentType is PollContentType selected)
-        {
-            query = query.Where(poll => poll.ContentType == selected);
-        }
-
-        return Task.FromResult<IReadOnlyList<Poll>>(query.Take(take).ToList());
     }
 
     public Task<int> TryMarkActiveAsync(Guid pollId, Guid creatorId, CancellationToken cancellationToken = default)
@@ -195,11 +174,6 @@ internal sealed class InMemoryPollRepository : IPollRepository
             _polls.AddRange(snapshot);
             throw;
         }
-    }
-
-    public Task<IReadOnlyList<Poll>> ListByStatusAsync(PollStatus? status, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<IReadOnlyList<Poll>>([]);
     }
 
     public Task<IReadOnlyList<AnsweredPollEntry>> GetAnsweredByUserAsync(

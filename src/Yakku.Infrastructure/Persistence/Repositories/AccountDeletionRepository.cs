@@ -55,6 +55,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     .Where(vote => vote.VoterId == userId)
                     .ExecuteDeleteAsync(cancellationToken);
 
+                // Check votes no longer have a foreign key to users (guests vote too), so they do not cascade.
+                await _context.UserCheckVotes
+                    .Where(vote => vote.VoterId == userId)
+                    .ExecuteDeleteAsync(cancellationToken);
+
                 await _context.MediaUploadSessions
                     .Where(session => session.UserId == userId
                                       || (session.PollId != null && session.Poll!.CreatorId == userId))

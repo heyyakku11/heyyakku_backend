@@ -638,6 +638,7 @@ public sealed class DeviceManagementIntegrationTests
             Hasher,
             new MediaUploadSessionRepository(context),
             new DeviceRepository(context),
+            new GuestVoteClaimRepository(context),
             new RecordingAuditLogWriter());
 
         var result = await service.TryClaimAsync(raw, user.Id);
@@ -799,6 +800,7 @@ public sealed class DeviceManagementIntegrationTests
             Hasher,
             new MediaUploadSessionRepository(context),
             new DeviceRepository(context),
+            new GuestVoteClaimRepository(context),
             new RecordingAuditLogWriter());
     }
 
@@ -883,8 +885,6 @@ public sealed class DeviceManagementIntegrationTests
         public Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default) => _inner.GetByTokenHashAsync(tokenHash, cancellationToken);
 
         public Task<Guest?> GetByTokenHashForUpdateAsync(string tokenHash, CancellationToken cancellationToken = default) => _inner.GetByTokenHashForUpdateAsync(tokenHash, cancellationToken);
-
-        public Task<IReadOnlyList<Guest>> ListAsync(bool? active, DateTime utcNow, CancellationToken cancellationToken = default) => _inner.ListAsync(active, utcNow, cancellationToken);
 
         public Task<IReadOnlyList<Guid>> ListExpiredIdsAsync(DateTime expiredBeforeUtc, int batchSize, CancellationToken cancellationToken = default) => _inner.ListExpiredIdsAsync(expiredBeforeUtc, batchSize, cancellationToken);
 

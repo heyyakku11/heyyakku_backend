@@ -33,6 +33,7 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<CheckOption> CheckOptions => Set<CheckOption>();
         public DbSet<UserCheck> UserChecks => Set<UserCheck>();
         public DbSet<UserCheckVote> UserCheckVotes => Set<UserCheckVote>();
+        public DbSet<ShareCode> ShareCodes => Set<ShareCode>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
