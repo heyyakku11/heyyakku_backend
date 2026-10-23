@@ -78,6 +78,28 @@ public class AuthReliabilityTests
     }
 
     [Fact]
+    public void VerifyResponse_NeverSerialisesTheUserId_ButKeepsItForServerUse()
+    {
+        var response = new VerifyOtpResponse
+        {
+            UserId = Guid.NewGuid(),
+            Name = "Goku",
+            Purpose = "Registration",
+            AccessToken = "access",
+            RefreshToken = "refresh"
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            response,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+
+        Assert.DoesNotContain("userId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(response.UserId.ToString(), json);
+        Assert.Contains("\"accessToken\":\"access\"", json);
+        Assert.NotEqual(Guid.Empty, response.UserId);
+    }
+
+    [Fact]
     public async Task BackgroundJob_Failure_IsRecordedAndNeverEscapes()
     {
         var audit = new RecordingAuditLogWriter();
