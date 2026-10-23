@@ -139,7 +139,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             var voteQuery = _context.PollVotes
                 .AsNoTracking()
-                .Where(vote => vote.VoterId == userId);
+                .Where(vote => vote.VoterId == userId && vote.VoterRole == VoterRole.User);
 
             if (cursorVotedAt is not null && cursorPollId is not null)
             {

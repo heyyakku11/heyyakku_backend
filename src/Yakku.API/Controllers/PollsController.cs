@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Yakku.API.Auth;
+using Yakku.API.Media;
 using Yakku.API.Middleware;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
@@ -10,6 +11,7 @@ using Yakku.Application.Polls.DTOs;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Votes.DTOs;
 using Yakku.Application.Votes.Interfaces;
+using Yakku.Domain.Enums;
 
 namespace Yakku.API.Controllers
 {
@@ -20,11 +22,13 @@ namespace Yakku.API.Controllers
     {
         private readonly IPollService _pollService;
         private readonly IVoteService _voteService;
+        private readonly MediaCallerResolver _callerResolver;
 
-        public PollsController(IPollService pollService, IVoteService voteService)
+        public PollsController(IPollService pollService, IVoteService voteService, MediaCallerResolver callerResolver)
         {
             _pollService = pollService;
             _voteService = voteService;
+            _callerResolver = callerResolver;
         }
 
         [AllowAnonymous]
@@ -156,6 +160,7 @@ namespace Yakku.API.Controllers
             }
         }
 
+        [AllowAnonymous]
         [EnableRateLimiting("poll-votes")]
         [HttpPost("{id:guid}/votes")]
         [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
@@ -171,6 +176,7 @@ namespace Yakku.API.Controllers
             return CastVoteAsync(request, cancellationToken);
         }
 
+        [AllowAnonymous]
         [EnableRateLimiting("poll-votes")]
         [HttpPost("vote")]
         [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
@@ -208,9 +214,12 @@ namespace Yakku.API.Controllers
         {
             try
             {
+                // Voting accepts a Yakku user (Bearer JWT) or a guest (X-Guest-Token header / cookie).
+                var voter = await _callerResolver.ResolveRequiredAsync(HttpContext, cancellationToken);
                 var result = await _voteService.CastAsync(
                     request.PollId,
-                    User.GetRequiredUserId(),
+                    voter.UserId ?? voter.GuestId!.Value,
+                    voter.IsUser ? VoterRole.User : VoterRole.Guest,
                     request,
                     cancellationToken);
                 return Ok(ApiResponse.Ok(result, "Vote submitted successfully"));

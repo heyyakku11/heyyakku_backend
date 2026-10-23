@@ -30,9 +30,19 @@ namespace Yakku.Application.Votes.Services
             _audit = audit;
         }
 
+        public Task<VoteResponse> CastAsync(
+            Guid pollId,
+            Guid userId,
+            CastVoteRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return CastAsync(pollId, userId, VoterRole.User, request, cancellationToken);
+        }
+
         public async Task<VoteResponse> CastAsync(
             Guid pollId,
             Guid userId,
+            VoterRole voterRole,
             CastVoteRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -40,7 +50,7 @@ namespace Yakku.Application.Votes.Services
             // reason are deliberately never written.
             try
             {
-                var response = await CastCoreAsync(pollId, userId, request, cancellationToken);
+                var response = await CastCoreAsync(pollId, userId, voterRole, request, cancellationToken);
                 await _audit.WritePollAsync(
                     new PollAuditEntry(
                         pollId,
@@ -78,6 +88,7 @@ namespace Yakku.Application.Votes.Services
         private async Task<VoteResponse> CastCoreAsync(
             Guid pollId,
             Guid userId,
+            VoterRole voterRole,
             CastVoteRequest request,
             CancellationToken cancellationToken)
         {
@@ -86,7 +97,7 @@ namespace Yakku.Application.Votes.Services
                 throw new AppException(
                     401,
                     ApiErrorCodes.Unauthorized,
-                    "An authenticated voter is required.");
+                    "A signed-in user or a guest session is required.");
             }
 
             await _validator.ValidateAndThrowAsync(request, cancellationToken);
@@ -133,7 +144,8 @@ namespace Yakku.Application.Votes.Services
                     userId,
                     pollId,
                     option.Id,
-                    NormalizeOptional(request.Reason));
+                    NormalizeOptional(request.Reason),
+                    voterRole);
             }
             else
             {
@@ -141,7 +153,8 @@ namespace Yakku.Application.Votes.Services
                     userId,
                     pollId,
                     request.CustomAnswer!.Trim(),
-                    NormalizeOptional(request.Reason));
+                    NormalizeOptional(request.Reason),
+                    voterRole);
             }
 
             if (await _voteRepository.ExistsForUserAsync(userId, pollId, cancellationToken))

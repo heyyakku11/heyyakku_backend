@@ -1223,6 +1223,14 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("voter_id");
 
+                    b.Property<string>("VoterRole")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("USER")
+                        .HasColumnName("voter_role");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PollOptionId")
@@ -1735,12 +1743,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Yakku.Domain.Entities.User", "Voter")
-                        .WithMany("Votes")
-                        .HasForeignKey("VoterId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Yakku.Domain.Entities.PollOption", "PollOption")
                         .WithMany("Votes")
                         .HasForeignKey("PollOptionId", "PollId")
@@ -1750,8 +1752,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Poll");
 
                     b.Navigation("PollOption");
-
-                    b.Navigation("Voter");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>
@@ -1922,8 +1922,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Sessions");
 
                     b.Navigation("UploadSessions");
-
-                    b.Navigation("Votes");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>

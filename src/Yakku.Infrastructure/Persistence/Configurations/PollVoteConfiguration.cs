@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Persistence.Configurations
 {
@@ -37,6 +38,13 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasColumnName("voter_id")
                 .IsRequired();
 
+            builder.Property(x => x.VoterRole)
+                .HasColumnName("voter_role")
+                .HasUppercaseEnumConversion()
+                .HasMaxLength(20)
+                .IsRequired()
+                .HasDefaultValue(VoterRole.User);
+
             builder.Property(x => x.PollOptionId)
                 .HasColumnName("poll_option_id");
 
@@ -68,10 +76,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasFilter("\"poll_option_id\" IS NOT NULL")
                 .HasDatabaseName("IX_poll_votes_poll_option_id");
 
-            builder.HasOne(x => x.Voter)
-                .WithMany(x => x.Votes)
-                .HasForeignKey(x => x.VoterId)
-                .OnDelete(DeleteBehavior.Restrict);
+            // voter_id holds a user id or a guest id (see voter_role), so it has no foreign key.
 
             // poll_id is also the foreign key to polls. The composite key guarantees the
             // selected option belongs to this poll. PostgreSQL MATCH SIMPLE still allows
