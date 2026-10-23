@@ -21,6 +21,8 @@ namespace Yakku.API.Controllers
 
         /// <summary>All checks, earliest week first. Pass weekStart (any date in the week) to see one week.</summary>
         [HttpGet]
+        [EndpointSummary("List Checks (Admin)")]
+        [EndpointDescription("Lists the checks scheduled for a week (optional weekStart). Admin only.")]
         [ProducesResponseType(typeof(ApiResponse<List<AdminCheckResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> List([FromQuery] DateOnly? weekStart, CancellationToken cancellationToken)
         {
@@ -30,6 +32,8 @@ namespace Yakku.API.Controllers
 
         /// <summary>Schedules a check to go live in the week containing weekStart (current or a future week).</summary>
         [HttpPost]
+        [EndpointSummary("Create Check (Admin)")]
+        [EndpointDescription("Creates a new check with its options. Admin only.")]
         [ProducesResponseType(typeof(ApiResponse<AdminCheckResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
@@ -40,6 +44,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPut("{id:guid}")]
+        [EndpointSummary("Update Check (Admin)")]
+        [EndpointDescription("Updates a check by id. Wording can only change while nobody has used the check. Admin only.")]
         [ProducesResponseType(typeof(ApiResponse<AdminCheckResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
@@ -50,6 +56,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpDelete("{id:guid}")]
+        [EndpointSummary("Delete Check (Admin)")]
+        [EndpointDescription("Deletes a check by id. Admin only.")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]

@@ -20,6 +20,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("users")]
+        [EndpointSummary("List Users (Admin)")]
+        [EndpointDescription("Lists registered users, optionally filtered by status. Admin only.")]
         [ProducesResponseType(typeof(ApiResponse<List<YakkuUserProfileResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -40,6 +42,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("guests")]
+        [EndpointSummary("List Guests (Admin)")]
+        [EndpointDescription("Lists guest identities, optionally filtered by status. Admin only.")]
         [ProducesResponseType(typeof(ApiResponse<List<YakkuGuestProfileResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -60,6 +64,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("polls")]
+        [EndpointSummary("List Polls (Admin)")]
+        [EndpointDescription("Lists polls with their vote counts, optionally filtered by status. Admin only.")]
         [ProducesResponseType(typeof(ApiResponse<List<YakkuPollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]

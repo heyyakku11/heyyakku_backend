@@ -17,6 +17,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("health")]
+        [EndpointSummary("System Health Check")]
+        [EndpointDescription("Reports whether the API and its dependencies are healthy. Returns 503 when unhealthy.")]
         [ProducesResponseType(typeof(ApiResponse<SystemHealthResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<SystemHealthResponse>), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> GetHealth(CancellationToken cancellationToken)

@@ -29,6 +29,8 @@ namespace Yakku.API.Controllers
 
         [EnableRateLimiting("media-upload")]
         [HttpPost]
+        [EndpointSummary("Create Media Upload Session")]
+        [EndpointDescription("Starts an upload session for a poll image, audio or video and returns where to upload. Works for a signed-in user or a guest.")]
         [ProducesResponseType(typeof(ApiResponse<MediaUploadSessionResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -58,6 +60,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("{sessionId:guid}")]
+        [EndpointSummary("Get Media Upload Session")]
+        [EndpointDescription("Returns the status of one of the caller's upload sessions.")]
         [ProducesResponseType(typeof(ApiResponse<MediaUploadSessionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -76,6 +80,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("{sessionId:guid}/access")]
+        [EndpointSummary("Get Media Upload Access")]
+        [EndpointDescription("Returns fresh time-limited upload/download URLs for one of the caller's upload sessions.")]
         [ProducesResponseType(typeof(ApiResponse<MediaAccessResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -95,6 +101,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("{sessionId:guid}/complete")]
+        [EndpointSummary("Complete Media Upload")]
+        [EndpointDescription("Marks an upload session as uploaded so the media can be attached to a poll.")]
         [ProducesResponseType(typeof(ApiResponse<MediaUploadSessionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -122,6 +130,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("{sessionId:guid}/cancel")]
+        [EndpointSummary("Cancel Media Upload Session")]
+        [EndpointDescription("Cancels one of the caller's pending upload sessions and discards its media.")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

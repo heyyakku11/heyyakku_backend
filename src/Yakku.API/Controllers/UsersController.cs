@@ -37,6 +37,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet()]
+        [EndpointSummary("Get Current User")]
+        [EndpointDescription("Returns the signed-in user's profile.")]
         [ProducesResponseType(typeof(ApiResponse<UserProfileResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -53,6 +55,8 @@ namespace Yakku.API.Controllers
         /// before the returned date cancels the deletion.
         /// </summary>
         [HttpDelete("me")]
+        [EndpointSummary("Delete My Account")]
+        [EndpointDescription("Schedules the signed-in user's account for permanent deletion and signs them out everywhere.")]
         [ProducesResponseType(typeof(ApiResponse<AccountDeletionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -66,6 +70,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("asked-polls")]
+        [EndpointSummary("List My Asked Polls")]
+        [EndpointDescription("Returns the polls the signed-in user created, using cursor pagination.")]
         [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetAskedPolls(
@@ -81,6 +87,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("answered-polls")]
+        [EndpointSummary("List My Answered Polls")]
+        [EndpointDescription("Returns the polls the signed-in user has voted on, using cursor pagination.")]
         [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetAnsweredPolls(
@@ -96,6 +104,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("saved-polls")]
+        [EndpointSummary("List Saved Polls")]
+        [EndpointDescription("Returns the polls the signed-in user has saved, using cursor pagination.")]
         [ProducesResponseType(typeof(ApiResponse<List<PollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -112,6 +122,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("save-poll/{id:guid}")]
+        [EndpointSummary("Save Poll")]
+        [EndpointDescription("Adds a poll to the signed-in user's saved polls.")]
         [ProducesResponseType(typeof(ApiResponse<SavedPollStateResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -126,6 +138,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpDelete("save-poll/{id:guid}")]
+        [EndpointSummary("Unsave Poll")]
+        [EndpointDescription("Removes a poll from the signed-in user's saved polls.")]
         [ProducesResponseType(typeof(ApiResponse<SavedPollStateResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> UnsavePoll(Guid id, CancellationToken cancellationToken)
@@ -139,6 +153,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("view-poll/{id:guid}")]
+        [EndpointSummary("View My Poll Details")]
+        [EndpointDescription("Returns details and results for a poll the signed-in user owns.")]
         [ProducesResponseType(typeof(ApiResponse<UserPollDetailResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -153,6 +169,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("poll/create")]
+        [EndpointSummary("Create Poll (Current User)")]
+        [EndpointDescription("Creates a poll owned by the signed-in user.")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -173,6 +191,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("close-poll/{id:guid}/close")]
+        [EndpointSummary("Close Poll")]
+        [EndpointDescription("Closes a poll owned by the signed-in user so it stops accepting votes.")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -188,6 +208,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpDelete("delete-poll/{id:guid}")]
+        [EndpointSummary("Delete My Poll")]
+        [EndpointDescription("Deletes a poll owned by the signed-in user.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -202,6 +224,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("notifications")]
+        [EndpointSummary("List My Notifications")]
+        [EndpointDescription("Returns the signed-in user's notifications, using cursor pagination.")]
         [ProducesResponseType(typeof(ApiResponse<List<NotificationResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -218,6 +242,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPatch("notifications/{id:guid}/read")]
+        [EndpointSummary("Mark Notification Read")]
+        [EndpointDescription("Marks one of the signed-in user's notifications as read.")]
         [ProducesResponseType(typeof(ApiResponse<NotificationResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

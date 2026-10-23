@@ -33,6 +33,8 @@ namespace Yakku.API.Controllers
 
         [AllowAnonymous]
         [HttpGet]
+        [EndpointSummary("List Polls")]
+        [EndpointDescription("Returns public polls, newest first, using cursor pagination. Optional contentType filter. Public.")]
         [ProducesResponseType(typeof(ApiResponse<List<PollResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll(
             [FromQuery] string? cursor,
@@ -52,6 +54,8 @@ namespace Yakku.API.Controllers
 
         [AllowAnonymous]
         [HttpGet("{id:guid}")]
+        [EndpointSummary("Get Poll")]
+        [EndpointDescription("Returns one poll with its options and vote counts. Public polls are readable without signing in.")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
@@ -73,6 +77,8 @@ namespace Yakku.API.Controllers
         /// <summary>Loads a poll by the share code carried in shared links. Same visibility rules as get-by-id.</summary>
         [AllowAnonymous]
         [HttpGet("share/{shareCode}")]
+        [EndpointSummary("Get Poll by Share Code")]
+        [EndpointDescription("Returns a poll using the share code carried in shared links. Same visibility rules as get-by-id.")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetByShareCode(string shareCode, CancellationToken cancellationToken)
@@ -93,6 +99,8 @@ namespace Yakku.API.Controllers
 
         [AllowAnonymous]
         [HttpGet("{id:guid}/results")]
+        [EndpointSummary("Get Poll Results")]
+        [EndpointDescription("Returns per-option vote counts for a poll. Counts stay hidden until enough votes from others are in.")]
         [ProducesResponseType(typeof(ApiResponse<PollResultsResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetResults(Guid id, CancellationToken cancellationToken)
@@ -109,6 +117,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost]
+        [EndpointSummary("Create Poll")]
+        [EndpointDescription("Creates a poll with a question and options for the signed-in user.")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -139,6 +149,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("{id:guid}/publish")]
+        [EndpointSummary("Publish Poll")]
+        [EndpointDescription("Moves a draft poll owned by the signed-in user to active so it can receive votes.")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -163,6 +175,8 @@ namespace Yakku.API.Controllers
         [AllowAnonymous]
         [EnableRateLimiting("poll-votes")]
         [HttpPost("{id:guid}/votes")]
+        [EndpointSummary("Vote on a Poll")]
+        [EndpointDescription("Casts one vote on the poll, either an option (pollOptionId) or a custom answer, with an optional reason. Accepts a signed-in user (Bearer JWT) or a guest (X-Guest-Token). One vote per voter; a repeat returns 409.")]
         [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -179,6 +193,8 @@ namespace Yakku.API.Controllers
         [AllowAnonymous]
         [EnableRateLimiting("poll-votes")]
         [HttpPost("vote")]
+        [EndpointSummary("Vote on a Poll (Id in Body)")]
+        [EndpointDescription("Same as POST /{id}/votes but the poll id is sent in the request body. Accepts a user JWT or a guest token.")]
         [ProducesResponseType(typeof(ApiResponse<VoteResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -191,6 +207,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpDelete("{id:guid}")]
+        [EndpointSummary("Delete Poll")]
+        [EndpointDescription("Deletes a poll owned by the signed-in user.")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

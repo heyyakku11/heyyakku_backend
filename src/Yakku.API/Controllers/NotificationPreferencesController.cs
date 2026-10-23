@@ -20,6 +20,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet]
+        [EndpointSummary("Get Notification Preferences")]
+        [EndpointDescription("Returns the signed-in user's notification preferences.")]
         [ProducesResponseType(typeof(ApiResponse<NotificationPreferenceResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Get(CancellationToken cancellationToken)
@@ -32,6 +34,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPatch]
+        [EndpointSummary("Update Notification Preferences")]
+        [EndpointDescription("Partially updates the signed-in user's notification preferences; omitted fields are unchanged.")]
         [ProducesResponseType(typeof(ApiResponse<NotificationPreferenceResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]

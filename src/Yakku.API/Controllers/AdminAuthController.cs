@@ -29,6 +29,8 @@ namespace Yakku.API.Controllers
 
         [EnableRateLimiting("admin-auth")]
         [HttpPost("login")]
+        [EndpointSummary("Admin Login")]
+        [EndpointDescription("Logs an admin in with email and password and returns access/refresh tokens.")]
         [ProducesResponseType(typeof(ApiResponse<AdminAuthResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -54,6 +56,7 @@ namespace Yakku.API.Controllers
 
         [EnableRateLimiting("admin-auth")]
         [HttpPost("register")]
+        [EndpointSummary("Admin Registration (Step 1)")]
         [EndpointDescription("Registration step 1. Send email, password and the admin secret code. Any valid email is accepted. If the code matches, the email and password are kept in a temporary record for 15 minutes and a verification link (valid 10 minutes) is emailed. A wrong code creates nothing and is limited to 5 attempts per email.")]
         [ProducesResponseType(typeof(ApiResponse<AdminRegistrationStepResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -70,6 +73,7 @@ namespace Yakku.API.Controllers
 
         [EnableRateLimiting("admin-auth")]
         [HttpPost("verify-email")]
+        [EndpointSummary("Verify Admin Email (Step 2)")]
         [EndpointDescription("Registration step 2. The token from the emailed link creates the admin account. The admin then logs in with the same email and password.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -88,6 +92,7 @@ namespace Yakku.API.Controllers
 
         [EnableRateLimiting("admin-auth")]
         [HttpPost("forgot-password")]
+        [EndpointSummary("Request Admin Password Reset")]
         [EndpointDescription("Sends a password reset link (valid 10 minutes) when an admin with this email exists. The response is always the same so it cannot be used to discover admin emails.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -104,6 +109,7 @@ namespace Yakku.API.Controllers
 
         [EnableRateLimiting("admin-auth")]
         [HttpPost("reset-password")]
+        [EndpointSummary("Reset Admin Password")]
         [EndpointDescription("Sets a new password using the token from the reset email. The token works once, and all sessions are signed out.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -121,6 +127,7 @@ namespace Yakku.API.Controllers
         [Authorize(Policy = "Admin")]
         [EnableRateLimiting("admin-auth")]
         [HttpPost("change-password")]
+        [EndpointSummary("Change Admin Password")]
         [EndpointDescription("Changes the signed-in admin's password. Requires the current password, a new password and its confirmation. All sessions are signed out, so the admin logs in again.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -137,6 +144,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("refresh")]
+        [EndpointSummary("Refresh Admin Access Token")]
+        [EndpointDescription("Exchanges a valid admin refresh token for a new access/refresh pair.")]
         [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Refresh(
@@ -155,6 +164,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpPost("logout")]
+        [EndpointSummary("Admin Logout")]
+        [EndpointDescription("Revokes the given admin refresh token and ends that session.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Logout(
@@ -174,6 +185,8 @@ namespace Yakku.API.Controllers
 
         [Authorize(Policy = "Admin")]
         [HttpPost("logout-all")]
+        [EndpointSummary("Admin Logout From All Sessions")]
+        [EndpointDescription("Requires an admin token. Revokes every active session for the signed-in admin.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> LogoutAll(CancellationToken cancellationToken)

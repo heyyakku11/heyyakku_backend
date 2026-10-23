@@ -22,6 +22,8 @@ namespace Yakku.API.Controllers
         /// <summary>Active checks for the current week (Monday to Sunday), with the caller's used flag. Public.</summary>
         [AllowAnonymous]
         [HttpGet]
+        [EndpointSummary("List Current Checks")]
+        [EndpointDescription("Returns the active checks for the current week (Monday to Sunday), with a used flag for the caller. Public.")]
         [ProducesResponseType(typeof(ApiResponse<List<CheckResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
         {
@@ -35,6 +37,8 @@ namespace Yakku.API.Controllers
         /// A bearer token is required.
         /// </summary>
         [HttpPost("make")]
+        [EndpointSummary("Make a Check")]
+        [EndpointDescription("Turns a live check into the caller's own shareable check, once per check. Requires sign-in.")]
         [ProducesResponseType(typeof(ApiResponse<UserCheckResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -50,6 +54,8 @@ namespace Yakku.API.Controllers
 
         /// <summary>The caller's made checks, kept separate from their polls.</summary>
         [HttpGet("mine")]
+        [EndpointSummary("List My Checks")]
+        [EndpointDescription("Returns the checks the signed-in user has made, kept separate from their polls.")]
         [ProducesResponseType(typeof(ApiResponse<List<UserCheckResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMine(CancellationToken cancellationToken)
         {
@@ -60,6 +66,8 @@ namespace Yakku.API.Controllers
         /// <summary>Loads a made check by the share code carried in shared links. Public.</summary>
         [AllowAnonymous]
         [HttpGet("share/{shareCode}")]
+        [EndpointSummary("Get Shared Check")]
+        [EndpointDescription("Loads a made check by the share code in a shared link. Public.")]
         [ProducesResponseType(typeof(ApiResponse<UserCheckResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetShared(string shareCode, CancellationToken cancellationToken)
@@ -70,6 +78,8 @@ namespace Yakku.API.Controllers
 
         /// <summary>Answers someone else's check via its share code. A bearer token is required.</summary>
         [HttpPost("share/{shareCode}/votes")]
+        [EndpointSummary("Answer Shared Check")]
+        [EndpointDescription("Records the signed-in user's answer to someone else's check via its share code.")]
         [ProducesResponseType(typeof(ApiResponse<CheckVoteResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
