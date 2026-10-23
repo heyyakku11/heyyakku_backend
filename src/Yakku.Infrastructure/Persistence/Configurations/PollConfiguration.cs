@@ -63,13 +63,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasDefaultValue(PollStatus.Draft);
 
-            builder.Property(x => x.Visibility)
-                .HasColumnName("visibility")
-                .HasUppercaseEnumConversion()
-                .HasMaxLength(20)
-                .IsRequired()
-                .HasDefaultValue(PollVisibility.Public);
-
             builder.Property(x => x.ExpiresAt)
                 .HasColumnName("expires_at");
 

@@ -7,7 +7,6 @@ namespace Yakku.Application.Users.DTOs
         public string Question { get; set; } = string.Empty;
         public string ContentType { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
-        public string Visibility { get; set; } = string.Empty;
         public DateTime? ExpiresAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public int TotalVoteCount { get; set; }

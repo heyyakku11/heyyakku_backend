@@ -86,7 +86,6 @@ namespace Yakku.Application.YakkuDirectory.Services
                         Question = poll.Question,
                         Status = poll.Status.ToString().ToLowerInvariant(),
                         ContentType = poll.ContentType.ToString().ToLowerInvariant(),
-                        Visibility = poll.Visibility.ToString().ToLowerInvariant(),
                         TotalVoteCount = tally.TotalVotes,
                         CustomAnswerCount = tally.CustomAnswerCount,
                         TotalWhyCount = tally.WhyCount,

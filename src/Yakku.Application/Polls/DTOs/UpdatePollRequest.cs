@@ -4,7 +4,6 @@ namespace Yakku.Application.Polls.DTOs
     {
         public string? Question { get; set; }
 
-        public string? Visibility { get; set; }
 
         public DateTime? ExpiresAt { get; set; }
 

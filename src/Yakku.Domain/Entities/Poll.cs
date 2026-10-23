@@ -12,7 +12,6 @@ namespace Yakku.Domain.Entities
         public string Question { get; private set; } = string.Empty;
         public PollContentType ContentType { get; private set; }
         public PollStatus Status { get; private set; }
-        public PollVisibility Visibility { get; private set; }
         public DateTime? ExpiresAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
@@ -32,7 +31,6 @@ namespace Yakku.Domain.Entities
             Guid creatorId,
             string question,
             PollContentType contentType,
-            PollVisibility visibility = PollVisibility.Public,
             DateTime? expiresAt = null)
         {
             Id = Guid.NewGuid();
@@ -40,7 +38,6 @@ namespace Yakku.Domain.Entities
             Question = question;
             ContentType = contentType;
             Status = PollStatus.Draft;
-            Visibility = visibility;
             ExpiresAt = expiresAt;
             CreatedAt = DateTime.UtcNow;
             ShareCode = ShareCodeGenerator.New(creatorId, CreatedAt);
@@ -110,17 +107,6 @@ namespace Yakku.Domain.Entities
             }
 
             Question = question;
-            UpdatedAt = DateTime.UtcNow;
-        }
-
-        public void UpdateVisibility(PollVisibility visibility)
-        {
-            if (Status != PollStatus.Draft)
-            {
-                throw new InvalidOperationException("Only a draft poll can be updated.");
-            }
-
-            Visibility = visibility;
             UpdatedAt = DateTime.UtcNow;
         }
 

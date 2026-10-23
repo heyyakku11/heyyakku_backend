@@ -923,14 +923,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<string>("Visibility")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("PUBLIC")
-                        .HasColumnName("visibility");
-
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAt")

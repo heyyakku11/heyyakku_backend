@@ -127,7 +127,6 @@ In Development, OTP is logged (`LoggingEmailSender`), not emailed.
 | `POST` | `/api/v1/devices/register` | JWT **or** guest | Register / upsert the caller's installation (one record per installation + platform). `201` when created, `200` when updated. `409 DEVICE_CONFLICT` if the installation or push token belongs to someone else |
 | `PATCH` | `/api/v1/devices/me` | JWT **or** guest | Partial update: push-token rotation, metadata, notification permission. Omitted = unchanged, `""` = clear. Header `X-Installation-Id` names the installation (required for guests; users default to the one linked to their session) |
 | `DELETE` | `/api/v1/devices/me` | JWT **or** guest | Unregister: stops push, clears the token, keeps the record. Repeatable (`204`); `404` if the caller has no such device |
-| `GET` | `/api/v1/devices/me` | JWT | The user's own installations (never push tokens; `pushEnabled`, `isCurrent`, `lastSeenAt`) |
 | `POST` | `/api/v1/media-upload-sessions` | JWT **or** guest | Start upload (presigned PUT); rate-limited |
 | `GET` | `/api/v1/media-upload-sessions/{id}` | JWT **or** guest | Owner-only upload status |
 | `GET` | `/api/v1/media-upload-sessions/{id}/access` | JWT **or** guest | Short-lived download URL (`uploaded` / `attached` only) |

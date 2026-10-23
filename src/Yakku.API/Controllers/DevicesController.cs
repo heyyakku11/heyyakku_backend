@@ -94,23 +94,5 @@ namespace Yakku.API.Controllers
                 cancellationToken);
             return NoContent();
         }
-
-        [Authorize]
-        [HttpGet("me")]
-        [EnableRateLimiting("device-read")]
-        [EndpointSummary("Get Current User's Devices")]
-        [EndpointDescription("Lists the authenticated user's own installations. Push tokens are never returned; pushEnabled reports whether delivery is currently possible. isCurrent marks the installation named by X-Installation-Id or linked to this session.")]
-        [ProducesResponseType(typeof(ApiResponse<List<DeviceResponse>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]
-        public async Task<IActionResult> GetMine(CancellationToken cancellationToken)
-        {
-            var caller = _callers.ResolveUser(HttpContext);
-            var devices = await _deviceService.ListAsync(
-                caller,
-                DeviceCallerResolver.ReadInstallationId(HttpContext),
-                cancellationToken);
-            return Ok(ApiResponse.Ok(devices, "Devices retrieved successfully"));
-        }
     }
 }

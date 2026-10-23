@@ -161,8 +161,7 @@ internal sealed class InMemoryPollRepository : IPollRepository
         PollContentType? contentType,
         CancellationToken cancellationToken = default)
     {
-        IEnumerable<Poll> query = _polls.Where(poll =>
-            poll.Status == PollStatus.Active && poll.Visibility == PollVisibility.Public);
+        IEnumerable<Poll> query = _polls.Where(poll => poll.Status == PollStatus.Active);
         if (contentType is PollContentType selected)
         {
             query = query.Where(poll => poll.ContentType == selected);

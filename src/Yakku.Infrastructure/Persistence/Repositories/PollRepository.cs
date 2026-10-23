@@ -91,9 +91,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .AsNoTracking()
                 .Include(poll => poll.Options)
                 .Include(poll => poll.Media)
-                .Where(poll =>
-                    poll.Status == PollStatus.Active
-                    && poll.Visibility == PollVisibility.Public);
+                .Where(poll => poll.Status == PollStatus.Active);
 
             if (contentType is PollContentType selectedType)
             {

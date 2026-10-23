@@ -16,11 +16,6 @@ namespace Yakku.Application.Polls.Validators
                 .Must(BeValidContentType)
                 .WithMessage("Content type must be question, image, video, or audio.");
 
-            RuleFor(x => x.Visibility)
-                .Must(BeValidVisibility)
-                .When(x => !string.IsNullOrWhiteSpace(x.Visibility))
-                .WithMessage("Visibility must be public or private.");
-
             RuleFor(x => x.ExpiresAt)
                 .Must(expiresAt => expiresAt > DateTime.UtcNow)
                 .When(x => x.ExpiresAt is not null)
@@ -69,12 +64,6 @@ namespace Yakku.Application.Polls.Validators
         {
             return Enum.TryParse<PollContentType>(request.ContentType?.Trim(), ignoreCase: true, out var parsed)
                    && parsed == PollContentType.Question;
-        }
-
-        private static bool BeValidVisibility(string? visibility)
-        {
-            return Enum.TryParse<PollVisibility>(visibility?.Trim(), ignoreCase: true, out var parsed)
-                   && Enum.IsDefined(parsed);
         }
 
         private static void ValidateOptions(

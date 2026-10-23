@@ -65,10 +65,6 @@ namespace Yakku.Application.Polls.Services
             await _createValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var contentType = Enum.Parse<PollContentType>(request.ContentType.Trim(), ignoreCase: true);
-            var visibility = string.IsNullOrWhiteSpace(request.Visibility)
-                ? PollVisibility.Public
-                : Enum.Parse<PollVisibility>(request.Visibility.Trim(), ignoreCase: true);
-
             MediaUploadSession? session = null;
             if (contentType == PollContentType.Question)
             {
@@ -126,7 +122,6 @@ namespace Yakku.Application.Polls.Services
                 creatorId,
                 request.Question.Trim(),
                 contentType,
-                visibility,
                 ToUtc(request.ExpiresAt));
 
             var useClientOrder = request.Options.All(option => option.DisplayOrder is > 0);
@@ -200,11 +195,6 @@ namespace Yakku.Application.Polls.Services
                 if (request.Question is not null)
                 {
                     poll.UpdateQuestion(request.Question.Trim());
-                }
-
-                if (!string.IsNullOrWhiteSpace(request.Visibility))
-                {
-                    poll.UpdateVisibility(Enum.Parse<PollVisibility>(request.Visibility.Trim(), ignoreCase: true));
                 }
 
                 if (request.ExpiresAt is not null)
@@ -672,8 +662,8 @@ namespace Yakku.Application.Polls.Services
         private static void EnsureReadable(PollEntity poll, Guid? viewerId)
         {
             var isOwner = viewerId is Guid userId && userId == poll.CreatorId;
-            var isPublicActive = poll.Status == PollStatus.Active && poll.Visibility == PollVisibility.Public;
-            if (!isPublicActive && !isOwner)
+            var isActive = poll.Status == PollStatus.Active;
+            if (!isActive && !isOwner)
             {
                 throw NotFound("Poll not found");
             }

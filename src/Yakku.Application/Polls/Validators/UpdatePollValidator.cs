@@ -13,11 +13,6 @@ namespace Yakku.Application.Polls.Validators
                 .When(x => x.Question is not null)
                 .WithMessage("Question is required.");
 
-            RuleFor(x => x.Visibility)
-                .Must(BeValidVisibility)
-                .When(x => !string.IsNullOrWhiteSpace(x.Visibility))
-                .WithMessage("Visibility must be public or private.");
-
             RuleFor(x => x.ExpiresAt)
                 .Must(expiresAt => expiresAt > DateTime.UtcNow)
                 .When(x => x.ExpiresAt is not null)
@@ -40,12 +35,6 @@ namespace Yakku.Application.Polls.Validators
             RuleFor(x => x)
                 .Custom(ValidateOptions)
                 .When(x => x.Options is not null);
-        }
-
-        private static bool BeValidVisibility(string? visibility)
-        {
-            return Enum.TryParse<PollVisibility>(visibility?.Trim(), ignoreCase: true, out var parsed)
-                   && Enum.IsDefined(parsed);
         }
 
         private static void ValidateOptions(
