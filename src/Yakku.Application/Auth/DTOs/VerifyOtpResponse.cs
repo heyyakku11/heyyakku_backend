@@ -10,15 +10,29 @@ namespace Yakku.Application.Auth.DTOs
         /// </summary>
         [JsonIgnore]
         public Guid UserId { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string AnonymousName { get; set; } = string.Empty;
+
+        /// <summary>"Registration" for a new account, "Login" for an existing one.</summary>
         public string Purpose { get; set; } = string.Empty;
 
         /// <summary>True when this login cancelled a pending account deletion.</summary>
         public bool AccountRestored { get; set; }
-        public string AccessToken { get; set; } = string.Empty;
-        public string RefreshToken { get; set; } = string.Empty;
-        public int AccessTokenExpiresInSeconds { get; set; }
-        public int RefreshTokenExpiresInSeconds { get; set; }
+
+        /// <summary>Who signed in.</summary>
+        public VerifyOtpUser User { get; set; } = new();
+
+        /// <summary>The tokens for this session.</summary>
+        public TokenResponse Auth { get; set; } = new();
+    }
+
+    public class VerifyOtpUser
+    {
+        public string Name { get; set; } = string.Empty;
+        public string AnonymousName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Whether the account allows push notifications (the in-app switch, on by default). This is not the phone's
+        /// OS permission, which the app reports with PATCH /api/v1/devices/me.
+        /// </summary>
+        public bool IsPushAllowed { get; set; } = true;
     }
 }

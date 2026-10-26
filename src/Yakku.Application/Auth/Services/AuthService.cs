@@ -366,13 +366,14 @@ namespace Yakku.Application.Auth.Services
             return new VerifyOtpResponse
             {
                 UserId = user.Id,
-                Name = user.Profile?.Name ?? string.Empty,
-                AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
                 Purpose = purpose.ToString(),
-                AccessToken = tokens.AccessToken,
-                RefreshToken = tokens.RefreshToken,
-                AccessTokenExpiresInSeconds = tokens.AccessTokenExpiresInSeconds,
-                RefreshTokenExpiresInSeconds = tokens.RefreshTokenExpiresInSeconds
+                User = new VerifyOtpUser
+                {
+                    Name = user.Profile?.Name ?? string.Empty,
+                    AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
+                    IsPushAllowed = user.Profile?.IsPushAllowed ?? true
+                },
+                Auth = tokens
             };
         }
 
