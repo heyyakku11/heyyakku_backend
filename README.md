@@ -138,7 +138,7 @@ In Development, OTP is logged (`LoggingEmailSender`), not emailed.
 | `POST` | `/api/v1/media-upload-sessions/{id}/cancel` | JWT **or** guest | Cancel and purge unreferenced object |
 | `GET` | `/api/system/health` | — | Postgres / Redis health |
 
-Responses use a shared `ApiResponse` envelope. Guest auth is the HttpOnly `yakku_guest` cookie (7 days, `SameSite=Lax`) **or** header `X-Guest-Token: <guestToken>` (preferred for Flutter). JWT takes precedence when both are present.
+Responses use a shared `ApiResponse` envelope. Guest auth is the HttpOnly `yakku_guest` cookie (30 days, `SameSite=Lax`) **or** header `X-Guest-Token: <guestToken>` (preferred for Flutter). JWT takes precedence when both are present.
 
 ## Voting (polls and checks)
 
@@ -180,7 +180,7 @@ Uploads use a single presigned PUT (no multipart). Actual size is enforced on co
 
 ### Guest expiry and cleanup
 
-Guests expire 7 days after creation. A background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
+Guests expire 30 days after creation. A background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
 
 ## Devices
 

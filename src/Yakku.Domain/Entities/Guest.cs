@@ -23,7 +23,7 @@ namespace Yakku.Domain.Entities
             GuestTokenHash = guestTokenHash;
             CreatedAt = createdAtUtc;
             LastSeenAt = CreatedAt;
-            ExpiresAt = CreatedAt.AddDays(7);
+            ExpiresAt = CreatedAt.AddDays(30);
         }
 
         public bool IsExpired(DateTime utcNow)

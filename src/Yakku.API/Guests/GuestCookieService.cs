@@ -9,7 +9,7 @@ namespace Yakku.API.Guests
     {
         public const string CookieName = "yakku_guest";
 
-        private static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
+        private static readonly TimeSpan Lifetime = TimeSpan.FromDays(30);
 
         private readonly IGuestIdentityService _guestIdentityService;
 
