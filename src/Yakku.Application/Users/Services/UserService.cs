@@ -65,12 +65,15 @@ namespace Yakku.Application.Users.Services
             var response = user.ToProfileResponse();
             var counts = await _stats.GetActivityCountsAsync(user.Id, cancellationToken);
             var streak = await _streaks.GetAsync(user.Id, cancellationToken);
-            response.CardsMade = counts.CardsMade;
-            response.VotesCast = counts.VotesCast;
-            response.Streak = new UserStreakSummary
+            response.Stats = new UserStatsDetails
             {
-                CurrentStreak = streak.CurrentStreak,
-                LongestStreak = streak.LongestStreak
+                CardsMade = counts.CardsMade,
+                VotesCast = counts.VotesCast,
+                Streak = new UserStreakSummary
+                {
+                    CurrentStreak = streak.CurrentStreak,
+                    LongestStreak = streak.LongestStreak
+                }
             };
             return response;
         }

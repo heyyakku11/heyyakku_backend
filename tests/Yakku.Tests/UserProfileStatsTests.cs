@@ -36,10 +36,10 @@ public sealed class UserProfileStatsTests
 
         var profile = await NewUserService(context).GetMeAsync(user.Id);
 
-        Assert.Equal(0, profile!.CardsMade);
-        Assert.Equal(0, profile.VotesCast);
-        Assert.Equal(0, profile.Streak.CurrentStreak);
-        Assert.Equal(0, profile.Streak.LongestStreak);
+        Assert.Equal(0, profile!.Stats.CardsMade);
+        Assert.Equal(0, profile.Stats.VotesCast);
+        Assert.Equal(0, profile.Stats.Streak.CurrentStreak);
+        Assert.Equal(0, profile.Stats.Streak.LongestStreak);
     }
 
     [SkippableFact]
@@ -55,8 +55,8 @@ public sealed class UserProfileStatsTests
 
         var profile = await NewUserService(context).GetMeAsync(user.Id);
 
-        Assert.Equal(3, profile!.CardsMade);
-        Assert.Equal(0, profile.VotesCast); // the owner's own answer on the check is not a cast vote
+        Assert.Equal(3, profile!.Stats.CardsMade);
+        Assert.Equal(0, profile.Stats.VotesCast); // the owner's own answer on the check is not a cast vote
     }
 
     [SkippableFact]
@@ -85,8 +85,8 @@ public sealed class UserProfileStatsTests
 
         var profile = await NewUserService(context).GetMeAsync(me.Id);
 
-        Assert.Equal(3, profile!.VotesCast); // two polls and one check, all by others; own poll and guest row excluded
-        Assert.Equal(1, profile.CardsMade);
+        Assert.Equal(3, profile!.Stats.VotesCast); // two polls and one check, all by others; own poll and guest row excluded
+        Assert.Equal(1, profile.Stats.CardsMade);
     }
 
     [SkippableFact]
@@ -105,8 +105,8 @@ public sealed class UserProfileStatsTests
         await streaks.RecordAsync(user.Id, StreakActivity.VoteCast, Today);
         var restarted = await NewUserService(context).GetMeAsync(user.Id);
 
-        Assert.Equal((0, 4), (expired!.Streak.CurrentStreak, expired.Streak.LongestStreak));
-        Assert.Equal((1, 4), (restarted!.Streak.CurrentStreak, restarted.Streak.LongestStreak));
+        Assert.Equal((0, 4), (expired!.Stats.Streak.CurrentStreak, expired.Stats.Streak.LongestStreak));
+        Assert.Equal((1, 4), (restarted!.Stats.Streak.CurrentStreak, restarted.Stats.Streak.LongestStreak));
     }
 
     private static UserService NewUserService(YakkuDbContext context)
