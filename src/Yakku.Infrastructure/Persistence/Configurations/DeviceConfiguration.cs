@@ -17,6 +17,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 table.HasCheckConstraint(
                     "CK_devices_push_token_hash_matches_token",
                     "(\"PushToken\" IS NULL) = (\"PushTokenHash\" IS NULL)");
+                // A current session only makes sense with the account it belongs to.
+                table.HasCheckConstraint(
+                    "CK_devices_current_session_has_user",
+                    "\"CurrentSessionId\" IS NULL OR \"UserId\" IS NOT NULL");
             });
             builder.HasKey(x => x.Id);
 
@@ -77,6 +81,22 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => new { x.InstallationId, x.Platform })
                 .IsUnique()
                 .HasDatabaseName("IX_Devices_InstallationId_Platform");
+
+            // A session is the current one of at most one installation.
+            builder.HasIndex(x => x.CurrentSessionId)
+                .IsUnique()
+                .HasFilter("\"CurrentSessionId\" IS NOT NULL")
+                .HasDatabaseName("IX_Devices_CurrentSessionId");
+
+            // (CurrentSessionId, UserId) -> user_sessions(Id, UserId): the database guarantees the installation's
+            // current user is the user of its current session. Deleting the session unassociates the installation.
+            builder.HasOne<UserSession>()
+                .WithMany()
+                .HasForeignKey(x => new { x.CurrentSessionId, x.UserId })
+                .HasPrincipalKey(x => new { x.Id, x.UserId })
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_devices_user_sessions_CurrentSessionId_UserId");
 
             builder.HasOne(x => x.User)
                 .WithMany(x => x.Devices)

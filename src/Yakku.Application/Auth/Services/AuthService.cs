@@ -5,6 +5,7 @@ using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Models;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Devices.DTOs;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -263,15 +264,16 @@ namespace Yakku.Application.Auth.Services
 
             if (challenge.Purpose == OtpPurpose.Registration)
             {
-                return await CompleteRegistrationAsync(phoneNumber, challenge, cancellationToken);
+                return await CompleteRegistrationAsync(phoneNumber, challenge, request.Device, cancellationToken);
             }
 
-            return await CompleteLoginAsync(phoneNumber, cancellationToken);
+            return await CompleteLoginAsync(phoneNumber, request.Device, cancellationToken);
         }
 
         private async Task<VerifyOtpResponse> CompleteRegistrationAsync(
             string phoneNumber,
             OtpChallenge challenge,
+            RegisterDeviceRequest? installation,
             CancellationToken cancellationToken)
         {
             var name = challenge.Name?.Trim();
@@ -293,11 +295,12 @@ namespace Yakku.Application.Auth.Services
             await _userRepository.SaveChangesAsync(cancellationToken);
             await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
 
-            return await ToResponseAsync(user, OtpPurpose.Registration, cancellationToken);
+            return await ToResponseAsync(user, OtpPurpose.Registration, installation, cancellationToken);
         }
 
         private async Task<VerifyOtpResponse> CompleteLoginAsync(
             string phoneNumber,
+            RegisterDeviceRequest? installation,
             CancellationToken cancellationToken)
         {
             var user = await _userRepository.GetByPhoneNumberAsync(phoneNumber, cancellationToken);
@@ -329,7 +332,7 @@ namespace Yakku.Application.Auth.Services
                     CancellationToken.None);
             }
 
-            var response = await ToResponseAsync(user, OtpPurpose.Login, cancellationToken);
+            var response = await ToResponseAsync(user, OtpPurpose.Login, installation, cancellationToken);
             response.AccountRestored = restored;
             return response;
         }
@@ -355,9 +358,10 @@ namespace Yakku.Application.Auth.Services
         private async Task<VerifyOtpResponse> ToResponseAsync(
             User user,
             OtpPurpose purpose,
+            RegisterDeviceRequest? installation,
             CancellationToken cancellationToken)
         {
-            var tokens = await _sessionService.CreateAsync(user.Id, cancellationToken);
+            var tokens = await _sessionService.CreateAsync(user.Id, installation, cancellationToken);
 
             return new VerifyOtpResponse
             {

@@ -51,6 +51,7 @@ namespace Yakku.Infrastructure
             services.AddSingleton(AuditRetentionOptions.Default);
             services.AddScoped<AuditRetentionService>();
             services.AddHostedService<GuestCleanupWorker>();
+            services.AddHostedService<SessionCleanupWorker>();
             services.AddHostedService<AuditRetentionWorker>();
             services.AddScoped<ISavedPollRepository, SavedPollRepository>();
             services.AddScoped<IUserRepository, UserRepository>();

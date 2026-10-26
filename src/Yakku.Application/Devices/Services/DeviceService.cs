@@ -12,7 +12,7 @@ using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Devices.Services
 {
-    public class DeviceService : IDeviceService
+    public class DeviceService : IDeviceService, IDeviceSessionBinder
     {
         private readonly IDeviceRepository _devices;
         private readonly IUserSessionRepository _sessions;
@@ -118,6 +118,7 @@ namespace Yakku.Application.Devices.Services
                 {
                     var device = await ResolveCurrentAsync(caller, session, installationId, transactionToken)
                         ?? throw DeviceNotFound();
+                    EnsureAssociatedWithCaller(device, caller);
 
                     var effectivePermission = permission ?? device.NotificationPermission;
                     var wantsToken = !string.IsNullOrWhiteSpace(request.PushToken)
@@ -186,6 +187,17 @@ namespace Yakku.Application.Devices.Services
             {
                 var device = await ResolveCurrentAsync(caller, session, installationId, transactionToken)
                     ?? throw DeviceNotFound();
+                EnsureAssociatedWithCaller(device, caller);
+
+                if (caller.IsUser)
+                {
+                    // Conditional on the caller's own session still being the installation's current one, so a
+                    // delayed unregister cannot switch off an installation that has since moved to another session.
+                    var wasUserEnabled = device.IsActive || device.PushToken is not null;
+                    var affected = await _devices.DeactivateBySessionAsync(caller.SessionId!.Value, transactionToken);
+                    changed = wasUserEnabled && affected > 0;
+                    return;
+                }
 
                 var wasEnabled = device.IsActive || device.PushToken is not null;
                 device.Deactivate();
@@ -234,9 +246,18 @@ namespace Yakku.Application.Devices.Services
             RegisterDeviceRequest request,
             CancellationToken cancellationToken)
         {
-            var existing = await _devices.GetByInstallationIdAndPlatformAsync(
+            // Lock the installation row so register, login and logout on it are serialized.
+            var existing = await _devices.GetByInstallationIdAndPlatformForUpdateAsync(
                 installationId, platform, cancellationToken);
             var provenGuestId = await ResolveProvenGuestIdAsync(caller, cancellationToken);
+
+            if (caller.IsUser
+                && !await _sessions.IsLiveAsync(
+                    caller.SessionId!.Value, caller.UserId!.Value, DateTime.UtcNow, cancellationToken))
+            {
+                // Logged out (or evicted/expired) after the request was authenticated: never associate it.
+                throw Unauthorized();
+            }
 
             if (existing is not null)
             {
@@ -258,12 +279,22 @@ namespace Yakku.Application.Devices.Services
 
             if (caller.IsUser)
             {
-                device.Register(
-                    caller.UserId!.Value, platform, request.PushToken, request.DeviceModel, request.OsVersion,
-                    request.AppVersion, request.AppBuild, request.Locale, request.Timezone, permission);
                 // Re-read inside the transaction: a rolled-back first attempt detaches earlier entities.
                 var session = await _sessions.GetByIdAsync(caller.SessionId!.Value, cancellationToken)
                     ?? throw Unauthorized();
+                if (session.DeviceId is Guid boundDeviceId && boundDeviceId != device.Id)
+                {
+                    throw new AppException(
+                        409,
+                        ApiErrorCodes.DeviceConflict,
+                        "This session belongs to another installation. Sign in again on this installation.",
+                        "installationId");
+                }
+
+                device.Register(
+                    caller.UserId!.Value, platform, request.PushToken, request.DeviceModel, request.OsVersion,
+                    request.AppVersion, request.AppBuild, request.Locale, request.Timezone, permission,
+                    session.Id);
                 session.AssignDevice(device.Id);
             }
             else
@@ -299,9 +330,10 @@ namespace Yakku.Application.Devices.Services
 
             if (existing.UserId is not null)
             {
-                // A user keeps the installation while any of their login sessions is still linked to it.
-                // After logout (or once sessions expire) it is free for the next account on the same phone.
-                if (await _sessions.HasLiveSessionForDeviceAsync(existing.Id, DateTime.UtcNow, null, cancellationToken))
+                // Another account keeps the installation while its current session is live. After logout (or once
+                // that session ends) it is free; an authenticated register still cannot evict a live account:
+                // only a fresh OTP login can (see BindLoginAsync).
+                if (await HasLiveCurrentSessionAsync(existing, cancellationToken))
                 {
                     throw new DeviceOwnershipException(
                         "installation_owned_by_another_account",
@@ -346,7 +378,9 @@ namespace Yakku.Application.Devices.Services
 
             foreach (var other in others)
             {
-                if (!IsOwnedBy(other, caller, provenGuestId))
+                // A holder with no live owner is stale (logged out, expired, reinstalled app); a token is never
+                // taken from a device that still has a live owner of its own.
+                if (!IsOwnedBy(other, caller, provenGuestId) && !await IsStaleHolderAsync(other, cancellationToken))
                 {
                     throw new DeviceOwnershipException(
                         "push_token_owned_by_another_device",
@@ -451,6 +485,116 @@ namespace Yakku.Application.Devices.Services
             return (caller.UserId is not null && device.UserId == caller.UserId)
                 || (caller.GuestId is not null && device.GuestId == caller.GuestId)
                 || (provenGuestId is not null && device.GuestId == provenGuestId);
+        }
+
+        public async Task<DeviceLoginBindResult> BindLoginAsync(
+            Guid userId,
+            UserSession session,
+            RegisterDeviceRequest installation,
+            CancellationToken cancellationToken = default)
+        {
+            await _registerValidator.ValidateAndThrowAsync(installation, cancellationToken);
+
+            var installationId = installation.InstallationId.Trim();
+            DeviceFieldParser.TryParsePlatform(installation.Platform, out var platform);
+            var permission = ParseOptionalPermission(installation.NotificationPermission);
+            var caller = DeviceCaller.ForUser(userId, session.Id);
+
+            var existing = await _devices.GetByInstallationIdAndPlatformForUpdateAsync(
+                installationId, platform, cancellationToken);
+
+            Guid? displacedSessionId = null;
+            Guid? previousUserId = null;
+            if (existing is not null)
+            {
+                if (existing.GuestId is not null)
+                {
+                    // A guest's installation moves to the account through the guest-claim step, not here.
+                    throw new DeviceOwnershipException(
+                        "installation_owned_by_guest",
+                        "This installation is registered to a guest session.");
+                }
+
+                if (existing.CurrentSessionId is Guid previousSessionId && previousSessionId != session.Id)
+                {
+                    // One active account per installation: the session that used to own it ends. Its user and
+                    // device stay on the row as history; nothing about that session is rewritten.
+                    var previous = await _sessions.GetByIdAsync(previousSessionId, cancellationToken);
+                    if (previous is not null)
+                    {
+                        previousUserId = previous.UserId;
+                        previous.Revoke();
+                        displacedSessionId = previous.Id;
+                    }
+                }
+            }
+
+            var storedToken = permission == NotificationPermissionStatus.Denied
+                ? null
+                : NormalizeToken(installation.PushToken);
+            if (storedToken is not null)
+            {
+                await ReleaseTokenFromOthersAsync(storedToken, existing?.Id, caller, cancellationToken);
+            }
+
+            var created = existing is null;
+            var device = existing ?? new Device(installationId, platform, userId);
+            device.Register(
+                userId, platform, installation.PushToken, installation.DeviceModel, installation.OsVersion,
+                installation.AppVersion, installation.AppBuild, installation.Locale, installation.Timezone,
+                permission, session.Id);
+            session.AssignDevice(device.Id);
+
+            if (created)
+            {
+                await _devices.AddAsync(device, cancellationToken);
+            }
+
+            await _devices.SaveChangesAsync(cancellationToken);
+
+            if (displacedSessionId is not null && previousUserId != userId)
+            {
+                await AuditAsync(
+                    caller,
+                    AuditEvents.Device.AccountSwitched,
+                    AuditOutcome.Success,
+                    null,
+                    new Dictionary<string, string?> { ["displacedSessionId"] = displacedSessionId.ToString() });
+            }
+
+            return new DeviceLoginBindResult(device.Id, displacedSessionId, previousUserId);
+        }
+
+        /// <summary>Installations are used by the session that owns them, not by any session of the same user.</summary>
+        private static void EnsureAssociatedWithCaller(Device device, DeviceCaller caller)
+        {
+            if (caller.IsUser && device.CurrentSessionId is Guid current && current != caller.SessionId)
+            {
+                throw DeviceNotFound();
+            }
+        }
+
+        private async Task<bool> HasLiveCurrentSessionAsync(Device device, CancellationToken cancellationToken)
+        {
+            return device is { CurrentSessionId: Guid sessionId, UserId: Guid userId }
+                && await _sessions.IsLiveAsync(sessionId, userId, DateTime.UtcNow, cancellationToken);
+        }
+
+        /// <summary>True when nobody live owns the device: no live session for a user, an expired or gone guest.</summary>
+        private async Task<bool> IsStaleHolderAsync(Device holder, CancellationToken cancellationToken)
+        {
+            if (holder.UserId is not null)
+            {
+                return !await HasLiveCurrentSessionAsync(holder, cancellationToken);
+            }
+
+            if (holder.GuestId is Guid guestId)
+            {
+                var guest = await _guests.GetByIdAsync(guestId, cancellationToken);
+                return guest is null || guest.IsExpired(DateTime.UtcNow);
+            }
+
+            return true;
         }
 
         private Task AuditAsync(

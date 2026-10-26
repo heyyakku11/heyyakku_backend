@@ -82,22 +82,159 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<Device?> GetByInstallationIdAndPlatformForUpdateAsync(
+            string installationId,
+            DevicePlatform platform,
+            CancellationToken cancellationToken = default)
+        {
+            // FOR UPDATE makes a concurrent login/register/logout on the same installation wait for this
+            // transaction, then re-read the committed row. Platform is stored as its enum name.
+            var platformName = platform.ToString();
+            var matches = await _context.Devices
+                .FromSqlInterpolated(
+                    $"SELECT * FROM devices WHERE \"InstallationId\" = {installationId} AND \"Platform\" = {platformName} FOR UPDATE")
+                .ToListAsync(cancellationToken);
+            return matches.FirstOrDefault();
+        }
+
         public async Task<IReadOnlyList<Device>> GetPushTargetsByUserIdAsync(
             Guid userId,
             DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
-            return await _context.Devices
-                .Where(device => device.UserId == userId
-                    && device.IsActive
-                    && device.PushToken != null
-                    && device.NotificationPermission != NotificationPermissionStatus.Denied
-                    && _context.UserSessions.Any(session => session.DeviceId == device.Id
-                        && session.UserId == userId
-                        && session.RevokedAt == null
-                        && session.ExpiresAt > utcNow))
+            return await PushEligible(utcNow)
+                .Where(device => device.UserId == userId)
                 .OrderByDescending(device => device.LastSeenAt)
                 .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Device>> GetPushEligibleByIdsAsync(
+            IReadOnlyCollection<Guid> deviceIds,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            if (deviceIds.Count == 0)
+            {
+                return [];
+            }
+
+            return await PushEligible(utcNow)
+                .AsNoTracking()
+                .Where(device => deviceIds.Contains(device.Id))
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<int> DetachBySessionsAsync(
+            IReadOnlyCollection<Guid> sessionIds,
+            CancellationToken cancellationToken = default)
+        {
+            if (sessionIds.Count == 0)
+            {
+                return 0;
+            }
+
+            // The WHERE clause is the guard: only installations still pointing at one of these sessions change.
+            return await DetachAsync(
+                _context.Devices.Where(device => device.CurrentSessionId != null
+                    && sessionIds.Contains(device.CurrentSessionId.Value)),
+                cancellationToken);
+        }
+
+        public async Task<int> DeactivateBySessionAsync(
+            Guid sessionId,
+            CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var changed = await _context.Devices
+                .Where(device => device.CurrentSessionId == sessionId)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(device => device.IsActive, false)
+                        .SetProperty(device => device.PushToken, (string?)null)
+                        .SetProperty(device => device.PushTokenHash, (string?)null)
+                        .SetProperty(device => device.UpdatedAt, now),
+                    cancellationToken);
+            ForgetTrackedDevices(_ => true);
+            return changed;
+        }
+
+        public Task<int> DetachByUserAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return DetachAsync(_context.Devices.Where(device => device.UserId == userId), cancellationToken);
+        }
+
+        public Task<int> DetachWithEndedSessionsAsync(DateTime utcNow, CancellationToken cancellationToken = default)
+        {
+            return DetachAsync(
+                _context.Devices.Where(device => device.CurrentSessionId != null
+                    && _context.UserSessions.Any(session => session.Id == device.CurrentSessionId
+                        && (session.RevokedAt != null || session.ExpiresAt <= utcNow))),
+                cancellationToken);
+        }
+
+        public async Task<bool> ClearPushTokenIfMatchesAsync(
+            Guid deviceId,
+            string pushTokenHash,
+            CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var cleared = await _context.Devices
+                .Where(device => device.Id == deviceId && device.PushTokenHash == pushTokenHash)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(device => device.PushToken, (string?)null)
+                        .SetProperty(device => device.PushTokenHash, (string?)null)
+                        .SetProperty(device => device.UpdatedAt, now),
+                    cancellationToken);
+            ForgetTrackedDevices(device => device.Id == deviceId);
+            return cleared > 0;
+        }
+
+        /// <summary>
+        /// A device may receive push only when: it belongs to a user, is active, has a token and has not denied
+        /// permission; its current session is a live session of that same user; and the user allows push.
+        /// </summary>
+        private IQueryable<Device> PushEligible(DateTime utcNow)
+        {
+            return _context.Devices.Where(device => device.UserId != null
+                && device.IsActive
+                && device.PushToken != null
+                && device.NotificationPermission != NotificationPermissionStatus.Denied
+                && device.CurrentSessionId != null
+                && _context.UserSessions.Any(session => session.Id == device.CurrentSessionId
+                    && session.UserId == device.UserId
+                    && session.RevokedAt == null
+                    && session.ExpiresAt > utcNow)
+                && _context.UserProfiles.Any(profile => profile.UserId == device.UserId
+                    && profile.IsPushAllowed));
+        }
+
+        private async Task<int> DetachAsync(IQueryable<Device> devices, CancellationToken cancellationToken)
+        {
+            var now = DateTime.UtcNow;
+            var detached = await devices.ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(device => device.UserId, (Guid?)null)
+                    .SetProperty(device => device.CurrentSessionId, (Guid?)null)
+                    .SetProperty(device => device.IsActive, false)
+                    .SetProperty(device => device.PushToken, (string?)null)
+                    .SetProperty(device => device.PushTokenHash, (string?)null)
+                    .SetProperty(device => device.UpdatedAt, now),
+                cancellationToken);
+
+            // ExecuteUpdate bypasses the change tracker; drop copies that may now be stale.
+            ForgetTrackedDevices(_ => true);
+            return detached;
+        }
+
+        private void ForgetTrackedDevices(Func<Device, bool> predicate)
+        {
+            foreach (var entry in _context.ChangeTracker.Entries<Device>()
+                         .Where(entry => entry.State == EntityState.Unchanged && predicate(entry.Entity))
+                         .ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
         }
 
         public async Task<int> TransferGuestDevicesAsync(

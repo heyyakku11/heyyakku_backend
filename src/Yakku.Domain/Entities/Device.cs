@@ -9,6 +9,15 @@ namespace Yakku.Domain.Entities
         public Guid Id { get; private set; }
         public Guid? UserId { get; private set; }
         public Guid? GuestId { get; private set; }
+
+        /// <summary>
+        /// The one login session that currently owns this installation. <see cref="UserId"/> is the account that
+        /// session belongs to (the database enforces they match). Historical sessions keep their own user and device;
+        /// only this pointer moves when another account signs in on the same installation or the session ends.
+        /// Push is routed only through a device whose current session is live.
+        /// </summary>
+        public Guid? CurrentSessionId { get; private set; }
+
         public string InstallationId { get; private set; } = string.Empty;
         public string? PushToken { get; private set; }
 
@@ -67,9 +76,10 @@ namespace Yakku.Domain.Entities
             string? appBuild,
             string? locale,
             string? timezone,
-            NotificationPermissionStatus? notificationPermission)
+            NotificationPermissionStatus? notificationPermission,
+            Guid? sessionId = null)
         {
-            AssignToUser(userId);
+            AssignToUser(userId, sessionId);
             ApplyRegistration(
                 platform, pushToken, deviceModel, osVersion, appVersion, appBuild, locale, timezone,
                 notificationPermission);
@@ -93,17 +103,44 @@ namespace Yakku.Domain.Entities
                 notificationPermission);
         }
 
-        /// <summary>An installation has exactly one owner: assigning a user releases any guest owner.</summary>
-        public void AssignToUser(Guid userId)
+        /// <summary>
+        /// An installation has exactly one owner: assigning a user releases any guest owner. A different user never
+        /// inherits the previous account's session pointer; <paramref name="sessionId"/> (if any) must belong to
+        /// <paramref name="userId"/>.
+        /// </summary>
+        public void AssignToUser(Guid userId, Guid? sessionId = null)
         {
+            if (UserId != userId)
+            {
+                CurrentSessionId = null;
+            }
+
             UserId = userId;
             GuestId = null;
+            if (sessionId is not null)
+            {
+                CurrentSessionId = sessionId;
+            }
         }
 
         public void AssignToGuest(Guid guestId)
         {
             GuestId = guestId;
             UserId = null;
+            CurrentSessionId = null;
+        }
+
+        /// <summary>
+        /// Ends the account association (logout, session end): no user, no current session, no token, no push.
+        /// The row and its history stay so the next account can claim the installation.
+        /// </summary>
+        public void Detach()
+        {
+            UserId = null;
+            CurrentSessionId = null;
+            IsActive = false;
+            SetPushToken(null);
+            UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>

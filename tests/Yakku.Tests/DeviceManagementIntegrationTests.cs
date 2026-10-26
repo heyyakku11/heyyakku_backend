@@ -189,8 +189,9 @@ public sealed class DeviceManagementIntegrationTests
         await service.RegisterAsync(caller, first);
         var second = NewRequest();
         second.PushToken = first.PushToken;
+        var secondSession = await AddSessionAsync(context, user); // one session per installation
 
-        await service.RegisterAsync(caller, second);
+        await service.RegisterAsync(DeviceCaller.ForUser(user.Id, secondSession.Id), second);
 
         await using var verify = _fixture.CreateContext();
         Assert.Null((await verify.Devices.SingleAsync(d => d.InstallationId == first.InstallationId)).PushToken);
@@ -406,7 +407,8 @@ public sealed class DeviceManagementIntegrationTests
         var phone = NewRequest();
         var tablet = NewRequest();
         await service.RegisterAsync(DeviceCaller.ForUser(alice.Id, aliceSession.Id), phone);
-        await service.RegisterAsync(DeviceCaller.ForUser(alice.Id, aliceSession.Id), tablet);
+        var aliceTabletSession = await AddSessionAsync(context, alice);
+        await service.RegisterAsync(DeviceCaller.ForUser(alice.Id, aliceTabletSession.Id), tablet);
         var bobRequest = NewRequest();
         await service.RegisterAsync(DeviceCaller.ForUser(bob.Id, bobSession.Id), bobRequest);
 
@@ -480,7 +482,7 @@ public sealed class DeviceManagementIntegrationTests
     // ---- logout ------------------------------------------------------------------------------------------------
 
     [SkippableFact]
-    public async Task Logout_DisablesPushButKeepsOwnership_AndTheNextLoginReEnablesIt()
+    public async Task Logout_ReleasesTheInstallation_AndTheNextLoginReEnablesIt()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
@@ -499,7 +501,8 @@ public sealed class DeviceManagementIntegrationTests
             var row = await verify.Devices.SingleAsync(d => d.InstallationId == request.InstallationId);
             Assert.False(row.IsActive);
             Assert.Null(row.PushToken);
-            Assert.Equal(user.Id, row.UserId); // ownership is not silently changed or returned to a guest
+            Assert.Null(row.UserId); // the installation is released: nothing routes to this account any more
+            Assert.Null(row.CurrentSessionId);
             Assert.NotNull((await verify.UserSessions.SingleAsync(s => s.Id == sessionId)).RevokedAt);
         }
 
@@ -789,6 +792,7 @@ public sealed class DeviceManagementIntegrationTests
             new TokenService("device-tests-secret-device-tests-secret-1234"),
             new RefreshTokenValidator(),
             new DeviceRepository(context),
+            NewDeviceService(context),
             new RecordingAuditLogWriter());
     }
 
@@ -840,6 +844,14 @@ public sealed class DeviceManagementIntegrationTests
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;
+    }
+
+    private static async Task<UserSession> AddSessionAsync(YakkuDbContext context, User user)
+    {
+        var session = new UserSession(user.Id, "hash-" + Guid.NewGuid().ToString("N"), DateTime.UtcNow.AddDays(30));
+        context.UserSessions.Add(session);
+        await context.SaveChangesAsync();
+        return session;
     }
 
     private static async Task<(User User, UserSession Session)> AddUserWithSessionAsync(YakkuDbContext context)

@@ -42,6 +42,9 @@ namespace Yakku.Application.Audit
             public const string Unregistered = "device.unregistered";
             public const string OwnershipConflict = "device.ownership_conflict";
             public const string LoggedOut = "device.logout_disabled";
+            public const string LoginBound = "device.login_bound";
+            public const string LoginBindFailed = "device.login_bind_failed";
+            public const string AccountSwitched = "device.account_switched";
         }
 
         public static class Poll
@@ -69,6 +72,7 @@ namespace Yakku.Application.Audit
             public const string GuestCleanup = "guest_cleanup";
             public const string AuditRetention = "audit_retention";
             public const string AccountDeletion = "account_deletion";
+            public const string SessionCleanup = "session_cleanup";
         }
     }
 }

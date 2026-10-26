@@ -49,6 +49,27 @@ namespace Yakku.Application.Notifications.Services
             };
         }
 
+        public async Task<NotificationResponse> GetAsync(
+            Guid userId,
+            Guid notificationId,
+            CancellationToken cancellationToken = default)
+        {
+            var notification = await _notifications.GetByIdForUserAsync(
+                notificationId,
+                userId,
+                cancellationToken);
+
+            if (notification is null)
+            {
+                throw new AppException(
+                    404,
+                    ApiErrorCodes.NotFound,
+                    "Notification not found");
+            }
+
+            return notification.ToResponse();
+        }
+
         public async Task<NotificationResponse> MarkAsReadAsync(
             Guid userId,
             Guid notificationId,

@@ -202,6 +202,9 @@ public class AccountDeletionTests
         public Task<TokenResponse> CreateAsync(Guid userId, CancellationToken cancellationToken = default)
             => Task.FromResult(new TokenResponse { AccessToken = "access", RefreshToken = "refresh" });
 
+        public Task<TokenResponse> CreateAsync(Guid userId, Yakku.Application.Devices.DTOs.RegisterDeviceRequest? installation, CancellationToken cancellationToken = default)
+            => CreateAsync(userId, cancellationToken);
+
         public Task<TokenResponse> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 

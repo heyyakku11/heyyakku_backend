@@ -101,19 +101,36 @@ namespace Yakku.Application.PushNotifications.Services
             CancellationToken cancellationToken = default)
         {
             await _payloadValidator.ValidateAndThrowAsync(payload, cancellationToken);
-            EnsureEligible(device);
 
+            // The caller's copy may be stale (queued work, a cached list). Decide from the database, at send time,
+            // whether this installation still belongs to a signed-in account that wants push.
+            // The payload was meant for the account the caller saw on the device; if the installation now belongs
+            // to anyone else, nothing is sent.
+            var current = (await _devices.GetPushEligibleByIdsAsync([device.Id], DateTime.UtcNow, cancellationToken))
+                .FirstOrDefault(fresh => fresh.UserId == device.UserId);
+            if (current is null)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "Device is not eligible for push: it is inactive, has no push token, has no live signed-in " +
+                    "account, or the account has push disabled.",
+                    "installationId");
+            }
+
+            device = current;
+            var sentToken = device.PushToken!;
             var stopwatch = Stopwatch.StartNew();
-            var sendResult = await _firebase.SendAsync(device.PushToken!, payload, cancellationToken);
+            var sendResult = await _firebase.SendAsync(sentToken, payload, cancellationToken);
             stopwatch.Stop();
             await AuditAttemptAsync(device, sendResult, (int)stopwatch.ElapsedMilliseconds);
             var deactivated = false;
 
             if (sendResult.IsInvalidToken)
             {
-                device.Deactivate();
-                await _devices.SaveChangesAsync(cancellationToken);
-                deactivated = true;
+                // Only the token that just failed is dropped; a token the app refreshed meanwhile is kept.
+                deactivated = await _devices.ClearPushTokenIfMatchesAsync(
+                    device.Id, Device.ComputeTokenHash(sentToken), cancellationToken);
             }
 
             if (!sendResult.Success && !sendResult.IsInvalidToken)
@@ -150,8 +167,13 @@ namespace Yakku.Application.PushNotifications.Services
         {
             await _payloadValidator.ValidateAndThrowAsync(payload, cancellationToken);
 
-            var eligible = devices
-                .Where(IsEligible)
+            // Re-check every device against the database at send time (see SendToDeviceAsync).
+            // The payload was meant for the account the caller saw on each device; a device that now belongs to
+            // anyone else is skipped.
+            var intendedUsers = devices.ToDictionary(device => device.Id, device => device.UserId);
+            var eligible = (await _devices.GetPushEligibleByIdsAsync(
+                    intendedUsers.Keys.ToList(), DateTime.UtcNow, cancellationToken))
+                .Where(fresh => intendedUsers[fresh.Id] == fresh.UserId)
                 .ToList();
 
             if (eligible.Count == 0)
@@ -195,13 +217,11 @@ namespace Yakku.Application.PushNotifications.Services
                     continue;
                 }
 
-                device.Deactivate();
-                deactivated++;
-            }
-
-            if (deactivated > 0)
-            {
-                await _devices.SaveChangesAsync(cancellationToken);
+                if (await _devices.ClearPushTokenIfMatchesAsync(
+                        device.Id, Device.ComputeTokenHash(tokens[index]), cancellationToken))
+                {
+                    deactivated++;
+                }
             }
 
             return new PushUserNotificationResult
@@ -289,30 +309,5 @@ namespace Yakku.Application.PushNotifications.Services
                 CancellationToken.None);
         }
 
-        private static void EnsureEligible(Device device)
-        {
-            if (!device.IsActive)
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "Device is inactive.",
-                    "installationId");
-            }
-
-            if (string.IsNullOrWhiteSpace(device.PushToken))
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "Device does not have a push token.",
-                    "installationId");
-            }
-        }
-
-        private static bool IsEligible(Device device)
-        {
-            return device.IsActive && !string.IsNullOrWhiteSpace(device.PushToken);
-        }
     }
 }

@@ -40,6 +40,10 @@ namespace Yakku.Domain.Entities
             RevokedAt ??= DateTime.UtcNow;
         }
 
+        /// <summary>
+        /// Binds the session to the installation it was created on. History is never rewritten: once set, the
+        /// device cannot change.
+        /// </summary>
         public void AssignDevice(Guid deviceId)
         {
             if (deviceId == Guid.Empty)
@@ -47,7 +51,22 @@ namespace Yakku.Domain.Entities
                 throw new ArgumentException("Device id is required.", nameof(deviceId));
             }
 
+            if (DeviceId == deviceId)
+            {
+                return;
+            }
+
+            if (DeviceId is not null)
+            {
+                throw new InvalidOperationException("A session stays bound to the installation it was created on.");
+            }
+
             DeviceId = deviceId;
+        }
+
+        public bool IsLive(DateTime utcNow)
+        {
+            return RevokedAt is null && !IsExpired(utcNow);
         }
 
         public bool IsExpired(DateTime utcNow)

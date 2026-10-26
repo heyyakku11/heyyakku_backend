@@ -9,6 +9,7 @@ namespace Yakku.API.Controllers
 {
     /// <summary>The signed-in user's in-app notifications.</summary>
     [Authorize]
+    [ServiceFilter(typeof(LiveSessionFilter))]
     [ApiController]
     [Route("api/v1/notifications")]
     public class NotificationsController : ControllerBase
@@ -36,6 +37,22 @@ namespace Yakku.API.Controllers
                 cancellationToken);
 
             return Ok(ApiResponse.Ok(result.Items, "Notifications retrieved successfully", result.Meta));
+        }
+
+        [HttpGet("{id:guid}")]
+        [EndpointSummary("Get Notification")]
+        [EndpointDescription("Returns one of the signed-in user's notifications; this is where a push notification's notificationId is opened. Returns 404 when it does not exist or belongs to someone else.")]
+        [ProducesResponseType(typeof(ApiResponse<NotificationResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await _notificationService.GetAsync(
+                User.GetRequiredUserId(),
+                id,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(result, "Notification retrieved successfully"));
         }
 
         [HttpPatch("{id:guid}/read")]

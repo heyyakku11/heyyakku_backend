@@ -311,6 +311,8 @@ public sealed class DevicePushTargetsIntegrationTests
         session.AssignDevice(device.Id);
         context.UserSessions.Add(session);
         await context.SaveChangesAsync();
+        device.AssignToUser(user.Id, session.Id);
+        await context.SaveChangesAsync();
         return session;
     }
 }

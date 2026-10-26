@@ -163,6 +163,7 @@ builder.Services.AddInfrastructure();
 builder.Services.AddScoped<Yakku.API.Guests.GuestCookieService>();
 builder.Services.AddScoped<Yakku.API.Media.MediaCallerResolver>();
 builder.Services.AddScoped<Yakku.API.Devices.DeviceCallerResolver>();
+builder.Services.AddScoped<Yakku.API.Auth.LiveSessionFilter>();
 
 var corsOrigins = ParseCorsOrigins(Environment.GetEnvironmentVariable("CORS_ORIGINS"));
 if (corsOrigins.Length > 0)

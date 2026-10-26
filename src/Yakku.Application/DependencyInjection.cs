@@ -37,6 +37,7 @@ namespace Yakku.Application
             services.AddScoped<ISavedPollService, SavedPollService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ISessionService, SessionService>();
+            services.AddScoped<ISessionCleanupService, SessionCleanupService>();
             services.AddScoped<IAdminAuthService, AdminAuthService>();
             services.AddScoped<IAdminSessionService, AdminSessionService>();
             services.AddSingleton<IAdminAuthSettings, EnvAdminAuthSettings>();
@@ -51,6 +52,7 @@ namespace Yakku.Application
             services.AddScoped<ICheckService, CheckService>();
             services.AddScoped<IAdminCheckService, AdminCheckService>();
             services.AddScoped<IDeviceService, DeviceService>();
+            services.AddScoped<IDeviceSessionBinder>(provider => (DeviceService)provider.GetRequiredService<IDeviceService>());
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IPushNotificationService, PushNotificationService>();
             services.AddSingleton<IOtpGenerator, OtpGenerator>();

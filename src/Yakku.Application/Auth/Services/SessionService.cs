@@ -3,6 +3,7 @@ using Yakku.Application.Audit;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
+using Yakku.Application.Devices.DTOs;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
@@ -12,10 +13,13 @@ namespace Yakku.Application.Auth.Services
 {
     public class SessionService : ISessionService
     {
+        private const int MaxLiveSessions = 5;
+
         private readonly IUserSessionRepository _sessions;
         private readonly ITokenService _tokenService;
         private readonly IValidator<RefreshTokenRequest> _refreshTokenValidator;
         private readonly IDeviceRepository _devices;
+        private readonly IDeviceSessionBinder _deviceBinder;
         private readonly IAuditLogWriter _audit;
 
         public SessionService(
@@ -23,48 +27,125 @@ namespace Yakku.Application.Auth.Services
             ITokenService tokenService,
             IValidator<RefreshTokenRequest> refreshTokenValidator,
             IDeviceRepository devices,
+            IDeviceSessionBinder deviceBinder,
             IAuditLogWriter audit)
         {
             _sessions = sessions;
             _tokenService = tokenService;
             _refreshTokenValidator = refreshTokenValidator;
             _devices = devices;
+            _deviceBinder = deviceBinder;
             _audit = audit;
+        }
+
+        public Task<TokenResponse> CreateAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            return CreateCoreAsync(userId, null, cancellationToken);
         }
 
         public async Task<TokenResponse> CreateAsync(
             Guid userId,
+            RegisterDeviceRequest? installation,
             CancellationToken cancellationToken = default)
         {
-            const int maxLiveSessions = 5;
-            var utcNow = DateTime.UtcNow;
-            var liveSessions = await _sessions.ListLiveByUserIdAsync(userId, utcNow, cancellationToken);
-            Guid? evictedSessionId = null;
-            if (liveSessions.Count >= maxLiveSessions)
+            if (installation is null)
             {
-                var leastActive = liveSessions
-                    .OrderBy(session => session.LastActiveAt ?? DateTime.MinValue)
-                    .ThenBy(session => session.CreatedAt)
-                    .First();
-                leastActive.Revoke();
-                evictedSessionId = leastActive.Id;
+                return await CreateCoreAsync(userId, null, cancellationToken);
             }
 
+            var failure = "bind_failed";
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                try
+                {
+                    return await CreateCoreAsync(userId, installation, cancellationToken);
+                }
+                catch (AppException exception)
+                    when (attempt == 0 && exception.ErrorCode == ApiErrorCodes.DeviceConflict)
+                {
+                    // Lost a unique-index race with a concurrent request for the same installation or token;
+                    // the transaction is rolled back, so run once more against the winner's row.
+                    failure = exception.ErrorCode;
+                }
+                catch (Exception exception) when (exception is AppException or ValidationException)
+                {
+                    failure = exception is AppException app ? app.ErrorCode : "validation";
+                    break;
+                }
+            }
+
+            // The OTP is already consumed, so a device problem must never lock the user out. The session is created
+            // unbound; the client binds the installation afterwards through POST /devices/register.
+            await AuditFailureAsync(AuditEvents.Device.LoginBindFailed, failure, AuditOutcome.Failure, userId, null);
+            return await CreateCoreAsync(userId, null, cancellationToken);
+        }
+
+        /// <summary>
+        /// Creates the session, evicts the oldest ones over the cap (releasing their installations) and, when an
+        /// installation is given, binds it to the new session, all in one transaction. The user row is locked, so
+        /// concurrent logins of the same user cannot both slip under the session cap.
+        /// </summary>
+        private async Task<TokenResponse> CreateCoreAsync(
+            Guid userId,
+            RegisterDeviceRequest? installation,
+            CancellationToken cancellationToken)
+        {
+            var utcNow = DateTime.UtcNow;
             var secret = RefreshTokenHasher.GenerateSecret();
             var session = new UserSession(
                 userId,
                 RefreshTokenHasher.Hash(string.Empty, secret),
                 utcNow.Add(JwtOptions.RefreshTokenLifetime));
+            var evictedSessionIds = new List<Guid>();
+            DeviceLoginBindResult? bound = null;
 
-            await _sessions.AddAsync(session, cancellationToken);
-            await _sessions.SaveChangesAsync(cancellationToken);
-
-            if (evictedSessionId is Guid evicted)
+            await _devices.ExecuteInTransactionAsync(async transactionToken =>
             {
-                await AuditAsync(AuditEvents.Auth.SessionEvicted, AuditOutcome.Success, userId, evicted);
+                evictedSessionIds.Clear();
+                bound = null;
+
+                await _sessions.LockUserAsync(userId, transactionToken);
+                var liveSessions = await _sessions.ListLiveByUserIdAsync(userId, utcNow, transactionToken);
+                var overflow = liveSessions.Count - (MaxLiveSessions - 1);
+                if (overflow > 0)
+                {
+                    foreach (var evicted in liveSessions
+                                 .OrderBy(live => live.LastActiveAt ?? DateTime.MinValue)
+                                 .ThenBy(live => live.CreatedAt)
+                                 .Take(overflow))
+                    {
+                        evicted.Revoke();
+                        evictedSessionIds.Add(evicted.Id);
+                    }
+                }
+
+                await _sessions.AddAsync(session, transactionToken);
+                await _sessions.SaveChangesAsync(transactionToken);
+
+                if (evictedSessionIds.Count > 0)
+                {
+                    // An installation whose session was evicted no longer belongs to that account.
+                    await _devices.DetachBySessionsAsync(evictedSessionIds, transactionToken);
+                }
+
+                if (installation is not null)
+                {
+                    bound = await _deviceBinder.BindLoginAsync(userId, session, installation, transactionToken);
+                }
+            }, cancellationToken);
+
+            foreach (var evictedId in evictedSessionIds)
+            {
+                await AuditAsync(AuditEvents.Auth.SessionEvicted, AuditOutcome.Success, userId, evictedId);
             }
 
             await AuditAsync(AuditEvents.Auth.SessionCreated, AuditOutcome.Success, userId, session.Id);
+            if (bound is not null)
+            {
+                await AuditAsync(AuditEvents.Device.LoginBound, AuditOutcome.Success, userId, session.Id);
+            }
 
             return ToResponse(userId, session.Id, secret);
         }
@@ -79,11 +160,28 @@ namespace Yakku.Application.Auth.Services
                 cancellationToken);
 
             var secret = RefreshTokenHasher.GenerateSecret();
-            session.Rotate(
-                RefreshTokenHasher.Hash(string.Empty, secret),
-                DateTime.UtcNow.Add(JwtOptions.RefreshTokenLifetime));
+            var utcNow = DateTime.UtcNow;
 
-            await _sessions.SaveChangesAsync(cancellationToken);
+            // Compare-and-swap on the stored hash: of two concurrent refreshes with the same token only one wins,
+            // and a refresh racing a logout cannot resurrect the session.
+            var rotated = await _sessions.TryRotateAsync(
+                session.Id,
+                session.RefreshTokenHash,
+                RefreshTokenHasher.Hash(string.Empty, secret),
+                utcNow.Add(JwtOptions.RefreshTokenLifetime),
+                utcNow,
+                cancellationToken);
+            if (!rotated)
+            {
+                await AuditFailureAsync(
+                    AuditEvents.Auth.TokenRefreshFailed,
+                    "concurrent_refresh",
+                    AuditOutcome.Suspicious,
+                    session.UserId,
+                    session.Id);
+                throw Unauthorized();
+            }
+
             await AuditAsync(AuditEvents.Auth.TokenRefreshed, AuditOutcome.Success, session.UserId, session.Id);
 
             return ToResponse(session.UserId, session.Id, secret);
@@ -97,49 +195,24 @@ namespace Yakku.Application.Auth.Services
                 refreshToken,
                 AuditEvents.Auth.SessionRevokeFailed,
                 cancellationToken);
-            session.Revoke();
-            await _sessions.SaveChangesAsync(cancellationToken);
+
+            var detached = 0;
+            await _devices.ExecuteInTransactionAsync(async transactionToken =>
+            {
+                session.Revoke();
+                await _sessions.SaveChangesAsync(transactionToken);
+
+                // Logout policy: only the installation this session currently owns is released, and the update is
+                // conditional on that. If the installation has since moved to another session or account (a delayed
+                // logout), it matches nothing and the new association is left alone. The user's sessions on other
+                // installations are untouched.
+                detached = await _devices.DetachBySessionsAsync([session.Id], transactionToken);
+            }, cancellationToken);
+
             await AuditAsync(AuditEvents.Auth.SessionRevoked, AuditOutcome.Success, session.UserId, session.Id);
-            await DisableDeviceAfterLogoutAsync(session, cancellationToken);
-        }
-
-        /// <summary>
-        /// Logout policy: the installation stays linked to the account (ownership never changes silently) but push
-        /// delivery to it stops. It is skipped while another live session of the user still uses the installation.
-        /// Re-registering on the next login re-enables it. Best effort: it can never fail the logout itself.
-        /// </summary>
-        private async Task DisableDeviceAfterLogoutAsync(UserSession session, CancellationToken cancellationToken)
-        {
-            if (session.DeviceId is not Guid deviceId)
+            if (detached > 0)
             {
-                return;
-            }
-
-            try
-            {
-                if (await _sessions.HasLiveSessionForDeviceAsync(deviceId, DateTime.UtcNow, session.Id, cancellationToken))
-                {
-                    return;
-                }
-
-                var device = await _devices.GetByIdAsync(deviceId, cancellationToken);
-                if (device is null || device.UserId != session.UserId)
-                {
-                    return;
-                }
-
-                device.Deactivate();
-                await _devices.SaveChangesAsync(cancellationToken);
                 await AuditAsync(AuditEvents.Device.LoggedOut, AuditOutcome.Success, session.UserId, session.Id);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                await AuditFailureAsync(
-                    AuditEvents.Device.LoggedOut,
-                    exception.GetType().Name,
-                    AuditOutcome.Failure,
-                    session.UserId,
-                    session.Id);
             }
         }
 
@@ -147,33 +220,21 @@ namespace Yakku.Application.Auth.Services
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            var sessions = await _sessions.ListByUserIdAsync(userId, cancellationToken);
-            foreach (var session in sessions)
+            var revoked = 0;
+            await _devices.ExecuteInTransactionAsync(async transactionToken =>
             {
-                session.Revoke();
-            }
-
-            await _sessions.SaveChangesAsync(cancellationToken);
-
-            // Every session is gone, so none of the user's installations can receive push any more.
-            try
-            {
-                foreach (var device in await _devices.GetByUserIdAsync(userId, cancellationToken))
+                var sessions = await _sessions.ListByUserIdAsync(userId, transactionToken);
+                foreach (var session in sessions)
                 {
-                    device.Deactivate();
+                    session.Revoke();
                 }
 
-                await _devices.SaveChangesAsync(cancellationToken);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                await AuditFailureAsync(
-                    AuditEvents.Device.LoggedOut,
-                    exception.GetType().Name,
-                    AuditOutcome.Failure,
-                    userId,
-                    null);
-            }
+                await _sessions.SaveChangesAsync(transactionToken);
+                revoked = sessions.Count;
+
+                // Every session is gone, so none of the user's installations may stay associated with the account.
+                await _devices.DetachByUserAsync(userId, transactionToken);
+            }, cancellationToken);
 
             await _audit.WriteAuthenticationAsync(
                 new AuthenticationAuditEntry(
@@ -181,7 +242,7 @@ namespace Yakku.Application.Auth.Services
                     userId,
                     AuditEvents.Auth.AllSessionsRevoked,
                     AuditOutcome.Success,
-                    Metadata: new Dictionary<string, string?> { ["sessionCount"] = sessions.Count.ToString() }),
+                    Metadata: new Dictionary<string, string?> { ["sessionCount"] = revoked.ToString() }),
                 CancellationToken.None);
         }
 

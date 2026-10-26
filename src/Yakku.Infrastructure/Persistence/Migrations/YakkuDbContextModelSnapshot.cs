@@ -329,6 +329,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("CurrentSessionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("DeviceModel")
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
@@ -385,6 +388,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CurrentSessionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Devices_CurrentSessionId")
+                        .HasFilter("\"CurrentSessionId\" IS NOT NULL");
+
                     b.HasIndex("GuestId")
                         .HasDatabaseName("IX_Devices_GuestId")
                         .HasFilter("\"GuestId\" IS NOT NULL");
@@ -397,12 +405,16 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_Devices_UserId");
 
+                    b.HasIndex("CurrentSessionId", "UserId");
+
                     b.HasIndex("InstallationId", "Platform")
                         .IsUnique()
                         .HasDatabaseName("IX_Devices_InstallationId_Platform");
 
                     b.ToTable("devices", null, t =>
                         {
+                            t.HasCheckConstraint("CK_devices_current_session_has_user", "\"CurrentSessionId\" IS NULL OR \"UserId\" IS NOT NULL");
+
                             t.HasCheckConstraint("CK_devices_push_token_hash_matches_token", "(\"PushToken\" IS NULL) = (\"PushTokenHash\" IS NULL)");
 
                             t.HasCheckConstraint("CK_devices_single_owner", "NOT (\"UserId\" IS NOT NULL AND \"GuestId\" IS NOT NULL)");
@@ -1618,7 +1630,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DeviceId");
+                    b.HasAlternateKey("Id", "UserId")
+                        .HasName("AK_user_sessions_Id_UserId");
+
+                    b.HasIndex("DeviceId")
+                        .HasDatabaseName("IX_UserSessions_DeviceId");
 
                     b.HasIndex("RefreshTokenHash")
                         .IsUnique()
@@ -1663,6 +1679,13 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .WithMany("Devices")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Yakku.Domain.Entities.UserSession", null)
+                        .WithMany()
+                        .HasForeignKey("CurrentSessionId", "UserId")
+                        .HasPrincipalKey("Id", "UserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_devices_user_sessions_CurrentSessionId_UserId");
 
                     b.Navigation("Guest");
 

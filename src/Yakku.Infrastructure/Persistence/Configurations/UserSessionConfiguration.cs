@@ -15,6 +15,13 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasMaxLength(255);
 
+            // Target of devices' (CurrentSessionId, UserId) foreign key.
+            builder.HasAlternateKey(x => new { x.Id, x.UserId })
+                .HasName("AK_user_sessions_Id_UserId");
+
+            builder.HasIndex(x => x.DeviceId)
+                .HasDatabaseName("IX_UserSessions_DeviceId");
+
             builder.HasIndex(x => x.RefreshTokenHash)
                 .IsUnique()
                 .HasDatabaseName("IX_UserSessions_RefreshTokenHash");

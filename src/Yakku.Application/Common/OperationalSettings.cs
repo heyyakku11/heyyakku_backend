@@ -39,6 +39,18 @@ namespace Yakku.Application.Common
             public const int InitialDelayMinutes = 3;
         }
 
+        public static class Sessions
+        {
+            /// <summary>How often ended sessions are cleaned up and stale device associations released.</summary>
+            public const int CleanupIntervalMinutes = 60;
+
+            /// <summary>Delay before the first cleanup run after startup.</summary>
+            public const int CleanupInitialDelayMinutes = 2;
+
+            /// <summary>Days a revoked or expired session row is kept before it is deleted.</summary>
+            public const int RetentionDays = 30;
+        }
+
         public static class Devices
         {
             /// <summary>Register / update / unregister requests per caller per minute.</summary>
