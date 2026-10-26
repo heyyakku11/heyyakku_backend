@@ -84,7 +84,7 @@ public class AuthReliabilityTests
         {
             UserId = Guid.NewGuid(),
             Purpose = "Registration",
-            User = new VerifyOtpUser { Name = "Goku", IsPushAllowed = true },
+            User = new VerifyOtpUser { Name = "Goku" },
             Auth = new TokenResponse { AccessToken = "access", RefreshToken = "refresh" }
         };
 
@@ -96,7 +96,6 @@ public class AuthReliabilityTests
         Assert.DoesNotContain(response.UserId.ToString(), json);
         Assert.Contains("\"auth\":{\"accessToken\":\"access\"", json);
         Assert.Contains("\"user\":{\"name\":\"Goku\"", json);
-        Assert.Contains("\"isPushAllowed\":true", json);
         Assert.NotEqual(Guid.Empty, response.UserId);
     }
 

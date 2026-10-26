@@ -28,12 +28,5 @@ namespace Yakku.Application.Auth.DTOs
     {
         public string Name { get; set; } = string.Empty;
         public string AnonymousName { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Whether push is on for the installation that just signed in. It is per installation: a fresh sign-in has not
-        /// been granted notification permission yet, so this is false until the app reports a granted permission with
-        /// PATCH /api/v1/devices/me.
-        /// </summary>
-        public bool IsPushAllowed { get; set; }
     }
 }

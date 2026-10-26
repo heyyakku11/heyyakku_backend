@@ -370,10 +370,7 @@ namespace Yakku.Application.Auth.Services
                 User = new VerifyOtpUser
                 {
                     Name = user.Profile?.Name ?? string.Empty,
-                    AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
-                    // Push is per installation and a device that has just signed in has not reported its notification
-                    // permission yet, so it starts off; the app turns it on after the OS prompt (PATCH /devices/me).
-                    IsPushAllowed = false
+                    AnonymousName = user.Profile?.AnonymousName ?? string.Empty
                 },
                 Auth = tokens
             };

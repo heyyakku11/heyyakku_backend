@@ -28,8 +28,8 @@ a live session of that user (`DeviceRepository.PushEligible`). The check is repe
 
 ## API
 
-- `POST /api/v1/auth/verify` creates the device from `device: { installationId, platform }`. The response's
-  `user.isPushAllowed` reports the signed-in installation, so it is `false` on a fresh sign-in.
+- `POST /api/v1/auth/verify` creates the device from `device: { installationId, platform }`. The response carries no push
+  state: a signed-in device starts with push off, and `GET /api/v1/devices/me` reports it.
 - `PATCH /api/v1/devices/me` (header `X-Installation-Id`) sets `notificationPermission`, `pushToken`, metadata and
   `isPushAllowed`.
 - `GET /api/v1/devices/me` returns the current device, including `notificationPermission`, `isPushAllowed` and
