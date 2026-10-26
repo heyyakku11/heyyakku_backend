@@ -7,6 +7,7 @@ using Yakku.Application.Polls.Mapper;
 using Yakku.Application.Users.DTOs;
 using Yakku.Application.Users.Interfaces;
 using Yakku.Application.Users.Mapper;
+using Yakku.Application.Streaks.Interfaces;
 using Yakku.Application.Votes.Interfaces;
 
 namespace Yakku.Application.Users.Services
@@ -16,15 +17,21 @@ namespace Yakku.Application.Users.Services
         private readonly IUserRepository _userRepository;
         private readonly IPollRepository _pollRepository;
         private readonly IVoteRepository _voteRepository;
+        private readonly IUserStatsRepository _stats;
+        private readonly IStreakService _streaks;
 
         public UserService(
             IUserRepository userRepository,
             IPollRepository pollRepository,
-            IVoteRepository voteRepository)
+            IVoteRepository voteRepository,
+            IUserStatsRepository stats,
+            IStreakService streaks)
         {
             _userRepository = userRepository;
             _pollRepository = pollRepository;
             _voteRepository = voteRepository;
+            _stats = stats;
+            _streaks = streaks;
         }
 
         public async Task<UserProfileResponse?> GetMeAsync(
@@ -32,7 +39,7 @@ namespace Yakku.Application.Users.Services
             CancellationToken cancellationToken = default)
         {
             var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
-            return user?.ToProfileResponse();
+            return user is null ? null : await BuildProfileAsync(user, cancellationToken);
         }
 
         public async Task<UserProfileResponse?> SetPushAllowedAsync(
@@ -48,7 +55,24 @@ namespace Yakku.Application.Users.Services
 
             user.Profile.SetPushAllowed(isPushAllowed);
             await _userRepository.SaveChangesAsync(cancellationToken);
-            return user.ToProfileResponse();
+            return await BuildProfileAsync(user, cancellationToken);
+        }
+
+        private async Task<UserProfileResponse> BuildProfileAsync(
+            Yakku.Domain.Entities.User user,
+            CancellationToken cancellationToken)
+        {
+            var response = user.ToProfileResponse();
+            var counts = await _stats.GetActivityCountsAsync(user.Id, cancellationToken);
+            var streak = await _streaks.GetAsync(user.Id, cancellationToken);
+            response.CardsMade = counts.CardsMade;
+            response.VotesCast = counts.VotesCast;
+            response.Streak = new UserStreakSummary
+            {
+                CurrentStreak = streak.CurrentStreak,
+                LongestStreak = streak.LongestStreak
+            };
+            return response;
         }
 
         public async Task<UserPollsPage> GetAskedPollsAsync(

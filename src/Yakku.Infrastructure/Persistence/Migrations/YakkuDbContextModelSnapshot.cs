@@ -1441,6 +1441,32 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserActivityDay", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateOnly>("ActivityDate")
+                        .HasColumnType("date")
+                        .HasColumnName("activity_date");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime>("FirstActivityAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_activity_at");
+
+                    b.HasKey("UserId", "ActivityDate")
+                        .HasName("PK_user_activity_days");
+
+                    b.ToTable("user_activity_days", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1646,6 +1672,39 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("user_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserStreak", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("CurrentStreak")
+                        .HasColumnType("integer")
+                        .HasColumnName("current_streak");
+
+                    b.Property<DateOnly>("LastActivityDate")
+                        .HasColumnType("date")
+                        .HasColumnName("last_activity_date");
+
+                    b.Property<int>("LongestStreak")
+                        .HasColumnType("integer")
+                        .HasColumnName("longest_streak");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId")
+                        .HasName("PK_user_streaks");
+
+                    b.ToTable("user_streaks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_streaks_current_positive", "\"current_streak\" >= 1");
+
+                            t.HasCheckConstraint("CK_user_streaks_longest_at_least_current", "\"longest_streak\" >= \"current_streak\"");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Admin", "Admin")
@@ -1822,6 +1881,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Plan");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserActivityDay", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Check", "Check")
@@ -1885,6 +1955,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Device");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserStreak", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });

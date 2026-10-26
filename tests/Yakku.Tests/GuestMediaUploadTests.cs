@@ -170,7 +170,8 @@ public class GuestMediaUploadTests
                 policy,
                 new CreatePollValidator(),
                 new UpdatePollValidator(),
-                Audit);
+                Audit,
+                new NoOpStreakService());
             Claim = new GuestMediaClaimService(Guests, hasher, SessionStore, new InMemoryDeviceRepository(), new InMemoryGuestVoteClaims(), Audit);
         }
 

@@ -60,6 +60,9 @@ namespace Yakku.Infrastructure
             services.AddScoped<IGuestVoteClaimRepository, GuestVoteClaimRepository>();
             services.AddHostedService<AccountDeletionWorker>();
             services.AddScoped<IUserSessionRepository, UserSessionRepository>();
+            services.AddScoped<Yakku.Application.Streaks.Interfaces.IStreakRepository, StreakRepository>();
+            services.AddScoped<Yakku.Application.Users.Interfaces.IUserStatsRepository, UserStatsRepository>();
+            services.AddSingleton(TimeProvider.System);
             services.AddScoped<IAdminRepository, AdminRepository>();
             services.AddScoped<IAdminSessionRepository, AdminSessionRepository>();
             services.AddScoped<IGuestRepository, GuestRepository>();

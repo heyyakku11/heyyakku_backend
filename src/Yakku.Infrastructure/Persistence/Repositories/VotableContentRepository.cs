@@ -107,6 +107,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             VotableContent content,
             VoterIdentity voter,
             NewVote vote,
+            Func<VoteReceipt, CancellationToken, Task>? afterAdded = null,
             CancellationToken cancellationToken = default)
         {
             await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -117,6 +118,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     : await AddCheckVoteAsync(content, voter, vote, cancellationToken);
 
                 await _context.SaveChangesAsync(cancellationToken);
+                if (afterAdded is not null)
+                {
+                    await afterAdded(receipt, cancellationToken);
+                }
+
                 await transaction.CommitAsync(cancellationToken);
                 return receipt;
             }

@@ -1,6 +1,6 @@
 using FluentValidation;
 using Yakku.Application.Auth.DTOs;
-using Yakku.Application.Devices.Validators;
+
 
 namespace Yakku.Application.Auth.Validators
 {
@@ -19,7 +19,7 @@ namespace Yakku.Application.Auth.Validators
                 .WithMessage("OTP must be a 6-digit code.");
 
             RuleFor(x => x.Device!)
-                .SetValidator(new RegisterDeviceValidator())
+                .SetValidator(new LoginDeviceValidator())
                 .When(x => x.Device is not null);
         }
     }

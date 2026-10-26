@@ -715,7 +715,8 @@ public class PollModuleServiceTests
                 policy,
                 new CreatePollValidator(),
                 new UpdatePollValidator(),
-                Audit);
+                Audit,
+                new NoOpStreakService());
             Sessions = new MediaUploadSessionService(
                 SessionStore,
                 PollStore,

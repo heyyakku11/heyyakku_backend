@@ -6,6 +6,8 @@ using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Sharing.DTOs;
 using Yakku.Application.Sharing.Interfaces;
 using Yakku.Application.Storage;
+using Yakku.Application.Streaks;
+using Yakku.Application.Streaks.Interfaces;
 using Yakku.Application.Votes;
 using Yakku.Domain.Enums;
 
@@ -18,14 +20,17 @@ namespace Yakku.Application.Sharing.Services
         private readonly IMediaUploadPolicy _policy;
         private readonly IValidator<VoteRequest> _validator;
         private readonly IAuditLogWriter _audit;
+        private readonly IStreakService _streaks;
 
         public VotingService(
             IVotableContentRepository contents,
             IObjectStorage storage,
             IMediaUploadPolicy policy,
             IValidator<VoteRequest> validator,
-            IAuditLogWriter audit)
+            IAuditLogWriter audit,
+            IStreakService streaks)
         {
+            _streaks = streaks;
             _contents = contents;
             _storage = storage;
             _policy = policy;
@@ -159,7 +164,13 @@ namespace Yakku.Application.Sharing.Services
                 request.OptionId is null ? request.CustomAnswer!.Trim() : null,
                 string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim());
 
-            var receipt = await _contents.AddVoteAsync(content, voter, vote, cancellationToken);
+            // A signed-in user's accepted vote earns streak credit in the same transaction as the vote itself, so a
+            // rejected, duplicate or rolled-back vote cannot. Guests never earn streaks (the id is not a user).
+            Func<VoteReceipt, CancellationToken, Task>? creditStreak = voter.IsUser
+                ? (receipt, token) => _streaks.RecordAsync(voter.Id, StreakActivity.VoteCast, receipt.CreatedAt, token)
+                : null;
+
+            var receipt = await _contents.AddVoteAsync(content, voter, vote, creditStreak, cancellationToken);
 
             var response = await SharedContentService.BuildAsync(
                 content,

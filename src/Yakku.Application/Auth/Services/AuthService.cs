@@ -264,10 +264,10 @@ namespace Yakku.Application.Auth.Services
 
             if (challenge.Purpose == OtpPurpose.Registration)
             {
-                return await CompleteRegistrationAsync(phoneNumber, challenge, request.Device, cancellationToken);
+                return await CompleteRegistrationAsync(phoneNumber, challenge, ToInstallation(request.Device), cancellationToken);
             }
 
-            return await CompleteLoginAsync(phoneNumber, request.Device, cancellationToken);
+            return await CompleteLoginAsync(phoneNumber, ToInstallation(request.Device), cancellationToken);
         }
 
         private async Task<VerifyOtpResponse> CompleteRegistrationAsync(
@@ -392,6 +392,14 @@ namespace Yakku.Application.Auth.Services
                     FailureReason: exception.ErrorCode,
                     Subject: subject),
                 CancellationToken.None);
+        }
+
+        /// <summary>The login payload carries only the installation id and platform; nothing else is assumed.</summary>
+        private static RegisterDeviceRequest? ToInstallation(LoginDeviceRequest? device)
+        {
+            return device is null
+                ? null
+                : new RegisterDeviceRequest { InstallationId = device.InstallationId, Platform = device.Platform };
         }
 
         private static string NormalizePhoneNumber(string phoneNumber)

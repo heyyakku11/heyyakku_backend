@@ -2,6 +2,8 @@ using FluentValidation;
 using Yakku.Application.Audit;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Streaks;
+using Yakku.Application.Streaks.Interfaces;
 using Yakku.Application.Polls.DTOs;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Polls.Mapper;
@@ -23,6 +25,7 @@ namespace Yakku.Application.Polls.Services
         private readonly IValidator<CreatePollRequest> _createValidator;
         private readonly IValidator<UpdatePollRequest> _updateValidator;
         private readonly IAuditLogWriter _audit;
+        private readonly IStreakService _streaks;
 
         public PollService(
             IPollRepository pollRepository,
@@ -31,8 +34,10 @@ namespace Yakku.Application.Polls.Services
             IMediaUploadPolicy policy,
             IValidator<CreatePollRequest> createValidator,
             IValidator<UpdatePollRequest> updateValidator,
-            IAuditLogWriter audit)
+            IAuditLogWriter audit,
+            IStreakService streaks)
         {
+            _streaks = streaks;
             _pollRepository = pollRepository;
             _sessions = sessions;
             _storage = storage;
@@ -153,6 +158,9 @@ namespace Yakku.Application.Polls.Services
 
                 poll.MarkPublished();
                 await _pollRepository.SaveChangesAsync(transactionToken);
+
+                // Same transaction as the poll: a failed or rolled-back creation can never earn streak credit.
+                await _streaks.RecordAsync(creatorId, StreakActivity.PollCreated, poll.CreatedAt, transactionToken);
             }, cancellationToken);
 
             return await ToResponseAsync(poll, creatorId, cancellationToken);

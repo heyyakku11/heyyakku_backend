@@ -376,9 +376,11 @@ public class UnifiedVotingTests
                 storage,
                 MediaUploadPolicy.Default,
                 new VoteRequestValidator(),
-                Audit);
+                Audit,
+                Streaks);
         }
 
+        public NoOpStreakService Streaks { get; } = new();
         public InMemoryVotableContents Repository { get; }
         public RecordingAuditLogWriter Audit { get; }
         public SharedContentService Shared { get; }
@@ -488,10 +490,11 @@ public class UnifiedVotingTests
                 : new MyVote(stored.Vote.OptionId, stored.Vote.CustomAnswer, stored.Vote.Reason, stored.At));
         }
 
-        public Task<VoteReceipt> AddVoteAsync(
+        public async Task<VoteReceipt> AddVoteAsync(
             VotableContent content,
             VoterIdentity voter,
             NewVote vote,
+            Func<VoteReceipt, CancellationToken, Task>? afterAdded = null,
             CancellationToken cancellationToken = default)
         {
             if (Votes.Any(item => item.ContentId == content.ContentId && item.Voter.Id == voter.Id))
@@ -501,7 +504,13 @@ public class UnifiedVotingTests
 
             var now = DateTime.UtcNow;
             Votes.Add(new StoredVote(content.ContentId, voter, vote, now));
-            return Task.FromResult(new VoteReceipt(Guid.NewGuid(), now));
+            var receipt = new VoteReceipt(Guid.NewGuid(), now);
+            if (afterAdded is not null)
+            {
+                await afterAdded(receipt, cancellationToken);
+            }
+
+            return receipt;
         }
     }
 }
