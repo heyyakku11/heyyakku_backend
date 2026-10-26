@@ -100,6 +100,18 @@ namespace Yakku.Application.Devices.Services
             return result;
         }
 
+        public async Task<DeviceResponse> GetCurrentAsync(
+            DeviceCaller caller,
+            string? installationId,
+            CancellationToken cancellationToken = default)
+        {
+            var session = await ValidateCallerAsync(caller, cancellationToken);
+            var device = await ResolveCurrentAsync(caller, session, installationId, cancellationToken)
+                ?? throw DeviceNotFound();
+            EnsureAssociatedWithCaller(device, caller);
+            return device.ToResponse(isCurrent: true);
+        }
+
         public async Task<DeviceResponse> UpdateCurrentAsync(
             DeviceCaller caller,
             string? installationId,
@@ -146,7 +158,8 @@ namespace Yakku.Application.Devices.Services
                         request.AppBuild,
                         request.Locale,
                         request.Timezone,
-                        permission);
+                        permission,
+                        request.IsPushAllowed);
                     if (changed)
                     {
                         await _devices.SaveChangesAsync(transactionToken);

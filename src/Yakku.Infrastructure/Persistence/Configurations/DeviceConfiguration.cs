@@ -18,6 +18,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                     "CK_devices_push_token_hash_matches_token",
                     "(\"PushToken\" IS NULL) = (\"PushTokenHash\" IS NULL)");
                 // A current session only makes sense with the account it belongs to.
+                // Push can only be on while the notification permission is granted.
+                table.HasCheckConstraint(
+                    "CK_devices_push_allowed_requires_granted",
+                    "NOT \"IsPushAllowed\" OR COALESCE(\"NotificationPermission\" = 'Granted', FALSE)");
                 table.HasCheckConstraint(
                     "CK_devices_current_session_has_user",
                     "\"CurrentSessionId\" IS NULL OR \"UserId\" IS NOT NULL");
@@ -64,6 +68,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.IsActive)
                 .IsRequired()
                 .HasDefaultValue(true);
+
+            builder.Property(x => x.IsPushAllowed)
+                .IsRequired()
+                .HasDefaultValue(false);
 
             builder.HasIndex(x => x.UserId)
                 .HasDatabaseName("IX_Devices_UserId");

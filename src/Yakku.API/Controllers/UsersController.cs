@@ -69,23 +69,6 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(history, "Streak history retrieved successfully"));
         }
 
-        [HttpPatch("push")]
-        [EndpointSummary("Set Push Notifications")]
-        [EndpointDescription("Turns push notifications on or off for the signed-in user (isPushAllowed) and returns the updated profile.")]
-        [ProducesResponseType(typeof(ApiResponse<UserProfileResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> SetPushAllowed(
-            [FromBody] UpdatePushAllowedRequest request,
-            CancellationToken cancellationToken)
-        {
-            var user = await _userService.SetPushAllowedAsync(
-                User.GetRequiredUserId(), request.IsPushAllowed, cancellationToken);
-            return user is null
-                ? NotFound(ApiResponse.NotFound<UserProfileResponse>("User not found"))
-                : Ok(ApiResponse.Ok(user, "Push notifications updated successfully"));
-        }
-
         /// <summary>
         /// Schedules the account for permanent deletion and signs the user out everywhere. Logging in again
         /// before the returned date cancels the deletion.

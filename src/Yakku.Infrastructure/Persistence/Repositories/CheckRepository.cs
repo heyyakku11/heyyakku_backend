@@ -119,21 +119,32 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         public async Task<bool> TryAddUserCheckAsync(
             UserCheck userCheck,
             UserCheckVote ownerAnswer,
+            Func<CancellationToken, Task>? afterAdded = null,
             CancellationToken cancellationToken = default)
         {
             // One SaveChanges: the check, the maker's answer and the share code registry row are stored together
-            // or not at all.
+            // or not at all. The transaction also covers afterAdded (the streak credit), so a check that is not
+            // stored earns nothing and a stored one cannot lose its credit. A failed attempt rolls back and the
+            // caller retries with a fresh transaction.
             var registry = ShareCode.ForCheck(userCheck);
-            await _context.UserChecks.AddAsync(userCheck, cancellationToken);
-            await _context.UserCheckVotes.AddAsync(ownerAnswer, cancellationToken);
-            await _context.ShareCodes.AddAsync(registry, cancellationToken);
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
             try
             {
+                await _context.UserChecks.AddAsync(userCheck, cancellationToken);
+                await _context.UserCheckVotes.AddAsync(ownerAnswer, cancellationToken);
+                await _context.ShareCodes.AddAsync(registry, cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);
+                if (afterAdded is not null)
+                {
+                    await afterAdded(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
                 return true;
             }
             catch (DbUpdateException exception) when (IsUniqueViolation(exception, OneUsePerUserConstraint))
             {
+                await transaction.RollbackAsync(CancellationToken.None);
                 Detach(userCheck, ownerAnswer, registry);
                 throw CheckExceptions.AlreadyUsed();
             }
@@ -141,8 +152,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 IsUniqueViolation(exception, ShareCodeConstraint)
                 || IsUniqueViolation(exception, ShareCodeRegistryConstraint))
             {
+                await transaction.RollbackAsync(CancellationToken.None);
                 Detach(userCheck, ownerAnswer, registry);
                 return false;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                Detach(userCheck, ownerAnswer, registry);
+                throw;
             }
         }
 

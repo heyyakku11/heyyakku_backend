@@ -6,8 +6,8 @@ account only; devices, sessions, logins and logouts never touch it.
 ## Rules
 
 - **Qualifying activities** are defined in one place, `StreakRules.Qualifies` (`Application/Streaks/StreakActivity.cs`):
-  creating a poll (`PollService.CreateAsync`) and an accepted vote by a signed-in user (`VotingService`).
-  Opening the app, viewing, logging in, receiving a notification, guest votes, admin actions and making a check do not
+  creating a poll (`PollService.CreateAsync`), making a check (`CheckService.MakeAsync`) and an accepted vote by a signed-in user (`VotingService`).
+  Opening the app, viewing, logging in, receiving a notification, guest votes and admin actions do not
   count. Votes moved from a guest to an account at sign-in are not credited retroactively.
 - A day counts **once per user**, however many qualifying actions happen on it.
 - First activity: streak 1. Next calendar day: +1. Same day: unchanged. After one or more whole missed days: back to 1.

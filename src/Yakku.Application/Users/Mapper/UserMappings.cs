@@ -21,7 +21,6 @@ namespace Yakku.Application.Users.Mapper
                     Status = user.Status.ToString(),
                     PhoneNumber = user.PhoneNumber,
                     LoginAt = user.LoginAt,
-                    IsPushAllowed = user.Profile?.IsPushAllowed ?? true,
                     CurrentPlan = new UserPlanResponse
                     {
                         Id = user.PlanId,

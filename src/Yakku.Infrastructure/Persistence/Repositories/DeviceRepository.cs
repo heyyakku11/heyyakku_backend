@@ -191,22 +191,22 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         }
 
         /// <summary>
-        /// A device may receive push only when: it belongs to a user, is active, has a token and has not denied
-        /// permission; its current session is a live session of that same user; and the user allows push.
+        /// A device may receive push only when: it belongs to a user, is active, has a token, has the notification
+        /// permission granted and push switched on (both are per installation, so one user's devices differ); and its
+        /// current session is a live session of that same user.
         /// </summary>
         private IQueryable<Device> PushEligible(DateTime utcNow)
         {
             return _context.Devices.Where(device => device.UserId != null
                 && device.IsActive
                 && device.PushToken != null
-                && device.NotificationPermission != NotificationPermissionStatus.Denied
+                && device.IsPushAllowed
+                && device.NotificationPermission == NotificationPermissionStatus.Granted
                 && device.CurrentSessionId != null
                 && _context.UserSessions.Any(session => session.Id == device.CurrentSessionId
                     && session.UserId == device.UserId
                     && session.RevokedAt == null
-                    && session.ExpiresAt > utcNow)
-                && _context.UserProfiles.Any(profile => profile.UserId == device.UserId
-                    && profile.IsPushAllowed));
+                    && session.ExpiresAt > utcNow));
         }
 
         private async Task<int> DetachAsync(IQueryable<Device> devices, CancellationToken cancellationToken)

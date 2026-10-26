@@ -19,6 +19,7 @@ namespace Yakku.Application.Devices.Mapper
                 Timezone = device.Timezone,
                 NotificationPermission = device.NotificationPermission?.ToString().ToLowerInvariant(),
                 IsActive = device.IsActive,
+                IsPushAllowed = device.IsPushAllowed,
                 PushEnabled = device.CanReceivePush,
                 IsCurrent = isCurrent,
                 LastSeenAt = device.LastSeenAt,

@@ -289,7 +289,7 @@ public sealed class UnifiedVotingIntegrationTests
     /// <summary>Makes one of the live seeded checks for the user (which records their own answer and registers the code).</summary>
     private static async Task<UserCheckResponse> MakeCheckAsync(YakkuDbContext context, User owner)
     {
-        var service = new CheckService(new CheckRepository(context), new CastCheckVoteValidator());
+        var service = new CheckService(new CheckRepository(context), new CastCheckVoteValidator(), new NoOpStreakService());
         var check = (await service.GetChecksAsync(owner.Id)).First();
         return await service.MakeAsync(
             owner.Id,

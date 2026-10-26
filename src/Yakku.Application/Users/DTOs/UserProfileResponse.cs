@@ -6,7 +6,7 @@ namespace Yakku.Application.Users.DTOs
         /// <summary>How the user appears in the app.</summary>
         public UserProfileDetails Profile { get; set; } = new();
 
-        /// <summary>Who the account is: status, phone number, last login, plan and the push switch.</summary>
+        /// <summary>Who the account is: status, phone number, last login and plan.</summary>
         public UserAccountDetails Account { get; set; } = new();
 
         /// <summary>Activity counts and the daily streak.</summary>
@@ -25,9 +25,6 @@ namespace Yakku.Application.Users.DTOs
         public string Status { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
         public DateTime? LoginAt { get; set; }
-
-        /// <summary>Whether the account allows push notifications (on by default).</summary>
-        public bool IsPushAllowed { get; set; }
 
         /// <summary>The user's current plan. Every user has one.</summary>
         public UserPlanResponse CurrentPlan { get; set; } = new();

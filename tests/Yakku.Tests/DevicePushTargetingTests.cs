@@ -33,7 +33,7 @@ public class DevicesControllerContractTests
     }
 
     [Fact]
-    public void ThereIsNoDeleteRoute_OnlyRegisterAndUpdate()
+    public void ThereIsNoDeleteRoute_OnlyRegisterGetAndUpdate()
     {
         var routes = typeof(DevicesController)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
@@ -42,7 +42,7 @@ public class DevicesControllerContractTests
             .Order()
             .ToList();
 
-        Assert.Equal(["PATCH me", "POST register"], routes);
+        Assert.Equal(["GET me", "PATCH me", "POST register"], routes);
     }
 }
 

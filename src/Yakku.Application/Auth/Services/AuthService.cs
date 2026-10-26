@@ -371,7 +371,9 @@ namespace Yakku.Application.Auth.Services
                 {
                     Name = user.Profile?.Name ?? string.Empty,
                     AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
-                    IsPushAllowed = user.Profile?.IsPushAllowed ?? true
+                    // Push is per installation and a device that has just signed in has not reported its notification
+                    // permission yet, so it starts off; the app turns it on after the OS prompt (PATCH /devices/me).
+                    IsPushAllowed = false
                 },
                 Auth = tokens
             };

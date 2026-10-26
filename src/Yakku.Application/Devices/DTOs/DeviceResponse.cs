@@ -17,6 +17,12 @@ namespace Yakku.Application.Devices.DTOs
         public string? NotificationPermission { get; set; }
         public bool IsActive { get; set; }
 
+        /// <summary>
+        /// Whether push is switched on for this installation. Per installation: off until the notification permission
+        /// is granted here, and independent of the user's other devices.
+        /// </summary>
+        public bool IsPushAllowed { get; set; }
+
         /// <summary>True when push can be delivered right now (active, permitted and a token is stored).</summary>
         public bool PushEnabled { get; set; }
 

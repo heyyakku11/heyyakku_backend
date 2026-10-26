@@ -335,7 +335,7 @@ public class CheckIntegrationTests
     {
         var repository = new CheckRepository(context);
         return (
-            new CheckService(repository, new CastCheckVoteValidator()),
+            new CheckService(repository, new CastCheckVoteValidator(), new NoOpStreakService()),
             new AdminCheckService(repository, new SaveCheckValidator()));
     }
 

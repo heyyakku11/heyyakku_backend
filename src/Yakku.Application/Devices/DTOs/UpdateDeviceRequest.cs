@@ -15,5 +15,11 @@ namespace Yakku.Application.Devices.DTOs
         public string? Locale { get; set; }
         public string? Timezone { get; set; }
         public string? NotificationPermission { get; set; }
+
+        /// <summary>
+        /// The in-app push switch for this installation. It can only be turned on while the notification permission
+        /// is granted; a newly granted permission turns it on, any other permission turns it off.
+        /// </summary>
+        public bool? IsPushAllowed { get; set; }
     }
 }

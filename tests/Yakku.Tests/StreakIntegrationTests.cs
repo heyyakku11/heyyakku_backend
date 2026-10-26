@@ -7,6 +7,9 @@ using Npgsql;
 using Yakku.API.Controllers;
 using Yakku.Application.Auth.Services;
 using Yakku.Application.Auth.Validators;
+using Yakku.Application.Checks.DTOs;
+using Yakku.Application.Checks.Services;
+using Yakku.Application.Checks.Validators;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Devices.DTOs;
@@ -441,6 +444,37 @@ public sealed class StreakIntegrationTests
         await using var verify = _fixture.CreateContext();
         Assert.False(await verify.UserActivityDays.AnyAsync(d => d.UserId == user.Id));
         Assert.False(await verify.Polls.AnyAsync(p => p.CreatorId == user.Id));
+    }
+
+    [SkippableFact]
+    public async Task MakingACheck_CreditsTheStreak_ButAnAlreadyUsedCheckDoesNot()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await AddUserAsync(context);
+        var checks = new CheckService(new CheckRepository(context), new CastCheckVoteValidator(), NewStreaks(context));
+        var check = (await checks.GetChecksAsync(user.Id)).First();
+        var request = new MakeCheckRequest { CheckId = check.Id, CheckOptionId = check.Options[0].Id };
+
+        var made = await checks.MakeAsync(user.Id, request);
+
+        await using (var credited = _fixture.CreateContext())
+        {
+            var day = await credited.UserActivityDays.SingleAsync(d => d.UserId == user.Id);
+            var userCheck = await credited.UserChecks.SingleAsync(c => c.Id == made.Id);
+            Assert.Equal(DateOnly.FromDateTime(userCheck.CreatedAt), day.ActivityDate);
+            Assert.Equal(1, (await credited.UserStreaks.SingleAsync(s => s.UserId == user.Id)).CurrentStreak);
+        }
+
+        // Forget the credit, then try to make the same check again: it is rejected and earns nothing.
+        await context.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM user_streaks WHERE user_id = {user.Id}");
+        await context.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM user_activity_days WHERE user_id = {user.Id}");
+        var again = await Assert.ThrowsAsync<AppException>(() => checks.MakeAsync(user.Id, request));
+
+        Assert.Equal(409, again.StatusCode);
+        await using var verify = _fixture.CreateContext();
+        Assert.False(await verify.UserActivityDays.AnyAsync(d => d.UserId == user.Id));
+        Assert.False(await verify.UserStreaks.AnyAsync(s => s.UserId == user.Id));
     }
 
     [SkippableFact]

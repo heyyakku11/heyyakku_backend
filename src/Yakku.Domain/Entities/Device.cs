@@ -31,6 +31,12 @@ namespace Yakku.Domain.Entities
         public string? Locale { get; private set; }
         public string? Timezone { get; private set; }
         public NotificationPermissionStatus? NotificationPermission { get; private set; }
+
+        /// <summary>
+        /// Whether push is switched on for this installation. Per installation, never per account: a device that has not
+        /// been granted notification permission is always off, and it is only true while the permission is granted.
+        /// </summary>
+        public bool IsPushAllowed { get; private set; }
         public bool IsActive { get; private set; }
         public DateTime? LastSeenAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
@@ -139,6 +145,7 @@ namespace Yakku.Domain.Entities
             UserId = null;
             CurrentSessionId = null;
             IsActive = false;
+            IsPushAllowed = false;
             SetPushToken(null);
             UpdatedAt = DateTime.UtcNow;
         }
@@ -155,9 +162,11 @@ namespace Yakku.Domain.Entities
             string? appBuild,
             string? locale,
             string? timezone,
-            NotificationPermissionStatus? notificationPermission)
+            NotificationPermissionStatus? notificationPermission,
+            bool? isPushAllowed = null)
         {
             var changed = false;
+            var pushAllowedBefore = IsPushAllowed;
             changed |= Set(DeviceModel, deviceModel, value => DeviceModel = value);
             changed |= Set(OsVersion, osVersion, value => OsVersion = value);
             changed |= Set(AppVersion, appVersion, value => AppVersion = value);
@@ -168,8 +177,18 @@ namespace Yakku.Domain.Entities
             if (notificationPermission is not null && notificationPermission != NotificationPermission)
             {
                 NotificationPermission = notificationPermission;
+                // A new grant switches push on for this installation; any other status switches it off.
+                IsPushAllowed = notificationPermission == NotificationPermissionStatus.Granted;
                 changed = true;
             }
+
+            // An explicit choice (the in-app switch) can only turn push on while the OS permission is granted.
+            if (isPushAllowed is not null)
+            {
+                IsPushAllowed = isPushAllowed.Value && NotificationPermission == NotificationPermissionStatus.Granted;
+            }
+
+            changed |= IsPushAllowed != pushAllowedBefore;
 
             // A denied permission always wins: the token is useless and must stop being used.
             var effectiveToken = NotificationPermission == NotificationPermissionStatus.Denied
@@ -221,8 +240,9 @@ namespace Yakku.Domain.Entities
         /// <summary>True when push can currently be delivered to this installation.</summary>
         public bool CanReceivePush =>
             IsActive
+            && IsPushAllowed
             && !string.IsNullOrWhiteSpace(PushToken)
-            && NotificationPermission != NotificationPermissionStatus.Denied;
+            && NotificationPermission == NotificationPermissionStatus.Granted;
 
         private void ApplyRegistration(
             DevicePlatform platform,
@@ -243,6 +263,8 @@ namespace Yakku.Domain.Entities
             Locale = Normalize(locale);
             Timezone = Normalize(timezone);
             NotificationPermission = notificationPermission;
+            // A fresh registration starts off unless the OS permission is already granted.
+            IsPushAllowed = notificationPermission == NotificationPermissionStatus.Granted;
             IsActive = true;
             SetPushToken(notificationPermission == NotificationPermissionStatus.Denied
                 ? null

@@ -42,22 +42,6 @@ namespace Yakku.Application.Users.Services
             return user is null ? null : await BuildProfileAsync(user, cancellationToken);
         }
 
-        public async Task<UserProfileResponse?> SetPushAllowedAsync(
-            Guid userId,
-            bool isPushAllowed,
-            CancellationToken cancellationToken = default)
-        {
-            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
-            if (user?.Profile is null)
-            {
-                return null;
-            }
-
-            user.Profile.SetPushAllowed(isPushAllowed);
-            await _userRepository.SaveChangesAsync(cancellationToken);
-            return await BuildProfileAsync(user, cancellationToken);
-        }
-
         private async Task<UserProfileResponse> BuildProfileAsync(
             Yakku.Domain.Entities.User user,
             CancellationToken cancellationToken)

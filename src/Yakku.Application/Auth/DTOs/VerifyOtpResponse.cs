@@ -30,9 +30,10 @@ namespace Yakku.Application.Auth.DTOs
         public string AnonymousName { get; set; } = string.Empty;
 
         /// <summary>
-        /// Whether the account allows push notifications (the in-app switch, on by default). This is not the phone's
-        /// OS permission, which the app reports with PATCH /api/v1/devices/me.
+        /// Whether push is on for the installation that just signed in. It is per installation: a fresh sign-in has not
+        /// been granted notification permission yet, so this is false until the app reports a granted permission with
+        /// PATCH /api/v1/devices/me.
         /// </summary>
-        public bool IsPushAllowed { get; set; } = true;
+        public bool IsPushAllowed { get; set; }
     }
 }

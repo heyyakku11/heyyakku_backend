@@ -349,6 +349,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsPushAllowed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTime?>("LastSeenAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -414,6 +419,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("devices", null, t =>
                         {
                             t.HasCheckConstraint("CK_devices_current_session_has_user", "\"CurrentSessionId\" IS NULL OR \"UserId\" IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_devices_push_allowed_requires_granted", "NOT \"IsPushAllowed\" OR COALESCE(\"NotificationPermission\" = 'Granted', FALSE)");
 
                             t.HasCheckConstraint("CK_devices_push_token_hash_matches_token", "(\"PushToken\" IS NULL) = (\"PushTokenHash\" IS NULL)");
 
@@ -1595,11 +1602,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsPushAllowed")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
 
                     b.Property<string>("Name")
                         .IsRequired()

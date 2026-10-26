@@ -5,6 +5,8 @@ using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Streaks;
+using Yakku.Application.Streaks.Interfaces;
 using Yakku.Application.Votes;
 using Yakku.Domain.Entities;
 
@@ -16,13 +18,16 @@ namespace Yakku.Application.Checks.Services
 
         private readonly ICheckRepository _repository;
         private readonly IValidator<CastCheckVoteRequest> _voteValidator;
+        private readonly IStreakService _streaks;
 
         public CheckService(
             ICheckRepository repository,
-            IValidator<CastCheckVoteRequest> voteValidator)
+            IValidator<CastCheckVoteRequest> voteValidator,
+            IStreakService streaks)
         {
             _repository = repository;
             _voteValidator = voteValidator;
+            _streaks = streaks;
         }
 
         public async Task<List<CheckResponse>> GetChecksAsync(Guid? userId, CancellationToken cancellationToken = default)
@@ -92,7 +97,13 @@ namespace Yakku.Application.Checks.Services
 
                 // The maker's own answer is saved together with the check, so a check is never used without one.
                 var ownerAnswer = BuildVote(userCheck.Id, check, userId, answer);
-                if (await _repository.TryAddUserCheckAsync(userCheck, ownerAnswer, cancellationToken))
+                // Making a check earns the streak day in the same transaction that stores it.
+                if (await _repository.TryAddUserCheckAsync(
+                        userCheck,
+                        ownerAnswer,
+                        token => _streaks.RecordAsync(
+                            userId, StreakActivity.CheckMade, userCheck.CreatedAt, token),
+                        cancellationToken))
                 {
                     var saved = await _repository.GetUserCheckByIdAsync(userCheck.Id, cancellationToken)
                         ?? throw CheckExceptions.NotFound();

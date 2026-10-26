@@ -4,7 +4,8 @@ namespace Yakku.Application.Streaks
     public enum StreakActivity
     {
         PollCreated = 1,
-        VoteCast = 2
+        VoteCast = 2,
+        CheckMade = 3
     }
 
     /// <summary>The single place that decides which activities earn streak credit.</summary>
@@ -12,7 +13,9 @@ namespace Yakku.Application.Streaks
     {
         public static bool Qualifies(StreakActivity activity)
         {
-            return activity is StreakActivity.PollCreated or StreakActivity.VoteCast;
+            return activity is StreakActivity.PollCreated
+                or StreakActivity.CheckMade
+                or StreakActivity.VoteCast;
         }
     }
 }

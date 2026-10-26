@@ -53,10 +53,27 @@ namespace Yakku.API.Controllers
                 : Ok(response);
         }
 
+        [HttpGet("me")]
+        [EnableRateLimiting("device-read")]
+        [EndpointSummary("Get Current Device")]
+        [EndpointDescription("Returns the device linked to the caller's current login session, including its notification permission and isPushAllowed. Both are per installation: a device that has not been granted notification permission always reports isPushAllowed false, whatever the user's other devices say. The X-Installation-Id header selects one of the caller's own devices. Returns 404 when the session has no device.")]
+        [ProducesResponseType(typeof(ApiResponse<DeviceResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetCurrent(CancellationToken cancellationToken)
+        {
+            var caller = _callers.ResolveUser(HttpContext);
+            var device = await _deviceService.GetCurrentAsync(
+                caller,
+                DeviceCallerResolver.ReadInstallationId(HttpContext),
+                cancellationToken);
+            return Ok(ApiResponse.Ok(device, "Device retrieved successfully"));
+        }
+
         [HttpPatch("me")]
         [EnableRateLimiting("device-write")]
         [EndpointSummary("Update Current Device")]
-        [EndpointDescription("Partially updates the device linked to the caller's current login session: push-token rotation, device metadata, locale, timezone, app version and notification permission. Omitted fields are unchanged and an empty string clears a field (an empty pushToken stops push to this device). A denied permission clears the token. Returns 404 when the session has no registered device yet; call register first. The optional X-Installation-Id header selects one of the caller's own devices instead.")]
+        [EndpointDescription("Partially updates the device linked to the caller's current login session: push-token rotation, device metadata, locale, timezone, app version and notification permission and isPushAllowed. Omitted fields are unchanged and an empty string clears a field (an empty pushToken stops push to this device). Push is per installation: a newly granted permission turns isPushAllowed on, any other permission turns it off, and isPushAllowed can only be set to true while the permission is granted. A denied permission clears the token. A valid push token does not by itself mean notifications are allowed. Returns 404 when the session has no device yet (the device is created by POST /auth/verify). The optional X-Installation-Id header selects one of the caller's own devices instead.")]
         [ProducesResponseType(typeof(ApiResponse<DeviceResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]

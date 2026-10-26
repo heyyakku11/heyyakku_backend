@@ -546,19 +546,193 @@ public sealed class SessionDeviceAssociationTests
 
     // ---- notification isolation and privacy --------------------------------------------------------------------
 
+    // ---- push is per installation ------------------------------------------------------------------------------
+
     [SkippableFact]
-    public async Task PushIsOff_WhenTheAccountDisablesIt()
+    public async Task ASignInOnANewDevice_StartsWithPushOff_UntilThatDeviceReportsAGrantedPermission()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var user = await AddUserAsync(context);
-        await NewSessionService(context).CreateAsync(user.Id, NewInstallation());
-        var profile = await context.UserProfiles.SingleAsync(p => p.UserId == user.Id);
-        profile.SetPushAllowed(false);
-        await context.SaveChangesAsync();
+        var login = await NewSessionService(context).CreateAsync(user.Id, LoginOnly());
+        var caller = DeviceCaller.ForUser(user.Id, SessionIdOf(login.RefreshToken));
+        var installationId = await InstallationOfAsync(context, caller);
+        var devices = NewDeviceService(context);
 
+        var fresh = await devices.GetCurrentAsync(caller, installationId);
+        Assert.False(fresh.IsPushAllowed);
+        Assert.False(fresh.PushEnabled);
+        Assert.Null(fresh.NotificationPermission);
+
+        var granted = await devices.UpdateCurrentAsync(caller, installationId, new UpdateDeviceRequest
+        {
+            NotificationPermission = "granted",
+            PushToken = "token-" + Guid.NewGuid().ToString("N")
+        });
+
+        Assert.True(granted.IsPushAllowed);
+        Assert.True(granted.PushEnabled);
+    }
+
+    [SkippableFact]
+    public async Task ATokenAlone_NeverMeansNotificationsAreAllowed()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await AddUserAsync(context);
+        var login = await NewSessionService(context).CreateAsync(user.Id, LoginOnly());
+        var caller = DeviceCaller.ForUser(user.Id, SessionIdOf(login.RefreshToken));
+        var installationId = await InstallationOfAsync(context, caller);
+
+        // A valid-looking FCM token arrives while the permission is still unknown.
+        var response = await NewDeviceService(context).UpdateCurrentAsync(
+            caller, installationId, new UpdateDeviceRequest { PushToken = "token-" + Guid.NewGuid().ToString("N") });
+
+        Assert.False(response.IsPushAllowed);
+        Assert.False(response.PushEnabled);
         await using var verify = _fixture.CreateContext();
         Assert.Empty(await new DeviceRepository(verify).GetPushTargetsByUserIdAsync(user.Id, DateTime.UtcNow));
+    }
+
+    [SkippableFact]
+    public async Task DevicesOfOneUser_KeepIndependentPermissionStates()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await AddUserAsync(context);
+        var sessions = NewSessionService(context);
+        var devices = NewDeviceService(context);
+        var allowed = await sessions.CreateAsync(user.Id, LoginOnly());
+        var denied = await sessions.CreateAsync(user.Id, LoginOnly());
+        var undecided = await sessions.CreateAsync(user.Id, LoginOnly());
+        var allowedCaller = DeviceCaller.ForUser(user.Id, SessionIdOf(allowed.RefreshToken));
+        var deniedCaller = DeviceCaller.ForUser(user.Id, SessionIdOf(denied.RefreshToken));
+
+        await devices.UpdateCurrentAsync(allowedCaller, await InstallationOfAsync(context, allowedCaller), new UpdateDeviceRequest
+        {
+            NotificationPermission = "granted",
+            PushToken = "token-" + Guid.NewGuid().ToString("N")
+        });
+        await devices.UpdateCurrentAsync(deniedCaller, await InstallationOfAsync(context, deniedCaller), new UpdateDeviceRequest
+        {
+            NotificationPermission = "denied",
+            PushToken = "token-" + Guid.NewGuid().ToString("N")
+        });
+
+        await using var verify = _fixture.CreateContext();
+        var targets = await new DeviceRepository(verify).GetPushTargetsByUserIdAsync(user.Id, DateTime.UtcNow);
+        var allowedDevice = await verify.Devices.SingleAsync(d => d.CurrentSessionId == SessionIdOf(allowed.RefreshToken));
+        var deniedDevice = await verify.Devices.SingleAsync(d => d.CurrentSessionId == SessionIdOf(denied.RefreshToken));
+        var undecidedDevice = await verify.Devices.SingleAsync(d => d.CurrentSessionId == SessionIdOf(undecided.RefreshToken));
+        Assert.Equal([allowedDevice.Id], targets.Select(d => d.Id));
+        Assert.True(allowedDevice.IsPushAllowed);
+        Assert.False(deniedDevice.IsPushAllowed);
+        Assert.Null(deniedDevice.PushToken); // a denied permission clears the token
+        Assert.False(undecidedDevice.IsPushAllowed);
+    }
+
+    [SkippableFact]
+    public async Task TheInAppSwitch_IsPerDevice_SurvivesTokenRefreshes_AndCannotBeForcedOn()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await AddUserAsync(context);
+        var sessions = NewSessionService(context);
+        var devices = NewDeviceService(context);
+        var phone = await sessions.CreateAsync(user.Id, LoginOnly());
+        var tablet = await sessions.CreateAsync(user.Id, LoginOnly());
+        var phoneCaller = DeviceCaller.ForUser(user.Id, SessionIdOf(phone.RefreshToken));
+        var tabletCaller = DeviceCaller.ForUser(user.Id, SessionIdOf(tablet.RefreshToken));
+        var phoneId = await InstallationOfAsync(context, phoneCaller);
+        var tabletId = await InstallationOfAsync(context, tabletCaller);
+        foreach (var (caller, id) in new[] { (phoneCaller, phoneId), (tabletCaller, tabletId) })
+        {
+            await devices.UpdateCurrentAsync(caller, id, new UpdateDeviceRequest
+            {
+                NotificationPermission = "granted",
+                PushToken = "token-" + Guid.NewGuid().ToString("N")
+            });
+        }
+
+        // Switching push off on the phone leaves the tablet alone, and a token refresh does not switch it back on.
+        var off = await devices.UpdateCurrentAsync(phoneCaller, phoneId, new UpdateDeviceRequest { IsPushAllowed = false });
+        var refreshed = await devices.UpdateCurrentAsync(phoneCaller, phoneId, new UpdateDeviceRequest
+        {
+            PushToken = "refreshed-" + Guid.NewGuid().ToString("N"),
+            NotificationPermission = "granted"
+        });
+        var tabletState = await devices.GetCurrentAsync(tabletCaller, tabletId);
+
+        Assert.False(off.IsPushAllowed);
+        Assert.False(refreshed.IsPushAllowed);
+        Assert.True(tabletState.IsPushAllowed);
+        await using (var verify = _fixture.CreateContext())
+        {
+            var targets = await new DeviceRepository(verify).GetPushTargetsByUserIdAsync(user.Id, DateTime.UtcNow);
+            Assert.Equal(tabletId, Assert.Single(targets).InstallationId);
+        }
+
+        // Turning it back on is allowed while the permission is granted ...
+        var on = await devices.UpdateCurrentAsync(phoneCaller, phoneId, new UpdateDeviceRequest { IsPushAllowed = true });
+        Assert.True(on.IsPushAllowed);
+
+        // ... but not once the permission is gone: true is ignored and the switch stays off.
+        await devices.UpdateCurrentAsync(phoneCaller, phoneId, new UpdateDeviceRequest { NotificationPermission = "denied" });
+        var forced = await devices.UpdateCurrentAsync(phoneCaller, phoneId, new UpdateDeviceRequest { IsPushAllowed = true });
+        Assert.False(forced.IsPushAllowed);
+    }
+
+    [SkippableFact]
+    public async Task LoggingOutOrSwitchingAccountsOnOneDevice_DoesNotChangeTheOthersPushState()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var alice = await AddUserAsync(context);
+        var bob = await AddUserAsync(context);
+        var sessions = NewSessionService(context);
+        var devices = NewDeviceService(context);
+        var shared = LoginOnly();
+        var aliceOnShared = await sessions.CreateAsync(alice.Id, shared);
+        var aliceOther = await sessions.CreateAsync(alice.Id, LoginOnly());
+        var sharedCaller = DeviceCaller.ForUser(alice.Id, SessionIdOf(aliceOnShared.RefreshToken));
+        var otherCaller = DeviceCaller.ForUser(alice.Id, SessionIdOf(aliceOther.RefreshToken));
+        foreach (var caller in new[] { sharedCaller, otherCaller })
+        {
+            await devices.UpdateCurrentAsync(caller, await InstallationOfAsync(context, caller), new UpdateDeviceRequest
+            {
+                NotificationPermission = "granted",
+                PushToken = "token-" + Guid.NewGuid().ToString("N")
+            });
+        }
+
+        // Bob signs in on the shared installation: it starts off for Bob and Alice's other device is untouched.
+        await sessions.CreateAsync(bob.Id, shared);
+
+        await using var verify = _fixture.CreateContext();
+        var repository = new DeviceRepository(verify);
+        var aliceTargets = await repository.GetPushTargetsByUserIdAsync(alice.Id, DateTime.UtcNow);
+        Assert.Equal(SessionIdOf(aliceOther.RefreshToken), Assert.Single(aliceTargets).CurrentSessionId);
+        Assert.Empty(await repository.GetPushTargetsByUserIdAsync(bob.Id, DateTime.UtcNow));
+        var sharedRow = await verify.Devices.SingleAsync(d => d.InstallationId == shared.InstallationId);
+        Assert.Equal(bob.Id, sharedRow.UserId);
+        Assert.False(sharedRow.IsPushAllowed);
+        Assert.Null(sharedRow.PushToken);
+    }
+
+    [SkippableFact]
+    public async Task TheDatabase_RefusesPushAllowedWithoutAGrantedPermission()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await AddUserAsync(context);
+        var login = await NewSessionService(context).CreateAsync(user.Id, LoginOnly());
+        var caller = DeviceCaller.ForUser(user.Id, SessionIdOf(login.RefreshToken));
+        var installationId = await InstallationOfAsync(context, caller);
+
+        var violation = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE devices SET "IsPushAllowed" = TRUE WHERE "InstallationId" = {installationId}"""));
+
+        Assert.Equal(PostgresErrorCodes.CheckViolation, violation.SqlState);
     }
 
     [SkippableFact]
@@ -634,6 +808,24 @@ public sealed class SessionDeviceAssociationTests
     private static Guid SessionIdOf(string refreshToken) => Guid.Parse(refreshToken.Split('.')[0]);
 
     private static NotificationPayload Payload() => new() { Title = "Yakku", Body = "You have a new notification" };
+
+    /// <summary>What the app sends at verify-OTP: the installation id and platform only, no permission or token.</summary>
+    private static RegisterDeviceRequest LoginOnly()
+    {
+        return new RegisterDeviceRequest
+        {
+            InstallationId = "assoc-" + Guid.NewGuid().ToString("N"),
+            Platform = "android"
+        };
+    }
+
+    private static async Task<string> InstallationOfAsync(YakkuDbContext context, DeviceCaller caller)
+    {
+        return await context.Devices.AsNoTracking()
+            .Where(d => d.CurrentSessionId == caller.SessionId)
+            .Select(d => d.InstallationId)
+            .SingleAsync();
+    }
 
     private static RegisterDeviceRequest NewInstallation()
     {

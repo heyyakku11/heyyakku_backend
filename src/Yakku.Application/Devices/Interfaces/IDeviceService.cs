@@ -13,6 +13,12 @@ namespace Yakku.Application.Devices.Interfaces
             RegisterDeviceRequest request,
             CancellationToken cancellationToken = default);
 
+        /// <summary>The caller's current installation, including its notification permission and push switch.</summary>
+        Task<DeviceResponse> GetCurrentAsync(
+            DeviceCaller caller,
+            string? installationId,
+            CancellationToken cancellationToken = default);
+
         /// <summary>Partial update of the caller's current installation (push-token rotation, metadata, permission).</summary>
         Task<DeviceResponse> UpdateCurrentAsync(
             DeviceCaller caller,
