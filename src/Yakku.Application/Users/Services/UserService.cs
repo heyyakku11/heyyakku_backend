@@ -1,4 +1,5 @@
 using Yakku.Application.Auth.Interfaces;
+using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls;
@@ -16,6 +17,7 @@ namespace Yakku.Application.Users.Services
     {
         private readonly IUserRepository _userRepository;
         private readonly IPollRepository _pollRepository;
+        private readonly ICheckRepository _checkRepository;
         private readonly IVoteRepository _voteRepository;
         private readonly IUserStatsRepository _stats;
         private readonly IStreakService _streaks;
@@ -23,12 +25,14 @@ namespace Yakku.Application.Users.Services
         public UserService(
             IUserRepository userRepository,
             IPollRepository pollRepository,
+            ICheckRepository checkRepository,
             IVoteRepository voteRepository,
             IUserStatsRepository stats,
             IStreakService streaks)
         {
             _userRepository = userRepository;
             _pollRepository = pollRepository;
+            _checkRepository = checkRepository;
             _voteRepository = voteRepository;
             _stats = stats;
             _streaks = streaks;
@@ -67,6 +71,8 @@ namespace Yakku.Application.Users.Services
             string? cursor,
             CancellationToken cancellationToken = default)
         {
+            // "My asks" is one list of everything the user made: polls and checks, newest first. Both sources use
+            // the same (created-at, id) order and cursor, so each is read one page deep and merged.
             var decoded = PollCursor.TryDecode(cursor);
             var take = PollCursor.PageSize + 1;
             var polls = await _pollRepository.GetCreatedByUserAsync(
@@ -75,21 +81,36 @@ namespace Yakku.Application.Users.Services
                 decoded?.Id,
                 take,
                 cancellationToken);
+            var checks = await _checkRepository.GetUserChecksPageAsync(
+                userId,
+                decoded?.CreatedAt,
+                decoded?.Id,
+                take,
+                cancellationToken);
 
-            var hasMore = polls.Count > PollCursor.PageSize;
-            var page = polls.Take(PollCursor.PageSize).ToList();
+            var merged = polls
+                .Select(poll => (poll.CreatedAt, poll.Id, Poll: poll, Check: (Yakku.Domain.Entities.UserCheck?)null))
+                .Concat(checks.Select(check => (check.CreatedAt, check.Id, Poll: (Yakku.Domain.Entities.Poll?)null, Check: (Yakku.Domain.Entities.UserCheck?)check)))
+                .OrderByDescending(entry => entry.CreatedAt)
+                .ThenByDescending(entry => entry.Id)
+                .Take(take)
+                .ToList();
+
+            var hasMore = merged.Count > PollCursor.PageSize;
+            var page = merged.Take(PollCursor.PageSize).ToList();
             var counts = await _pollRepository.GetVoteCountsAsync(
-                page.Select(poll => poll.Id).ToArray(),
+                page.Where(entry => entry.Poll is not null).Select(entry => entry.Id).ToArray(),
                 cancellationToken);
             var items = page
-                .Select(poll => poll.ToUserPollResponse(
-                    counts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty))
+                .Select(entry => entry.Poll is { } poll
+                    ? poll.ToUserPollResponse(counts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty)
+                    : entry.Check!.ToUserAskResponse())
                 .ToList();
 
             string? nextCursor = null;
             if (hasMore)
             {
-                var last = polls[PollCursor.PageSize - 1];
+                var last = page[^1];
                 nextCursor = PollCursor.Encode(last.CreatedAt, last.Id);
             }
 

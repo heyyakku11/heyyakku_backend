@@ -19,6 +19,14 @@ namespace Yakku.Application.Checks.Interfaces
         /// <summary>The caller's made checks (check, options and votes loaded), earliest first.</summary>
         Task<List<UserCheck>> GetUserChecksAsync(Guid userId, CancellationToken cancellationToken = default);
 
+        /// <summary>The user's made checks, newest first, after the cursor (created-at, id). Used by "My asks".</summary>
+        Task<List<UserCheck>> GetUserChecksPageAsync(
+            Guid userId,
+            DateTime? cursorCreatedAt,
+            Guid? cursorId,
+            int take,
+            CancellationToken cancellationToken = default);
+
         Task<UserCheck?> GetUserCheckByIdAsync(Guid userCheckId, CancellationToken cancellationToken = default);
 
         Task<UserCheck?> GetUserCheckByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default);

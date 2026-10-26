@@ -67,8 +67,8 @@ namespace Yakku.API.Controllers
         }
 
         [HttpGet("asked")]
-        [EndpointSummary("List Polls I Asked")]
-        [EndpointDescription("Lists the polls the signed-in user created, newest first. Uses cursor pagination: pass the cursor from the previous response's meta to get the next page.")]
+        [EndpointSummary("List My Asks")]
+        [EndpointDescription("Lists everything the signed-in user made, polls and checks together, newest first. Each item has a kind (poll or check); for a check, pollId is the made-check id and check carries its title, colour and sticker. Uses cursor pagination: pass the cursor from the previous response's meta to get the next page.")]
         [ProducesResponseType(typeof(ApiResponse<List<UserPollResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetAsked(

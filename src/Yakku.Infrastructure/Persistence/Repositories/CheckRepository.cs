@@ -104,6 +104,30 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public Task<List<UserCheck>> GetUserChecksPageAsync(
+            Guid userId,
+            DateTime? cursorCreatedAt,
+            Guid? cursorId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            var query = WithDetails(_context.UserChecks.AsNoTracking())
+                .Where(item => item.UserId == userId);
+
+            if (cursorCreatedAt is not null && cursorId is not null)
+            {
+                query = query.Where(item =>
+                    item.CreatedAt < cursorCreatedAt.Value
+                    || (item.CreatedAt == cursorCreatedAt.Value && item.Id < cursorId.Value));
+            }
+
+            return query
+                .OrderByDescending(item => item.CreatedAt)
+                .ThenByDescending(item => item.Id)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+        }
+
         public Task<UserCheck?> GetUserCheckByIdAsync(Guid userCheckId, CancellationToken cancellationToken = default)
         {
             return WithDetails(_context.UserChecks.AsNoTracking())

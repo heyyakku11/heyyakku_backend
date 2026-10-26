@@ -32,8 +32,8 @@ public class PlanIntegrationTests
 
         var plans = await context.Plans.OrderBy(p => p.SortOrder).ToListAsync();
 
-        Assert.Equal(["free", "premium", "yakku_love"], plans.Select(p => p.Code));
-        Assert.Equal([Plan.FreeId, Plan.PremiumId, Plan.YakkuLoveId], plans.Select(p => p.Id));
+        Assert.Equal(["free", "yakku_lite", "yakku_love"], plans.Select(p => p.Code));
+        Assert.Equal([Plan.FreeId, Plan.YakkuLiteId, Plan.YakkuLoveId], plans.Select(p => p.Id));
         Assert.Equal([0, 4900, 12900], plans.Select(p => p.PriceMinor));
         Assert.All(plans, p => Assert.Equal("INR", p.Currency));
     }
@@ -52,8 +52,9 @@ public class PlanIntegrationTests
         Assert.Equal("free", loaded.Plan.Code);
 
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE users SET \"PlanId\" = {Plan.PremiumId} WHERE \"Id\" = {user.Id}");
+            $"UPDATE users SET \"PlanId\" = {Plan.YakkuLiteId} WHERE \"Id\" = {user.Id}");
         var upgraded = await context.Users.AsNoTracking().Include(u => u.Plan).SingleAsync(u => u.Id == user.Id);
-        Assert.Equal("premium", upgraded.Plan.Code);
+        Assert.Equal("yakku_lite", upgraded.Plan.Code);
+        Assert.Equal("Yakku Lite", upgraded.Plan.Name);
     }
 }

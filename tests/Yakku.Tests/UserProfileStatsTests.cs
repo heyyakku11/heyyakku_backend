@@ -109,11 +109,54 @@ public sealed class UserProfileStatsTests
         Assert.Equal((1, 4), (restarted!.Stats.Streak.CurrentStreak, restarted.Stats.Streak.LongestStreak));
     }
 
+    [SkippableFact]
+    public async Task MyAsks_ListsPollsAndChecksTogether_NewestFirst_AcrossPages()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var me = await AddUserAsync(context);
+        var other = await AddUserAsync(context);
+        await AddPollAsync(context, other.Id); // someone else's card never shows up
+        var made = new List<Guid>();
+        for (var i = 0; i < 7; i++)
+        {
+            made.Add((await AddPollAsync(context, me.Id)).Id);
+        }
+
+        var check = await MakeCheckAsync(context, me);
+        made.Add(check.Id);
+        for (var i = 0; i < 6; i++)
+        {
+            made.Add((await AddPollAsync(context, me.Id)).Id);
+        }
+
+        var service = NewUserService(context);
+        var first = await service.GetAskedPollsAsync(me.Id, null);
+        var second = await service.GetAskedPollsAsync(me.Id, first.Meta.NextCursor);
+
+        Assert.Equal(10, first.Items.Count);
+        Assert.Equal(4, second.Items.Count);
+        Assert.Null(second.Meta.NextCursor);
+        var all = first.Items.Concat(second.Items).ToList();
+        Assert.Equal(made.Order(), all.Select(item => item.PollId).Order()); // everything, once
+        Assert.True(all.Zip(all.Skip(1)).All(pair => pair.First.CreatedAt >= pair.Second.CreatedAt));
+
+        var checkItem = Assert.Single(all, item => item.Kind == "check");
+        Assert.Equal(check.Id, checkItem.PollId);
+        Assert.Equal(check.ShareCode, checkItem.ShareCode);
+        Assert.Equal("check", checkItem.ContentType);
+        Assert.NotNull(checkItem.Check);
+        Assert.NotEmpty(checkItem.PollOptions);
+        Assert.False(checkItem.ResultsUnlocked);
+        Assert.All(all.Where(item => item.Kind == "poll"), item => Assert.Null(item.Check));
+    }
+
     private static UserService NewUserService(YakkuDbContext context)
     {
         return new UserService(
             new UserRepository(context),
             new PollRepository(context),
+            new CheckRepository(context),
             new VoteRepository(context),
             new UserStatsRepository(context),
             NewStreaks(context, Today));
