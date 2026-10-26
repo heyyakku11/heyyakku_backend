@@ -11,8 +11,6 @@ using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Devices.Services;
 using Yakku.Application.Guests.Interfaces;
 using Yakku.Application.Guests.Services;
-using Yakku.Application.NotificationPreferences.Interfaces;
-using Yakku.Application.NotificationPreferences.Services;
 using Yakku.Application.Notifications.Interfaces;
 using Yakku.Application.Notifications.Services;
 using Yakku.Application.PushNotifications.Interfaces;
@@ -53,7 +51,6 @@ namespace Yakku.Application
             services.AddScoped<ICheckService, CheckService>();
             services.AddScoped<IAdminCheckService, AdminCheckService>();
             services.AddScoped<IDeviceService, DeviceService>();
-            services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IPushNotificationService, PushNotificationService>();
             services.AddSingleton<IOtpGenerator, OtpGenerator>();

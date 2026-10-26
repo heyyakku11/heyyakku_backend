@@ -24,7 +24,6 @@ namespace Yakku.Domain.Entities
 
         public Plan Plan { get; private set; } = null!;
         public UserProfile Profile { get; private set; } = null!;
-        public NotificationPreference? NotificationPreference { get; private set; }
         public ICollection<UserSession> Sessions { get; private set; } = new List<UserSession>();
         public ICollection<Poll> Polls { get; private set; } = new List<Poll>();
         public ICollection<SavedPoll> SavedPolls { get; private set; } = new List<SavedPoll>();

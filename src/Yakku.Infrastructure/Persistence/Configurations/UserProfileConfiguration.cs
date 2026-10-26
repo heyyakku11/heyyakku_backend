@@ -22,6 +22,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasMaxLength(50);
 
+            builder.Property(x => x.IsPushAllowed)
+                .IsRequired()
+                .HasDefaultValue(true);
+
             builder.HasIndex(x => x.AnonymousName)
                 .IsUnique()
                 .HasDatabaseName("IX_UserProfiles_AnonymousName");

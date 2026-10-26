@@ -2,28 +2,22 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Yakku.API.Auth;
 using Yakku.Application.Common.Responses;
-using Yakku.Application.NotificationPreferences.DTOs;
-using Yakku.Application.NotificationPreferences.Interfaces;
 using Yakku.Application.Notifications.DTOs;
 using Yakku.Application.Notifications.Interfaces;
 
 namespace Yakku.API.Controllers
 {
-    /// <summary>The signed-in user's in-app notifications and the preferences that control which ones they receive.</summary>
+    /// <summary>The signed-in user's in-app notifications.</summary>
     [Authorize]
     [ApiController]
     [Route("api/v1/notifications")]
     public class NotificationsController : ControllerBase
     {
         private readonly INotificationService _notificationService;
-        private readonly INotificationPreferenceService _preferenceService;
 
-        public NotificationsController(
-            INotificationService notificationService,
-            INotificationPreferenceService preferenceService)
+        public NotificationsController(INotificationService notificationService)
         {
             _notificationService = notificationService;
-            _preferenceService = preferenceService;
         }
 
         [HttpGet]
@@ -58,38 +52,6 @@ namespace Yakku.API.Controllers
                 cancellationToken);
 
             return Ok(ApiResponse.Ok(result, "Notification marked as read"));
-        }
-
-        [HttpGet("preferences")]
-        [EndpointSummary("Get Notification Preferences")]
-        [EndpointDescription("Returns the signed-in user's notification preferences: pushEnabled (master switch for push), pollActivityEnabled (activity on their polls) and offersEnabled (promotions). Defaults are created on first read.")]
-        [ProducesResponseType(typeof(ApiResponse<NotificationPreferenceResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> GetPreferences(CancellationToken cancellationToken)
-        {
-            var result = await _preferenceService.GetAsync(
-                User.GetRequiredUserId(),
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok(result, "Notification preferences retrieved successfully"));
-        }
-
-        [HttpPatch("preferences")]
-        [EndpointSummary("Update Notification Preferences")]
-        [EndpointDescription("Partially updates the signed-in user's notification preferences. Send only the flags to change (pushEnabled, pollActivityEnabled, offersEnabled); omitted flags keep their current value. Returns the updated preferences.")]
-        [ProducesResponseType(typeof(ApiResponse<NotificationPreferenceResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> UpdatePreferences(
-            [FromBody] UpdateNotificationPreferenceRequest request,
-            CancellationToken cancellationToken)
-        {
-            var result = await _preferenceService.UpdateAsync(
-                User.GetRequiredUserId(),
-                request,
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok(result, "Notification preferences updated successfully"));
         }
     }
 }

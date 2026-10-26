@@ -10,7 +10,6 @@ using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Email;
 using Yakku.Application.Email.Interfaces;
 using Yakku.Application.Guests.Interfaces;
-using Yakku.Application.NotificationPreferences.Interfaces;
 using Yakku.Application.Notifications.Interfaces;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.PushNotifications.Interfaces;
@@ -65,7 +64,6 @@ namespace Yakku.Infrastructure
             services.AddScoped<IGuestRepository, GuestRepository>();
             services.AddScoped<IVoteRepository, VoteRepository>();
             services.AddScoped<ICheckRepository, CheckRepository>();            services.AddScoped<IDeviceRepository, DeviceRepository>();
-            services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
             services.AddScoped<IAdminAuthStore, RedisAdminAuthStore>();

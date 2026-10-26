@@ -8,6 +8,7 @@ namespace Yakku.Application.Users.DTOs
         public string AnonymousName { get; set; } = string.Empty;
         public DateTime? LoginAt { get; set; }
         public string? AvatarUrl { get; set; }
+        public bool IsPushAllowed { get; set; }
 
         /// <summary>The user's current plan. Every user has one.</summary>
         public UserPlanResponse CurrentPlan { get; set; } = new();

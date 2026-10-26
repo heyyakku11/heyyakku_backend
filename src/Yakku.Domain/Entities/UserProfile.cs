@@ -6,6 +6,10 @@ namespace Yakku.Domain.Entities
         public Guid UserId { get; private set; }
         public string Name { get; private set; } = string.Empty;
         public string AnonymousName { get; private set; } = string.Empty;
+
+        /// <summary>Whether the user wants push notifications. A single on/off switch; on by default.</summary>
+        public bool IsPushAllowed { get; private set; } = true;
+
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
@@ -22,6 +26,12 @@ namespace Yakku.Domain.Entities
             Name = name;
             AnonymousName = anonymousName;
             CreatedAt = DateTime.UtcNow;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        public void SetPushAllowed(bool isPushAllowed)
+        {
+            IsPushAllowed = isPushAllowed;
             UpdatedAt = DateTime.UtcNow;
         }
     }

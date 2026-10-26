@@ -22,7 +22,6 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<Guest> Guests => Set<Guest>();
         public DbSet<Device> Devices => Set<Device>();
         public DbSet<Notification> Notifications => Set<Notification>();
-        public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
         public DbSet<Admin> Admins => Set<Admin>();
         public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
         public DbSet<AuthenticationAuditLog> AuthenticationAuditLogs => Set<AuthenticationAuditLog>();

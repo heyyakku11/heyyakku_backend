@@ -775,7 +775,6 @@ public sealed class DeviceManagementIntegrationTests
         return new DeviceService(
             new DeviceRepository(context),
             new UserSessionRepository(context),
-            new NotificationPreferenceRepository(context),
             new GuestRepository(context),
             Hasher,
             new RegisterDeviceValidator(),

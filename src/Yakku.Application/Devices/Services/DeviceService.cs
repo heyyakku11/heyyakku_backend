@@ -7,7 +7,6 @@ using Yakku.Application.Devices.DTOs;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Devices.Mapper;
 using Yakku.Application.Guests.Interfaces;
-using Yakku.Application.NotificationPreferences.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -17,7 +16,6 @@ namespace Yakku.Application.Devices.Services
     {
         private readonly IDeviceRepository _devices;
         private readonly IUserSessionRepository _sessions;
-        private readonly INotificationPreferenceRepository _preferences;
         private readonly IGuestRepository _guests;
         private readonly IGuestTokenHasher _guestTokenHasher;
         private readonly IValidator<RegisterDeviceRequest> _registerValidator;
@@ -27,7 +25,6 @@ namespace Yakku.Application.Devices.Services
         public DeviceService(
             IDeviceRepository devices,
             IUserSessionRepository sessions,
-            INotificationPreferenceRepository preferences,
             IGuestRepository guests,
             IGuestTokenHasher guestTokenHasher,
             IValidator<RegisterDeviceRequest> registerValidator,
@@ -36,7 +33,6 @@ namespace Yakku.Application.Devices.Services
         {
             _devices = devices;
             _sessions = sessions;
-            _preferences = preferences;
             _guests = guests;
             _guestTokenHasher = guestTokenHasher;
             _registerValidator = registerValidator;
@@ -269,7 +265,6 @@ namespace Yakku.Application.Devices.Services
                 var session = await _sessions.GetByIdAsync(caller.SessionId!.Value, cancellationToken)
                     ?? throw Unauthorized();
                 session.AssignDevice(device.Id);
-                await EnsureNotificationPreferencesAsync(caller.UserId.Value, device, cancellationToken);
             }
             else
             {
@@ -456,26 +451,6 @@ namespace Yakku.Application.Devices.Services
             return (caller.UserId is not null && device.UserId == caller.UserId)
                 || (caller.GuestId is not null && device.GuestId == caller.GuestId)
                 || (provenGuestId is not null && device.GuestId == provenGuestId);
-        }
-
-        private async Task EnsureNotificationPreferencesAsync(
-            Guid userId,
-            Device device,
-            CancellationToken cancellationToken)
-        {
-            if (device.NotificationPermission != NotificationPermissionStatus.Granted
-                || string.IsNullOrWhiteSpace(device.PushToken))
-            {
-                return;
-            }
-
-            var existing = await _preferences.GetByUserIdAsync(userId, cancellationToken);
-            if (existing is not null)
-            {
-                return;
-            }
-
-            await _preferences.AddAsync(new NotificationPreference(userId), cancellationToken);
         }
 
         private Task AuditAsync(

@@ -51,11 +51,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .WithOne(x => x.User)
                 .HasForeignKey<UserProfile>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            builder.HasOne(x => x.NotificationPreference)
-                .WithOne(x => x.User)
-                .HasForeignKey<NotificationPreference>(x => x.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

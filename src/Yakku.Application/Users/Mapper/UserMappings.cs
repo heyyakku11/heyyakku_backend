@@ -15,6 +15,7 @@ namespace Yakku.Application.Users.Mapper
                 AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
                 LoginAt = user.LoginAt,
                 AvatarUrl = null,
+                IsPushAllowed = user.Profile?.IsPushAllowed ?? true,
                 CurrentPlan = new UserPlanResponse
                 {
                     Id = user.PlanId,

@@ -6,6 +6,11 @@ namespace Yakku.Application.Users.Interfaces
     {
         Task<UserProfileResponse?> GetMeAsync(Guid userId, CancellationToken cancellationToken = default);
 
+        Task<UserProfileResponse?> SetPushAllowedAsync(
+            Guid userId,
+            bool isPushAllowed,
+            CancellationToken cancellationToken = default);
+
         Task<UserPollsPage> GetAskedPollsAsync(
             Guid userId,
             string? cursor,

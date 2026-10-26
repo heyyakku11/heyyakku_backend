@@ -762,45 +762,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Yakku.Domain.Entities.NotificationPreference", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("OffersEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<bool>("PollActivityEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<bool>("PushEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_NotificationPreferences_UserId");
-
-                    b.ToTable("notification_preferences", (string)null);
-                });
-
             modelBuilder.Entity("Yakku.Domain.Entities.Plan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1597,6 +1558,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsPushAllowed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1733,17 +1699,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .WithMany("Notifications")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Yakku.Domain.Entities.NotificationPreference", b =>
-                {
-                    b.HasOne("Yakku.Domain.Entities.User", "User")
-                        .WithOne("NotificationPreference")
-                        .HasForeignKey("Yakku.Domain.Entities.NotificationPreference", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("User");
@@ -1959,8 +1914,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.User", b =>
                 {
                     b.Navigation("Devices");
-
-                    b.Navigation("NotificationPreference");
 
                     b.Navigation("Notifications");
 
