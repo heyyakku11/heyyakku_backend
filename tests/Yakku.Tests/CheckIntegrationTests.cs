@@ -220,30 +220,15 @@ public class CheckIntegrationTests
             service.VoteAsync(made.ShareCode, voter.Id, new CastCheckVoteRequest { CheckOptionId = optionId }));
         Assert.Equal(ApiErrorCodes.AlreadyVoted, twice.ErrorCode);
 
-        // Four friends in (the owner's own answer does not count): still locked for the owner and the voter.
-        for (var i = 0; i < 3; i++)
-        {
-            var friend = await AddUserAsync(context);
-            await service.VoteAsync(made.ShareCode, friend.Id, new CastCheckVoteRequest { CheckOptionId = optionId });
-        }
-
-        var locked = await service.GetMineByIdAsync(made.Id, owner.Id);
-        Assert.False(locked.ResultsUnlocked);
-        Assert.Equal(5, locked.MinVotes);
-        Assert.Equal(4, locked.VoteProgress);
-        Assert.Null(locked.TotalVotes);
-        Assert.All(locked.Options, o => Assert.Null(o.Votes));
-        Assert.Null((await service.GetSharedAsync(made.ShareCode, voter.Id)).TotalVotes);
-
-        var fifth = await AddUserAsync(context);
-        await service.VoteAsync(made.ShareCode, fifth.Id, new CastCheckVoteRequest { CheckOptionId = optionId });
-
+        // One friend's vote is enough (the owner's own answer does not count).
         var results = await service.GetMineByIdAsync(made.Id, owner.Id);
         Assert.True(results.ResultsUnlocked);
-        Assert.Equal(6, results.TotalVotes);
+        Assert.Equal(1, results.MinVotes);
+        Assert.Equal(1, results.VoteProgress);
+        Assert.Equal(2, results.TotalVotes);
         Assert.Equal(1, results.CustomAnswerVotes);
         Assert.Equal("my answer", results.MyCustomAnswer);
-        Assert.Equal(5, results.Options.Single(o => o.Id == optionId).Votes);
+        Assert.Equal(1, results.Options.Single(o => o.Id == optionId).Votes);
     }
 
     [SkippableFact]

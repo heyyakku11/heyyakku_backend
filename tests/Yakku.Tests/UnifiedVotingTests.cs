@@ -190,23 +190,22 @@ public class UnifiedVotingTests
     }
 
     [Fact]
-    public async Task Results_StayHidden_UntilFiveOthersVoted_ForEveryone()
+    public async Task Results_StayHidden_UntilOneOtherVoted_ForEveryone()
     {
         var h = new Harness();
         var locked = h.AddPoll();
-        h.SeedVotes(locked, others: 3, ownerVote: true);
+        h.SeedVotes(locked, others: 0, ownerVote: true);
         var asOwner = await h.Shared.GetAsync(locked.ShareCode, VoterIdentity.ForUser(PollOwner));
 
-        // A fourth other voter is still below the limit of five, even though they just voted themselves.
+        // The owner's own vote does not count; the first other voter unlocks the results.
         var afterVote = await h.Voting.VoteAsync(Request(locked, locked.Options[0].Id), VoterIdentity.ForUser(Guid.NewGuid()));
 
         Assert.False(asOwner.Stats.ResultsVisible);
-        Assert.Equal(3, asOwner.Stats.VoteProgress);
+        Assert.Equal(0, asOwner.Stats.VoteProgress);
         Assert.All(asOwner.Options, option => Assert.Null(option.VoteCount));
         Assert.Null(asOwner.Stats.TotalVotes);
-        Assert.False(afterVote.Stats.ResultsVisible);
-        Assert.Equal(4, afterVote.Stats.VoteProgress);
-        Assert.All(afterVote.Options, option => Assert.Null(option.Percentage));
+        Assert.True(afterVote.Stats.ResultsVisible);
+        Assert.Equal(1, afterVote.Stats.VoteProgress);
     }
 
     [Theory]
@@ -268,7 +267,7 @@ public class UnifiedVotingTests
     }
 
     [Fact]
-    public async Task TheVotersOwnChoice_IsShown_EvenWhileResultsAreHidden()
+    public async Task TheVotersOwnChoice_IsShown()
     {
         var h = new Harness();
         var poll = h.AddPoll();
@@ -277,7 +276,6 @@ public class UnifiedVotingTests
 
         var response = await h.Shared.GetAsync(poll.ShareCode, voter);
 
-        Assert.False(response.Stats.ResultsVisible);
         Assert.Equal(poll.Options[1].Id, response.Options.Single(option => option.IsSelected).Id);
     }
 
