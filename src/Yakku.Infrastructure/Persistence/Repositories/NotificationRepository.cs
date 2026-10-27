@@ -51,6 +51,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 cancellationToken);
         }
 
+        public async Task AddAsync(Notification notification, CancellationToken cancellationToken = default)
+        {
+            await _context.Notifications.AddAsync(notification, cancellationToken);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return _context.SaveChangesAsync(cancellationToken);

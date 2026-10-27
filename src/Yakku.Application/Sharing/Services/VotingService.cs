@@ -3,6 +3,8 @@ using Yakku.Application.Audit;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls.Interfaces;
+using Yakku.Application.PushNotifications;
+using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.Sharing.DTOs;
 using Yakku.Application.Sharing.Interfaces;
 using Yakku.Application.Storage;
@@ -21,6 +23,7 @@ namespace Yakku.Application.Sharing.Services
         private readonly IValidator<VoteRequest> _validator;
         private readonly IAuditLogWriter _audit;
         private readonly IStreakService _streaks;
+        private readonly IPushQueue _pushQueue;
 
         public VotingService(
             IVotableContentRepository contents,
@@ -28,9 +31,11 @@ namespace Yakku.Application.Sharing.Services
             IMediaUploadPolicy policy,
             IValidator<VoteRequest> validator,
             IAuditLogWriter audit,
-            IStreakService streaks)
+            IStreakService streaks,
+            IPushQueue pushQueue)
         {
             _streaks = streaks;
+            _pushQueue = pushQueue;
             _contents = contents;
             _storage = storage;
             _policy = policy;
@@ -171,6 +176,27 @@ namespace Yakku.Application.Sharing.Services
                 : null;
 
             var receipt = await _contents.AddVoteAsync(content, voter, vote, creditStreak, cancellationToken);
+
+            // The vote is committed. A notification problem must never fail it, and an owner is not told about
+            // their own answer.
+            if (!isOwner)
+            {
+                try
+                {
+                    await _pushQueue.EnqueueAsync(
+                        new VoteNotificationJob(
+                            content.OwnerId,
+                            content.ContentId,
+                            content.IsPoll,
+                            content.ShareCode,
+                            receipt.VoteId),
+                        CancellationToken.None);
+                }
+                catch (Exception)
+                {
+                    // Best effort by design.
+                }
+            }
 
             var response = await SharedContentService.BuildAsync(
                 content,

@@ -629,7 +629,8 @@ public sealed class StreakIntegrationTests
             MediaUploadPolicy.Default,
             new VoteRequestValidator(),
             new RecordingAuditLogWriter(),
-            NewStreaks(context));
+            NewStreaks(context),
+            new RecordingPushQueue());
     }
 
     private static CreatePollRequest QuestionRequest(string contentType = "question")

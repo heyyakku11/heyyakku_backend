@@ -16,6 +16,8 @@ namespace Yakku.Application.Notifications.Interfaces
             Guid userId,
             CancellationToken cancellationToken = default);
 
+        Task AddAsync(Notification notification, CancellationToken cancellationToken = default);
+
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

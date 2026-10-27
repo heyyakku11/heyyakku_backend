@@ -196,6 +196,7 @@ namespace Yakku.Application.PushNotifications.Services
             var successful = 0;
             var failed = 0;
             var deactivated = 0;
+            var retryable = 0;
 
             for (var index = 0; index < eligible.Count; index++)
             {
@@ -214,6 +215,11 @@ namespace Yakku.Application.PushNotifications.Services
 
                 if (!result.IsInvalidToken)
                 {
+                    if (IsTransient(result.ErrorCode))
+                    {
+                        retryable++;
+                    }
+
                     continue;
                 }
 
@@ -231,8 +237,15 @@ namespace Yakku.Application.PushNotifications.Services
                 EligibleDevices = eligible.Count,
                 Successful = successful,
                 Failed = failed,
-                InvalidTokensDeactivated = deactivated
+                InvalidTokensDeactivated = deactivated,
+                RetryableFailures = retryable
             };
+        }
+
+        private static bool IsTransient(string? errorCode)
+        {
+            return errorCode is "Unavailable" or "Internal" or "QuotaExceeded" or "ThirdPartyAuthError"
+                or "ResourceExhausted" or "DeadlineExceeded" or "Unknown" or "UNKNOWN";
         }
 
         public async Task<PushUserNotificationResult> SendToUserAsync(
@@ -282,7 +295,8 @@ namespace Yakku.Application.PushNotifications.Services
                 EligibleDevices = result.EligibleDevices,
                 Successful = result.Successful,
                 Failed = result.Failed,
-                InvalidTokensDeactivated = result.InvalidTokensDeactivated
+                InvalidTokensDeactivated = result.InvalidTokensDeactivated,
+                RetryableFailures = result.RetryableFailures
             };
         }
 

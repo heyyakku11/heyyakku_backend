@@ -358,6 +358,57 @@ public class UnifiedVotingTests
         Assert.Equal(check.ShareCode, checkResponse.ShareCode);
     }
 
+    [Fact]
+    public async Task AVote_QueuesOnePushJobForTheOwner_WithoutAnswerContent()
+    {
+        var h = new Harness();
+        var poll = h.AddPoll();
+
+        await h.Voting.VoteAsync(Request(poll, poll.Options[0].Id, reason: "secret"), VoterIdentity.ForGuest(Guid.NewGuid()));
+
+        var job = Assert.Single(h.PushQueue.Jobs);
+        Assert.Equal(PollOwner, job.OwnerId);
+        Assert.Equal(poll.ContentId, job.ContentId);
+        Assert.True(job.IsPoll);
+        Assert.Equal(poll.ShareCode, job.ShareCode);
+    }
+
+    [Fact]
+    public async Task AnOwnerVotingOnTheirOwnPoll_QueuesNoPush()
+    {
+        var h = new Harness();
+        var poll = h.AddPoll();
+
+        await h.Voting.VoteAsync(Request(poll, poll.Options[0].Id), VoterIdentity.ForUser(PollOwner));
+
+        Assert.Empty(h.PushQueue.Jobs);
+    }
+
+    [Fact]
+    public async Task ARejectedVote_QueuesNoPush()
+    {
+        var h = new Harness();
+        var poll = h.AddPoll(open: false);
+
+        await Assert.ThrowsAsync<AppException>(() => h.Voting.VoteAsync(
+            Request(poll, poll.Options[0].Id), VoterIdentity.ForUser(Guid.NewGuid())));
+
+        Assert.Empty(h.PushQueue.Jobs);
+    }
+
+    [Fact]
+    public async Task AQueueFailure_DoesNotFailTheVote()
+    {
+        var h = new Harness();
+        h.PushQueue.Throw = true;
+        var poll = h.AddPoll();
+
+        var response = await h.Voting.VoteAsync(
+            Request(poll, poll.Options[0].Id), VoterIdentity.ForUser(Guid.NewGuid()));
+
+        Assert.NotNull(response);
+    }
+
     private static VoteRequest Request(VotableContent content, Guid optionId, string? reason = null)
     {
         return new VoteRequest { ShareCode = content.ShareCode, OptionId = optionId, Reason = reason };
@@ -377,9 +428,11 @@ public class UnifiedVotingTests
                 MediaUploadPolicy.Default,
                 new VoteRequestValidator(),
                 Audit,
-                Streaks);
+                Streaks,
+                PushQueue);
         }
 
+        public RecordingPushQueue PushQueue { get; } = new();
         public NoOpStreakService Streaks { get; } = new();
         public InMemoryVotableContents Repository { get; }
         public RecordingAuditLogWriter Audit { get; }

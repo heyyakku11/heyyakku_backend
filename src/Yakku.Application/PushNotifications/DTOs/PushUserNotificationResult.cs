@@ -8,6 +8,9 @@ namespace Yakku.Application.PushNotifications.DTOs
         public int Successful { get; init; }
         public int Failed { get; init; }
         public int InvalidTokensDeactivated { get; init; }
+
+        /// <summary>Failures worth retrying (FCM unavailable, internal error, quota); not invalid tokens.</summary>
+        public int RetryableFailures { get; init; }
         public bool Success => EligibleDevices > 0 && Failed == 0;
     }
 }

@@ -12,6 +12,7 @@ using Yakku.Application.Email.Interfaces;
 using Yakku.Application.Guests.Interfaces;
 using Yakku.Application.Notifications.Interfaces;
 using Yakku.Application.Polls.Interfaces;
+using Yakku.Application.PushNotifications;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.Sharing.Interfaces;
 using Yakku.Application.System.Interfaces;
@@ -23,6 +24,7 @@ using Yakku.Infrastructure.Email;
 using Yakku.Infrastructure.Jobs;
 using Yakku.Infrastructure.Firebase;
 using Yakku.Infrastructure.Persistence;
+using Yakku.Infrastructure.Push;
 using Yakku.Infrastructure.Persistence.Repositories;
 using Yakku.Infrastructure.Redis;
 using Yakku.Application.Storage;
@@ -107,6 +109,16 @@ namespace Yakku.Infrastructure
             services.AddSingleton(adminEmailChannel);
             services.AddSingleton<IAdminEmailQueue, AdminEmailQueue>();
             services.AddHostedService<AdminEmailWorker>();
+
+            var pushChannel = Channel.CreateBounded<VoteNotificationJob>(new BoundedChannelOptions(PushQueueOptions.Capacity)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
+            services.AddSingleton(pushChannel);
+            services.AddSingleton<IPushQueue, PushQueue>();
+            services.AddHostedService<VoteNotificationWorker>();
 
             return services;
         }
