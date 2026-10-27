@@ -52,6 +52,7 @@ namespace Yakku.Application
             services.AddScoped<Yakku.Application.Streaks.Interfaces.IStreakService, Yakku.Application.Streaks.Services.StreakService>();
             services.AddScoped<ICheckService, CheckService>();
             services.AddScoped<IAdminCheckService, AdminCheckService>();
+            services.AddScoped<Yakku.Application.Plans.Interfaces.IPlanService, Yakku.Application.Plans.Services.PlanService>();
             services.AddScoped<IDeviceService, DeviceService>();
             services.AddScoped<IDeviceSessionBinder>(provider => (DeviceService)provider.GetRequiredService<IDeviceService>());
             services.AddScoped<INotificationService, NotificationService>();

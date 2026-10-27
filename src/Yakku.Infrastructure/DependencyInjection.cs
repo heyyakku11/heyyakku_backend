@@ -69,7 +69,9 @@ namespace Yakku.Infrastructure
             services.AddScoped<IAdminSessionRepository, AdminSessionRepository>();
             services.AddScoped<IGuestRepository, GuestRepository>();
             services.AddScoped<IVoteRepository, VoteRepository>();
-            services.AddScoped<ICheckRepository, CheckRepository>();            services.AddScoped<IDeviceRepository, DeviceRepository>();
+            services.AddScoped<ICheckRepository, CheckRepository>();
+            services.AddScoped<Yakku.Application.Plans.Interfaces.IPlanRepository, PlanRepository>();
+            services.AddScoped<IDeviceRepository, DeviceRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
             services.AddScoped<IAdminAuthStore, RedisAdminAuthStore>();

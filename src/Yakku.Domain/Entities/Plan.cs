@@ -34,5 +34,14 @@ namespace Yakku.Domain.Entities
         private Plan()
         {
         }
+
+        /// <summary>Applies the given changes; null leaves a field as it is.</summary>
+        public void Update(string? name, int? priceMinor, bool? isActive)
+        {
+            Name = name ?? Name;
+            PriceMinor = priceMinor ?? PriceMinor;
+            IsActive = isActive ?? IsActive;
+            UpdatedAt = DateTime.UtcNow;
+        }
     }
 }
