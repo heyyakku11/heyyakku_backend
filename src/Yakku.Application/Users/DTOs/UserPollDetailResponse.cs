@@ -28,6 +28,9 @@ namespace Yakku.Application.Users.DTOs
         public int SortOrder { get; set; }
         public int VoteCount { get; set; }
         public decimal Percentage { get; set; }
+
+        /// <summary>Reasons given for this option (the asker's own and reported ones excluded).</summary>
+        public int WhyCount { get; set; }
     }
 
     public class YouVsCrowdResponse

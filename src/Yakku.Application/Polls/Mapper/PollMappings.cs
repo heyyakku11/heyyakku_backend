@@ -98,7 +98,8 @@ namespace Yakku.Application.Polls.Mapper
                     Text = option.Text,
                     SortOrder = option.SortOrder,
                     VoteCount = counts.CountFor(option.Id),
-                    Percentage = ToPercentage(counts.CountFor(option.Id), counts.TotalVotes)
+                    Percentage = ToPercentage(counts.CountFor(option.Id), counts.TotalVotes),
+                    WhyCount = counts.WhyCountFor(option.Id)
                 })
                 .ToList();
 
