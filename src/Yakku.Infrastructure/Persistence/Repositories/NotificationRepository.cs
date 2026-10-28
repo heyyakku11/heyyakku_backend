@@ -56,6 +56,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             await _context.Notifications.AddAsync(notification, cancellationToken);
         }
 
+        public Task<int> CountUnreadAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return _context.Notifications
+                .AsNoTracking()
+                .CountAsync(notification => notification.UserId == userId && !notification.IsRead, cancellationToken);
+        }
+
         public async Task<int> MarkAllReadAsync(Guid userId, CancellationToken cancellationToken = default)
         {
             var now = DateTime.UtcNow;

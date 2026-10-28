@@ -55,6 +55,20 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Notification retrieved successfully"));
         }
 
+        [HttpGet("unread-count")]
+        [EndpointSummary("Count Unread Notifications")]
+        [EndpointDescription("Returns how many of the signed-in user's notifications are unread. Used for the badge on the Activity tab.")]
+        [ProducesResponseType(typeof(ApiResponse<UnreadCountResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetUnreadCount(CancellationToken cancellationToken)
+        {
+            var count = await _notificationService.GetUnreadCountAsync(
+                User.GetRequiredUserId(),
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(new UnreadCountResponse { Count = count }, "Unread count retrieved successfully"));
+        }
+
         [HttpPatch("read-all")]
         [EndpointSummary("Mark All Notifications Read")]
         [EndpointDescription("Marks every unread notification of the signed-in user as read, including ones not yet loaded. Returns how many were changed (updated). Idempotent: with nothing unread it changes nothing and returns 0.")]
