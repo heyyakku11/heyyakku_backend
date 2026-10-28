@@ -49,7 +49,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
             return await _context.PollVotes
                 .AsNoTracking()
-                .Where(vote => vote.PollId == pollId && vote.PollOptionId == optionId && vote.Reason != null)
+                .Where(vote => vote.PollId == pollId && vote.VoterId != ownerId && vote.PollOptionId == optionId && vote.Reason != null)
                 .OrderByDescending(vote => vote.CreatedAt)
                 .ThenByDescending(vote => vote.Id)
                 .Select(vote => new ReasonResponse { Id = vote.Id, Text = vote.Reason!, CreatedAt = vote.CreatedAt })
@@ -90,7 +90,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
             return await _context.UserCheckVotes
                 .AsNoTracking()
-                .Where(vote => vote.UserCheckId == userCheckId && vote.CheckOptionId == optionId && vote.Reason != null)
+                .Where(vote => vote.UserCheckId == userCheckId && vote.VoterId != ownerId && vote.CheckOptionId == optionId && vote.Reason != null)
                 .OrderByDescending(vote => vote.CreatedAt)
                 .ThenByDescending(vote => vote.Id)
                 .Select(vote => new ReasonResponse { Id = vote.Id, Text = vote.Reason!, CreatedAt = vote.CreatedAt })

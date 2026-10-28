@@ -51,14 +51,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 var id = content.ContentId;
                 rows = await _context.PollVotes
                     .AsNoTracking()
-                    .Where(vote => vote.PollId == id)
+                    // The asker's own answer is never part of the tally.
+                    .Where(vote => vote.PollId == id && vote.VoterId != ownerId)
                     .GroupBy(vote => vote.PollOptionId)
                     .Select(group => new PollVoteCountRow(
                         id,
                         group.Key,
                         group.Count(),
                         group.Count(vote => vote.Reason != null),
-                        group.Count(vote => vote.VoterId != ownerId)))
+                        group.Count()))
                     .ToListAsync(cancellationToken);
             }
             else
@@ -66,14 +67,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 var id = content.ContentId;
                 rows = await _context.UserCheckVotes
                     .AsNoTracking()
-                    .Where(vote => vote.UserCheckId == id)
+                    .Where(vote => vote.UserCheckId == id && vote.VoterId != ownerId)
                     .GroupBy(vote => vote.CheckOptionId)
                     .Select(group => new PollVoteCountRow(
                         id,
                         group.Key,
                         group.Count(),
                         group.Count(vote => vote.Reason != null),
-                        group.Count(vote => vote.VoterId != ownerId)))
+                        group.Count()))
                     .ToListAsync(cancellationToken);
             }
 

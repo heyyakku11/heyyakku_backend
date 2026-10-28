@@ -265,13 +265,14 @@ namespace Yakku.Application.Checks.Services
             var isOwner = item.UserId == viewerId;
             var myVote = item.Votes.FirstOrDefault(vote => vote.VoterId == viewerId);
 
-            // The owner's own answer does not count towards the reveal limit.
-            var voteProgress = item.Votes.Count(vote => vote.VoterId != item.UserId);
+            // The owner's own answer is not part of the tally: it is not counted in any figure below.
+            var others = item.Votes.Where(vote => vote.VoterId != item.UserId).ToList();
+            var voteProgress = others.Count;
             var unlocked = voteProgress >= OperationalSettings.Results.MinVotesToReveal;
 
             // Results are visible once the limit is reached, to the owner or to a voter who has answered.
             var showResults = unlocked && (isOwner || myVote is not null);
-            var counts = item.Votes
+            var counts = others
                 .Where(vote => vote.CheckOptionId is not null)
                 .GroupBy(vote => vote.CheckOptionId!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
@@ -288,11 +289,11 @@ namespace Yakku.Application.Checks.Services
                 IsOwner = isOwner,
                 MyVoteOptionId = myVote?.CheckOptionId,
                 MyCustomAnswer = myVote?.CustomAnswer,
-                TotalVotes = showResults ? item.Votes.Count : null,
+                TotalVotes = showResults ? others.Count : null,
                 MinVotes = OperationalSettings.Results.MinVotesToReveal,
                 VoteProgress = voteProgress,
                 ResultsUnlocked = unlocked,
-                CustomAnswerVotes = showResults ? item.Votes.Count(vote => vote.CustomAnswer is not null) : null,
+                CustomAnswerVotes = showResults ? others.Count(vote => vote.CustomAnswer is not null) : null,
                 Options = item.Check.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new UserCheckOptionResponse
@@ -301,7 +302,7 @@ namespace Yakku.Application.Checks.Services
                         Text = option.Text,
                         Votes = showResults ? counts.GetValueOrDefault(option.Id) : null,
                         WhyCount = showResults
-                            ? item.Votes.Count(vote => vote.CheckOptionId == option.Id && vote.Reason != null)
+                            ? others.Count(vote => vote.CheckOptionId == option.Id && vote.Reason != null)
                             : null
                     })
                     .ToList(),

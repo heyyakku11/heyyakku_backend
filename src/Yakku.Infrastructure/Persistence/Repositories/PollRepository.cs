@@ -145,6 +145,9 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                         HasReason = vote.Reason != null,
                         IsOther = vote.VoterId != poll.CreatorId
                     })
+                // The asker's own answer is never part of the tally: no vote count, percentage, why count or
+                // custom-answer count includes it.
+                .Where(item => item.IsOther)
                 .GroupBy(item => new { item.PollId, item.PollOptionId })
                 .Select(group => new
                 {
@@ -152,7 +155,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     group.Key.PollOptionId,
                     Count = group.Count(),
                     WhyCount = group.Count(item => item.HasReason),
-                    OtherCount = group.Count(item => item.IsOther)
+                    OtherCount = group.Count()
                 })
                 .ToListAsync(cancellationToken);
 

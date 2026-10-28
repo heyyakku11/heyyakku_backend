@@ -12,12 +12,13 @@ namespace Yakku.Application.Users.Mapper
         /// </summary>
         public static UserPollResponse ToUserAskResponse(this UserCheck item)
         {
-            // The maker's own answer does not count towards the reveal limit.
-            var otherVotes = item.Votes.Count(vote => vote.VoterId != item.UserId);
+            // The maker's own answer is not part of the tally: it is not counted in any figure below.
+            var others = item.Votes.Where(vote => vote.VoterId != item.UserId).ToList();
+            var otherVotes = others.Count;
             var minVotes = OperationalSettings.Results.MinVotesToReveal;
             var unlocked = otherVotes >= minVotes;
-            var totalVotes = item.Votes.Count;
-            var optionCounts = item.Votes
+            var totalVotes = others.Count;
+            var optionCounts = others
                 .Where(vote => vote.CheckOptionId is not null)
                 .GroupBy(vote => vote.CheckOptionId!.Value)
                 .ToDictionary(group => group.Key, group => group.Count());
@@ -35,8 +36,8 @@ namespace Yakku.Application.Users.Mapper
                 MinVotes = minVotes,
                 VoteProgress = otherVotes,
                 ResultsUnlocked = unlocked,
-                CustomAnswerCount = unlocked ? item.Votes.Count(vote => vote.CustomAnswer is not null) : 0,
-                TotalWhyCount = unlocked ? item.Votes.Count(vote => vote.Reason is not null) : 0,
+                CustomAnswerCount = unlocked ? others.Count(vote => vote.CustomAnswer is not null) : 0,
+                TotalWhyCount = unlocked ? others.Count(vote => vote.Reason is not null) : 0,
                 PollOptions = item.Check.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option =>
