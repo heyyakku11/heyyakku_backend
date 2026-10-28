@@ -8,6 +8,16 @@ namespace Yakku.Application.Reasons.DTOs
         public DateTime CreatedAt { get; set; }
     }
 
+    /// <summary>A custom answer a voter wrote in ("their own option"), with the reason they gave, if any. Anonymous.</summary>
+    public class CustomAnswerResponse
+    {
+        /// <summary>The vote id. Also the id to report when <see cref="Reason"/> is set.</summary>
+        public Guid Id { get; set; }
+        public string Answer { get; set; } = string.Empty;
+        public string? Reason { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
     /// <summary>
     /// Returned after a reason is reported. The reported reason no longer counts: these are the reason counts as
     /// they are now, so the client can update without reloading.

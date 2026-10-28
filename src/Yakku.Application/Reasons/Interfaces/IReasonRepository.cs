@@ -22,6 +22,20 @@ namespace Yakku.Application.Reasons.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// The custom answers written in on a poll the user owns, newest first, with their reasons. Null when the poll
+        /// is not theirs. Empty until the results are unlocked. The asker's own answer is never included.
+        /// </summary>
+        Task<List<CustomAnswerResponse>?> GetPollCustomAnswersAsync(
+            Guid pollId,
+            Guid ownerId,
+            CancellationToken cancellationToken = default);
+
+        Task<List<CustomAnswerResponse>?> GetCheckCustomAnswersAsync(
+            Guid userCheckId,
+            Guid ownerId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Logs the report and removes the reason from the vote, in one save, and returns the reason counts as they
         /// are now. Null when the poll is not the user's or the vote has no reason (reporting an already removed
         /// reason is not found).

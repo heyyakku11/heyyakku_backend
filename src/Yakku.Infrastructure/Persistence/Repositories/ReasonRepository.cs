@@ -97,6 +97,78 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<List<CustomAnswerResponse>?> GetPollCustomAnswersAsync(
+            Guid pollId,
+            Guid ownerId,
+            CancellationToken cancellationToken = default)
+        {
+            var owned = await _context.Polls
+                .AsNoTracking()
+                .AnyAsync(poll => poll.Id == pollId && poll.CreatorId == ownerId, cancellationToken);
+            if (!owned)
+            {
+                return null;
+            }
+
+            var otherVotes = await _context.PollVotes
+                .AsNoTracking()
+                .CountAsync(vote => vote.PollId == pollId && vote.VoterId != ownerId, cancellationToken);
+            if (otherVotes < OperationalSettings.Results.MinVotesToReveal)
+            {
+                return new List<CustomAnswerResponse>();
+            }
+
+            return await _context.PollVotes
+                .AsNoTracking()
+                .Where(vote => vote.PollId == pollId && vote.VoterId != ownerId && vote.CustomAnswer != null)
+                .OrderByDescending(vote => vote.CreatedAt)
+                .ThenByDescending(vote => vote.Id)
+                .Select(vote => new CustomAnswerResponse
+                {
+                    Id = vote.Id,
+                    Answer = vote.CustomAnswer!,
+                    Reason = vote.Reason,
+                    CreatedAt = vote.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<CustomAnswerResponse>?> GetCheckCustomAnswersAsync(
+            Guid userCheckId,
+            Guid ownerId,
+            CancellationToken cancellationToken = default)
+        {
+            var owned = await _context.UserChecks
+                .AsNoTracking()
+                .AnyAsync(item => item.Id == userCheckId && item.UserId == ownerId, cancellationToken);
+            if (!owned)
+            {
+                return null;
+            }
+
+            var otherVotes = await _context.UserCheckVotes
+                .AsNoTracking()
+                .CountAsync(vote => vote.UserCheckId == userCheckId && vote.VoterId != ownerId, cancellationToken);
+            if (otherVotes < OperationalSettings.Results.MinVotesToReveal)
+            {
+                return new List<CustomAnswerResponse>();
+            }
+
+            return await _context.UserCheckVotes
+                .AsNoTracking()
+                .Where(vote => vote.UserCheckId == userCheckId && vote.VoterId != ownerId && vote.CustomAnswer != null)
+                .OrderByDescending(vote => vote.CreatedAt)
+                .ThenByDescending(vote => vote.Id)
+                .Select(vote => new CustomAnswerResponse
+                {
+                    Id = vote.Id,
+                    Answer = vote.CustomAnswer!,
+                    Reason = vote.Reason,
+                    CreatedAt = vote.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<ReasonReportResponse?> ReportPollReasonAsync(
             Guid pollId,
             Guid ownerId,

@@ -34,6 +34,24 @@ namespace Yakku.Application.Reasons.Services
                 ?? throw NotFound();
         }
 
+        public async Task<List<CustomAnswerResponse>> GetPollCustomAnswersAsync(
+            Guid pollId,
+            Guid ownerId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _repository.GetPollCustomAnswersAsync(pollId, ownerId, cancellationToken)
+                ?? throw NotFound();
+        }
+
+        public async Task<List<CustomAnswerResponse>> GetCheckCustomAnswersAsync(
+            Guid userCheckId,
+            Guid ownerId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _repository.GetCheckCustomAnswersAsync(userCheckId, ownerId, cancellationToken)
+                ?? throw NotFound();
+        }
+
         public async Task<ReasonReportResponse> ReportPollReasonAsync(
             Guid pollId,
             Guid ownerId,

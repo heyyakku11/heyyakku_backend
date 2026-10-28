@@ -109,6 +109,18 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(reasons, "Reasons retrieved successfully"));
         }
 
+        /// <summary>The custom answers voters wrote in on the caller's made check, with their reasons.</summary>
+        [HttpGet("mine/{id:guid}/custom-answers")]
+        [EndpointSummary("List Check Custom Answers")]
+        [EndpointDescription("Lists the custom answers (\"their own options\") voters wrote in on a made check the signed-in user owns, newest first, each with the reason the voter gave, if any. Anonymous: no author is returned. The asker's own answer is never included. Empty until the results are unlocked. Returns 404 when the check is not yours.")]
+        [ProducesResponseType(typeof(ApiResponse<List<CustomAnswerResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetCustomAnswers(Guid id, CancellationToken cancellationToken)
+        {
+            var answers = await _reasonService.GetCheckCustomAnswersAsync(id, User.GetRequiredUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok(answers, "Custom answers retrieved successfully"));
+        }
+
         /// <summary>Reports a reason on the caller's made check as abuse: it is removed and a report is logged.</summary>
         [HttpPost("mine/{id:guid}/reasons/{reasonId:guid}/report")]
         [EndpointSummary("Report A Check Reason")]

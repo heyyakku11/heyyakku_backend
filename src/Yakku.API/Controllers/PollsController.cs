@@ -189,6 +189,17 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(reasons, "Reasons retrieved successfully"));
         }
 
+        [HttpGet("{id:guid}/custom-answers")]
+        [EndpointSummary("List Custom Answers")]
+        [EndpointDescription("Lists the custom answers (\"their own options\") voters wrote in on a poll the signed-in user owns, newest first, each with the reason the voter gave, if any. Anonymous: no author is returned. The asker's own answer is never included. Empty until the results are unlocked. Returns 404 when the poll is not yours.")]
+        [ProducesResponseType(typeof(ApiResponse<List<CustomAnswerResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetCustomAnswers(Guid id, CancellationToken cancellationToken)
+        {
+            var answers = await _reasonService.GetPollCustomAnswersAsync(id, User.GetRequiredUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok(answers, "Custom answers retrieved successfully"));
+        }
+
         [HttpPost("{id:guid}/reasons/{reasonId:guid}/report")]
         [EndpointSummary("Report A Reason")]
         [EndpointDescription("Reports a reason on a poll the signed-in user owns as abuse. The reason is removed from the vote so it is no longer shown or counted, and a report is logged for moderation. Returns the reason counts as they are now (optionWhyCount, totalWhyCount). Returns 404 when the poll is not yours or the reason does not exist (or was already removed).")]
