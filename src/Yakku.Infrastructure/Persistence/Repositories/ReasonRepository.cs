@@ -97,7 +97,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<bool> ReportPollReasonAsync(
+        public async Task<ReasonReportResponse?> ReportPollReasonAsync(
             Guid pollId,
             Guid ownerId,
             Guid voteId,
@@ -108,7 +108,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(cancellationToken);
             if (vote is null || vote.Reason is null)
             {
-                return false;
+                return null;
             }
 
             _context.ReasonReports.Add(ReasonReport.Create(
@@ -118,12 +118,24 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 vote.Id,
                 vote.PollOptionId,
                 vote.Reason));
+            var optionId = vote.PollOptionId;
             vote.RemoveReason();
             await _context.SaveChangesAsync(cancellationToken);
-            return true;
+
+            // Counts as they are now: the reported reason, and the asker's own, are not counted.
+            var reasonVotes = _context.PollVotes
+                .AsNoTracking()
+                .Where(item => item.PollId == pollId && item.VoterId != ownerId && item.Reason != null);
+            return new ReasonReportResponse
+            {
+                ReasonId = voteId,
+                OptionId = optionId,
+                OptionWhyCount = await reasonVotes.CountAsync(item => item.PollOptionId == optionId, cancellationToken),
+                TotalWhyCount = await reasonVotes.CountAsync(cancellationToken)
+            };
         }
 
-        public async Task<bool> ReportCheckReasonAsync(
+        public async Task<ReasonReportResponse?> ReportCheckReasonAsync(
             Guid userCheckId,
             Guid ownerId,
             Guid voteId,
@@ -134,7 +146,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(cancellationToken);
             if (vote is null || vote.Reason is null)
             {
-                return false;
+                return null;
             }
 
             _context.ReasonReports.Add(ReasonReport.Create(
@@ -144,9 +156,20 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 vote.Id,
                 vote.CheckOptionId,
                 vote.Reason));
+            var optionId = vote.CheckOptionId;
             vote.RemoveReason();
             await _context.SaveChangesAsync(cancellationToken);
-            return true;
+
+            var reasonVotes = _context.UserCheckVotes
+                .AsNoTracking()
+                .Where(item => item.UserCheckId == userCheckId && item.VoterId != ownerId && item.Reason != null);
+            return new ReasonReportResponse
+            {
+                ReasonId = voteId,
+                OptionId = optionId,
+                OptionWhyCount = await reasonVotes.CountAsync(item => item.CheckOptionId == optionId, cancellationToken),
+                TotalWhyCount = await reasonVotes.CountAsync(cancellationToken)
+            };
         }
     }
 }

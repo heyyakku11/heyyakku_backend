@@ -8,8 +8,8 @@ namespace Yakku.Application.Reasons.Interfaces
 
         Task<List<ReasonResponse>> GetCheckOptionReasonsAsync(Guid userCheckId, Guid ownerId, Guid optionId, CancellationToken cancellationToken = default);
 
-        Task ReportPollReasonAsync(Guid pollId, Guid ownerId, Guid reasonId, CancellationToken cancellationToken = default);
+        Task<ReasonReportResponse> ReportPollReasonAsync(Guid pollId, Guid ownerId, Guid reasonId, CancellationToken cancellationToken = default);
 
-        Task ReportCheckReasonAsync(Guid userCheckId, Guid ownerId, Guid reasonId, CancellationToken cancellationToken = default);
+        Task<ReasonReportResponse> ReportCheckReasonAsync(Guid userCheckId, Guid ownerId, Guid reasonId, CancellationToken cancellationToken = default);
     }
 }

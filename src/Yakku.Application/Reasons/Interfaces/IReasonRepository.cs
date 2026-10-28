@@ -22,16 +22,17 @@ namespace Yakku.Application.Reasons.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Logs the report and removes the reason from the vote, in one save. False when the poll is not the
-        /// user's or the vote has no reason. Reporting an already removed reason is not found.
+        /// Logs the report and removes the reason from the vote, in one save, and returns the reason counts as they
+        /// are now. Null when the poll is not the user's or the vote has no reason (reporting an already removed
+        /// reason is not found).
         /// </summary>
-        Task<bool> ReportPollReasonAsync(
+        Task<ReasonReportResponse?> ReportPollReasonAsync(
             Guid pollId,
             Guid ownerId,
             Guid voteId,
             CancellationToken cancellationToken = default);
 
-        Task<bool> ReportCheckReasonAsync(
+        Task<ReasonReportResponse?> ReportCheckReasonAsync(
             Guid userCheckId,
             Guid ownerId,
             Guid voteId,

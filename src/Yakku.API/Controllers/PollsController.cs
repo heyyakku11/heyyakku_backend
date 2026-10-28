@@ -191,13 +191,13 @@ namespace Yakku.API.Controllers
 
         [HttpPost("{id:guid}/reasons/{reasonId:guid}/report")]
         [EndpointSummary("Report A Reason")]
-        [EndpointDescription("Reports a reason on a poll the signed-in user owns as abuse. The reason is removed from the vote so it is no longer shown, and a report is logged for moderation. Returns 404 when the poll is not yours or the reason does not exist (or was already removed).")]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [EndpointDescription("Reports a reason on a poll the signed-in user owns as abuse. The reason is removed from the vote so it is no longer shown or counted, and a report is logged for moderation. Returns the reason counts as they are now (optionWhyCount, totalWhyCount). Returns 404 when the poll is not yours or the reason does not exist (or was already removed).")]
+        [ProducesResponseType(typeof(ApiResponse<ReasonReportResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ReportReason(Guid id, Guid reasonId, CancellationToken cancellationToken)
         {
-            await _reasonService.ReportPollReasonAsync(id, User.GetRequiredUserId(), reasonId, cancellationToken);
-            return Ok(ApiResponse.Ok<object?>(null, "Reason reported"));
+            var result = await _reasonService.ReportPollReasonAsync(id, User.GetRequiredUserId(), reasonId, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Reason reported"));
         }
 
         [HttpPut("{id:guid}/save")]

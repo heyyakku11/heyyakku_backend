@@ -34,28 +34,24 @@ namespace Yakku.Application.Reasons.Services
                 ?? throw NotFound();
         }
 
-        public async Task ReportPollReasonAsync(
+        public async Task<ReasonReportResponse> ReportPollReasonAsync(
             Guid pollId,
             Guid ownerId,
             Guid reasonId,
             CancellationToken cancellationToken = default)
         {
-            if (!await _repository.ReportPollReasonAsync(pollId, ownerId, reasonId, cancellationToken))
-            {
-                throw NotFound();
-            }
+            return await _repository.ReportPollReasonAsync(pollId, ownerId, reasonId, cancellationToken)
+                ?? throw NotFound();
         }
 
-        public async Task ReportCheckReasonAsync(
+        public async Task<ReasonReportResponse> ReportCheckReasonAsync(
             Guid userCheckId,
             Guid ownerId,
             Guid reasonId,
             CancellationToken cancellationToken = default)
         {
-            if (!await _repository.ReportCheckReasonAsync(userCheckId, ownerId, reasonId, cancellationToken))
-            {
-                throw NotFound();
-            }
+            return await _repository.ReportCheckReasonAsync(userCheckId, ownerId, reasonId, cancellationToken)
+                ?? throw NotFound();
         }
 
         private static AppException NotFound()
