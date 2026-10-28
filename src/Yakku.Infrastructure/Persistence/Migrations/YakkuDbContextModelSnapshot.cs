@@ -1226,6 +1226,67 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.ReasonReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("OptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("option_id");
+
+                    b.Property<string>("ReasonText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason_text");
+
+                    b.Property<Guid>("ReporterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reporter_id");
+
+                    b.Property<Guid>("VoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vote_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_reason_reports_created_at");
+
+                    b.HasIndex("ReporterId")
+                        .HasDatabaseName("IX_reason_reports_reporter_id");
+
+                    b.HasIndex("VoteId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_reason_reports_vote_id");
+
+                    b.HasIndex("ContentType", "ContentId")
+                        .HasDatabaseName("IX_reason_reports_content");
+
+                    b.ToTable("reason_reports", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_reason_reports_content_type", "\"content_type\" IN ('POLL', 'CHECK')");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1842,6 +1903,15 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Poll");
 
                     b.Navigation("PollOption");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.ReasonReport", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ReporterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>

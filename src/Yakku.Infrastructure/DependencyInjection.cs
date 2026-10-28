@@ -70,6 +70,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<IGuestRepository, GuestRepository>();
             services.AddScoped<IVoteRepository, VoteRepository>();
             services.AddScoped<ICheckRepository, CheckRepository>();
+            services.AddScoped<Yakku.Application.Reasons.Interfaces.IReasonRepository, ReasonRepository>();
             services.AddScoped<Yakku.Application.Plans.Interfaces.IPlanRepository, PlanRepository>();
             services.AddScoped<IDeviceRepository, DeviceRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();

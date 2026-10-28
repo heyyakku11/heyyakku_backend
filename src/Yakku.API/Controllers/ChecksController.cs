@@ -4,6 +4,8 @@ using Yakku.API.Auth;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Reasons.DTOs;
+using Yakku.Application.Reasons.Interfaces;
 
 namespace Yakku.API.Controllers
 {
@@ -13,10 +15,12 @@ namespace Yakku.API.Controllers
     public class ChecksController : ControllerBase
     {
         private readonly ICheckService _checkService;
+        private readonly IReasonService _reasonService;
 
-        public ChecksController(ICheckService checkService)
+        public ChecksController(ICheckService checkService, IReasonService reasonService)
         {
             _checkService = checkService;
+            _reasonService = reasonService;
         }
 
         /// <summary>Active checks for the current week (Monday to Sunday), with the caller's used flag. Public.</summary>
@@ -86,6 +90,35 @@ namespace Yakku.API.Controllers
         {
             await _checkService.DeleteMineAsync(id, User.GetRequiredUserId(), cancellationToken);
             return Ok(ApiResponse.Ok<object?>(null, "Check deleted successfully"));
+        }
+
+        /// <summary>The reasons voters gave for one option of the caller's made check.</summary>
+        [HttpGet("mine/{id:guid}/options/{optionId:guid}/reasons")]
+        [EndpointSummary("List Reasons For A Check Option")]
+        [EndpointDescription("Lists the reasons voters gave for one option of a made check the signed-in user owns, newest first. Anonymous: no author is returned. Empty until the results are unlocked. Returns 404 when the check is not yours or the option is not on it.")]
+        [ProducesResponseType(typeof(ApiResponse<List<ReasonResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetOptionReasons(Guid id, Guid optionId, CancellationToken cancellationToken)
+        {
+            var reasons = await _reasonService.GetCheckOptionReasonsAsync(
+                id,
+                User.GetRequiredUserId(),
+                optionId,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(reasons, "Reasons retrieved successfully"));
+        }
+
+        /// <summary>Reports a reason on the caller's made check as abuse: it is removed and a report is logged.</summary>
+        [HttpPost("mine/{id:guid}/reasons/{reasonId:guid}/report")]
+        [EndpointSummary("Report A Check Reason")]
+        [EndpointDescription("Reports a reason on a made check the signed-in user owns as abuse. The reason is removed from the answer so it is no longer shown, and a report is logged for moderation. Returns 404 when the check is not yours or the reason does not exist (or was already removed).")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ReportReason(Guid id, Guid reasonId, CancellationToken cancellationToken)
+        {
+            await _reasonService.ReportCheckReasonAsync(id, User.GetRequiredUserId(), reasonId, cancellationToken);
+            return Ok(ApiResponse.Ok<object?>(null, "Reason reported"));
         }
 
         /// <summary>The signed-in user's id, or null for anonymous callers on the public routes.</summary>

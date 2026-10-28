@@ -51,6 +51,7 @@ namespace Yakku.Application
             services.AddScoped<IVotingService, VotingService>();
             services.AddScoped<Yakku.Application.Streaks.Interfaces.IStreakService, Yakku.Application.Streaks.Services.StreakService>();
             services.AddScoped<ICheckService, CheckService>();
+            services.AddScoped<Yakku.Application.Reasons.Interfaces.IReasonService, Yakku.Application.Reasons.Services.ReasonService>();
             services.AddScoped<IAdminCheckService, AdminCheckService>();
             services.AddScoped<Yakku.Application.Plans.Interfaces.IPlanService, Yakku.Application.Plans.Services.PlanService>();
             services.AddScoped<IDeviceService, DeviceService>();

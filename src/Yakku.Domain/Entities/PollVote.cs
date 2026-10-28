@@ -22,6 +22,13 @@ namespace Yakku.Domain.Entities
         {
         }
 
+        /// <summary>Drops the reason text (a reported reason); the vote itself stays.</summary>
+        public void RemoveReason()
+        {
+            Reason = null;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
         public static PollVote ForOption(
             Guid voterId,
             Guid pollId,

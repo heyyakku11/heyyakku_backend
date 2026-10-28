@@ -27,6 +27,12 @@ namespace Yakku.Domain.Entities
         {
         }
 
+        /// <summary>Drops the reason text (a reported reason); the vote itself stays.</summary>
+        public void RemoveReason()
+        {
+            Reason = null;
+        }
+
         public static UserCheckVote ForOption(
             Guid userCheckId,
             Guid checkId,

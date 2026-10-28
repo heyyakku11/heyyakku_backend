@@ -7,6 +7,8 @@ using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls.DTOs;
 using Yakku.Application.Polls.Interfaces;
+using Yakku.Application.Reasons.DTOs;
+using Yakku.Application.Reasons.Interfaces;
 using Yakku.Application.Users.DTOs;
 using Yakku.Application.Users.Interfaces;
 
@@ -24,12 +26,15 @@ namespace Yakku.API.Controllers
         private readonly IPollService _pollService;
         private readonly IUserService _userService;
         private readonly ISavedPollService _savedPollService;
+        private readonly IReasonService _reasonService;
 
         public PollsController(
             IPollService pollService,
             IUserService userService,
-            ISavedPollService savedPollService)
+            ISavedPollService savedPollService,
+            IReasonService reasonService)
         {
+            _reasonService = reasonService;
             _pollService = pollService;
             _userService = userService;
             _savedPollService = savedPollService;
@@ -166,6 +171,33 @@ namespace Yakku.API.Controllers
                 cancellationToken);
 
             return Ok(ApiResponse.Ok<object?>(null, "Poll deleted successfully"));
+        }
+
+        [HttpGet("{id:guid}/options/{optionId:guid}/reasons")]
+        [EndpointSummary("List Reasons For An Option")]
+        [EndpointDescription("Lists the reasons voters gave for one option of a poll the signed-in user owns, newest first. Anonymous: no author is returned. Empty until the results are unlocked. Returns 404 when the poll is not yours or the option is not on it.")]
+        [ProducesResponseType(typeof(ApiResponse<List<ReasonResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetOptionReasons(Guid id, Guid optionId, CancellationToken cancellationToken)
+        {
+            var reasons = await _reasonService.GetPollOptionReasonsAsync(
+                id,
+                User.GetRequiredUserId(),
+                optionId,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(reasons, "Reasons retrieved successfully"));
+        }
+
+        [HttpPost("{id:guid}/reasons/{reasonId:guid}/report")]
+        [EndpointSummary("Report A Reason")]
+        [EndpointDescription("Reports a reason on a poll the signed-in user owns as abuse. The reason is removed from the vote so it is no longer shown, and a report is logged for moderation. Returns 404 when the poll is not yours or the reason does not exist (or was already removed).")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ReportReason(Guid id, Guid reasonId, CancellationToken cancellationToken)
+        {
+            await _reasonService.ReportPollReasonAsync(id, User.GetRequiredUserId(), reasonId, cancellationToken);
+            return Ok(ApiResponse.Ok<object?>(null, "Reason reported"));
         }
 
         [HttpPut("{id:guid}/save")]
