@@ -55,6 +55,20 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Notification retrieved successfully"));
         }
 
+        [HttpPatch("read-all")]
+        [EndpointSummary("Mark All Notifications Read")]
+        [EndpointDescription("Marks every unread notification of the signed-in user as read, including ones not yet loaded. Returns how many were changed (updated). Idempotent: with nothing unread it changes nothing and returns 0.")]
+        [ProducesResponseType(typeof(ApiResponse<MarkAllReadResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> MarkAllRead(CancellationToken cancellationToken)
+        {
+            var updated = await _notificationService.MarkAllAsReadAsync(
+                User.GetRequiredUserId(),
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(new MarkAllReadResponse { Updated = updated }, "Notifications marked as read"));
+        }
+
         [HttpPatch("{id:guid}/read")]
         [EndpointSummary("Mark Notification Read")]
         [EndpointDescription("Marks one of the signed-in user's notifications as read and returns it. Returns 404 when the notification does not exist or belongs to someone else.")]

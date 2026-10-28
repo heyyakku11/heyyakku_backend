@@ -15,6 +15,9 @@ namespace Yakku.Application.Notifications.Interfaces
             Guid notificationId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>Marks all of the user's unread notifications as read; returns how many changed.</summary>
+        Task<int> MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default);
+
         Task<NotificationResponse> MarkAsReadAsync(
             Guid userId,
             Guid notificationId,

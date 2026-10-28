@@ -70,6 +70,11 @@ namespace Yakku.Application.Notifications.Services
             return notification.ToResponse();
         }
 
+        public Task<int> MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return _notifications.MarkAllReadAsync(userId, cancellationToken);
+        }
+
         public async Task<NotificationResponse> MarkAsReadAsync(
             Guid userId,
             Guid notificationId,

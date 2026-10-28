@@ -249,5 +249,6 @@ public class VoteNotificationWorkerTests
 
         public Task<IReadOnlyList<Notification>> GetByUserAsync(Guid userId, DateTime? cursorCreatedAt, Guid? cursorId, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Notification?> GetByIdForUserAsync(Guid id, Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<int> MarkAllReadAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

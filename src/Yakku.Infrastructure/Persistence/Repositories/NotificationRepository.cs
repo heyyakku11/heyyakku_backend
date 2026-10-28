@@ -56,6 +56,18 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             await _context.Notifications.AddAsync(notification, cancellationToken);
         }
 
+        public async Task<int> MarkAllReadAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            return await _context.Notifications
+                .Where(notification => notification.UserId == userId && !notification.IsRead)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(notification => notification.IsRead, true)
+                        .SetProperty(notification => notification.ReadAt, now),
+                    cancellationToken);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return _context.SaveChangesAsync(cancellationToken);
