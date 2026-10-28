@@ -16,6 +16,12 @@ namespace Yakku.Application.Checks.Interfaces
 
         Task<UserCheckResponse> GetMineByIdAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
 
+        /// <summary>Closes the caller's made check so it stops taking answers; 404 when it is not theirs.</summary>
+        Task<UserCheckResponse> CloseMineAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
+
+        /// <summary>Deletes the caller's made check with its answers; 404 when it is not theirs.</summary>
+        Task DeleteMineAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
+
         Task<UserCheckResponse> GetSharedAsync(string shareCode, Guid? userId, CancellationToken cancellationToken = default);
 
         Task<CheckVoteResponse> VoteAsync(

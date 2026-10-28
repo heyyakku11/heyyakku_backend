@@ -147,6 +147,35 @@ namespace Yakku.Application.Checks.Services
             return ToUserCheckResponse(item, userId);
         }
 
+        public async Task<UserCheckResponse> CloseMineAsync(
+            Guid userCheckId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var item = await _repository.GetOwnedUserCheckForUpdateAsync(userCheckId, userId, cancellationToken)
+                ?? throw CheckExceptions.NotFound();
+
+            if (!item.TryClose())
+            {
+                throw CheckExceptions.AlreadyClosed();
+            }
+
+            await _repository.SaveChecksAsync(cancellationToken);
+            var closed = await _repository.GetUserCheckByIdAsync(userCheckId, cancellationToken)
+                ?? throw CheckExceptions.NotFound();
+            return ToUserCheckResponse(closed, userId);
+        }
+
+        public async Task DeleteMineAsync(
+            Guid userCheckId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var item = await _repository.GetOwnedUserCheckForUpdateAsync(userCheckId, userId, cancellationToken)
+                ?? throw CheckExceptions.NotFound();
+            await _repository.DeleteUserCheckAsync(item, cancellationToken);
+        }
+
         public async Task<CheckVoteResponse> VoteAsync(
             string shareCode,
             Guid userId,
@@ -157,6 +186,11 @@ namespace Yakku.Application.Checks.Services
 
             var item = await _repository.GetUserCheckByShareCodeAsync(shareCode, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
+
+            if (item.IsClosed)
+            {
+                throw new AppException(400, ApiErrorCodes.ValidationError, "This check is not accepting votes.");
+            }
 
             if (item.UserId == userId)
             {

@@ -128,6 +128,21 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public Task<UserCheck?> GetOwnedUserCheckForUpdateAsync(
+            Guid userCheckId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.UserChecks
+                .FirstOrDefaultAsync(item => item.Id == userCheckId && item.UserId == userId, cancellationToken);
+        }
+
+        public async Task DeleteUserCheckAsync(UserCheck userCheck, CancellationToken cancellationToken = default)
+        {
+            _context.UserChecks.Remove(userCheck);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         public Task<UserCheck?> GetUserCheckByIdAsync(Guid userCheckId, CancellationToken cancellationToken = default)
         {
             return WithDetails(_context.UserChecks.AsNoTracking())

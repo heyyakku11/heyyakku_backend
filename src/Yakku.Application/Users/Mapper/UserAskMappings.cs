@@ -29,7 +29,7 @@ namespace Yakku.Application.Users.Mapper
                 ShareCode = item.ShareCode,
                 Question = item.Check.Question,
                 ContentType = "check",
-                Status = "active",
+                Status = item.IsClosed ? "closed" : "active",
                 CreatedAt = item.CreatedAt,
                 TotalVoteCount = unlocked ? totalVotes : otherVotes,
                 MinVotes = minVotes,

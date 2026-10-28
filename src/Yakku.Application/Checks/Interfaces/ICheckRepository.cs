@@ -27,6 +27,12 @@ namespace Yakku.Application.Checks.Interfaces
             int take,
             CancellationToken cancellationToken = default);
 
+        /// <summary>A tracked made check owned by <paramref name="userId"/>, for closing or deleting; null when not theirs.</summary>
+        Task<UserCheck?> GetOwnedUserCheckForUpdateAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
+
+        /// <summary>Deletes the made check; its answers and share code registry row cascade.</summary>
+        Task DeleteUserCheckAsync(UserCheck userCheck, CancellationToken cancellationToken = default);
+
         Task<UserCheck?> GetUserCheckByIdAsync(Guid userCheckId, CancellationToken cancellationToken = default);
 
         Task<UserCheck?> GetUserCheckByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default);

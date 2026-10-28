@@ -63,6 +63,31 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Your checks retrieved successfully"));
         }
 
+        /// <summary>Closes one of the caller's made checks so it stops taking answers.</summary>
+        [HttpPost("mine/{id:guid}/close")]
+        [EndpointSummary("Close My Check")]
+        [EndpointDescription("Closes a made check the signed-in user owns so it stops accepting answers. Existing answers are kept. Returns 404 when it does not exist or is not yours, and 409 when it is already closed.")]
+        [ProducesResponseType(typeof(ApiResponse<UserCheckResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> CloseMine(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await _checkService.CloseMineAsync(id, User.GetRequiredUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Check closed successfully"));
+        }
+
+        /// <summary>Permanently deletes one of the caller's made checks with its answers.</summary>
+        [HttpDelete("mine/{id:guid}")]
+        [EndpointSummary("Delete My Check")]
+        [EndpointDescription("Permanently deletes a made check the signed-in user owns, together with its answers. Returns 404 when it does not exist or is not yours.")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteMine(Guid id, CancellationToken cancellationToken)
+        {
+            await _checkService.DeleteMineAsync(id, User.GetRequiredUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok<object?>(null, "Check deleted successfully"));
+        }
+
         /// <summary>The signed-in user's id, or null for anonymous callers on the public routes.</summary>
         private Guid? CurrentUserId()
         {

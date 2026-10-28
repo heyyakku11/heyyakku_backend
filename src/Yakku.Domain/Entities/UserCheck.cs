@@ -12,12 +12,29 @@ namespace Yakku.Domain.Entities
         public string ShareCode { get; private set; } = string.Empty;
         public DateTime CreatedAt { get; private set; }
 
+        /// <summary>When the owner closed it so it stops taking answers; null while it is live.</summary>
+        public DateTime? ClosedAt { get; private set; }
+
+        public bool IsClosed => ClosedAt is not null;
+
         public User User { get; private set; } = null!;
         public Check Check { get; private set; } = null!;
         public List<UserCheckVote> Votes { get; private set; } = new();
 
         private UserCheck()
         {
+        }
+
+        /// <summary>Stops the check taking answers. False when it is already closed.</summary>
+        public bool TryClose()
+        {
+            if (ClosedAt is not null)
+            {
+                return false;
+            }
+
+            ClosedAt = DateTime.UtcNow;
+            return true;
         }
 
         public static UserCheck Create(Guid userId, Guid checkId, string shareCode)

@@ -10,6 +10,11 @@ namespace Yakku.Application.Checks
             return new AppException(404, ApiErrorCodes.NotFound, "Check not found");
         }
 
+        public static AppException AlreadyClosed()
+        {
+            return new AppException(409, ApiErrorCodes.Conflict, "Check is already closed.");
+        }
+
         public static AppException AlreadyUsed()
         {
             return new AppException(

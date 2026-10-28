@@ -193,6 +193,20 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var userCheckId = content.ContentId;
             var checkId = content.Check!.CheckId;
 
+            // Owners close a made check by updating its row; lock it so a vote cannot slip in after.
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM user_checks WHERE id = {userCheckId} FOR SHARE",
+                cancellationToken);
+            var closedAt = await _context.UserChecks
+                .AsNoTracking()
+                .Where(userCheck => userCheck.Id == userCheckId)
+                .Select(userCheck => userCheck.ClosedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (closedAt is not null)
+            {
+                throw new AppException(400, ApiErrorCodes.ValidationError, "This check is not accepting votes.");
+            }
+
             // Admins deactivate a check by updating its row; lock it so a vote cannot slip in after.
             await _context.Database.ExecuteSqlInterpolatedAsync(
                 $"SELECT 1 FROM checks WHERE id = {checkId} FOR SHARE",
@@ -272,8 +286,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 ShareCode = item.ShareCode,
                 OwnerId = item.UserId,
                 Question = item.Check.Question,
-                Status = item.Check.IsActive ? "ACTIVE" : "INACTIVE",
-                IsOpen = item.Check.IsActive,
+                Status = item.IsClosed ? "CLOSED" : item.Check.IsActive ? "ACTIVE" : "INACTIVE",
+                IsOpen = item.Check.IsActive && !item.IsClosed,
                 PubliclyReadable = true,
                 CreatedAt = item.CreatedAt,
                 Options = item.Check.Options
