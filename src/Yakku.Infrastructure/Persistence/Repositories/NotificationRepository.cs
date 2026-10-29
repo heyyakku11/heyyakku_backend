@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Yakku.Application.Notifications.Interfaces;
 using Yakku.Domain.Entities;
@@ -68,6 +69,27 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var now = DateTime.UtcNow;
             return await _context.Notifications
                 .Where(notification => notification.UserId == userId && !notification.IsRead)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(notification => notification.IsRead, true)
+                        .SetProperty(notification => notification.ReadAt, now),
+                    cancellationToken);
+        }
+
+        public async Task<int> MarkContentReadAsync(
+            Guid userId,
+            string contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default)
+        {
+            // Notifications about a card carry { contentType, contentId } in their data.
+            var target = JsonSerializer.Serialize(new { contentType, contentId });
+            var now = DateTime.UtcNow;
+            return await _context.Notifications
+                .Where(notification => notification.UserId == userId
+                                       && !notification.IsRead
+                                       && notification.Data != null
+                                       && EF.Functions.JsonContains(notification.Data, target))
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(notification => notification.IsRead, true)

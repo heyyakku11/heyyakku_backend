@@ -361,6 +361,45 @@ public sealed class VoteNotificationOutboxIntegrationTests
     }
 
     [SkippableFact]
+    public async Task MarkingACardRead_ClearsOnlyThatCardsNotifications_AndKeepsThemOutOfTheDigest()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (poll, content) = await NewPollAsync(context);
+        for (var i = 0; i < 6; i++)
+        {
+            await VoteAsync(context, content);
+        }
+
+        // A second card of the same asker, whose notifications must stay unread.
+        var otherPoll = new Poll(poll.CreatorId, "Another question?", PollContentType.Question);
+        otherPoll.AddTextOption("Option A", 1);
+        otherPoll.AddTextOption("Option B", 2);
+        otherPoll.MarkPublished();
+        await new PollRepository(context).AddAsync(otherPoll);
+        await context.SaveChangesAsync();
+        var otherContent = (await new VotableContentRepository(context).FindByShareCodeAsync(otherPoll.ShareCode))!;
+        await VoteAsync(context, otherContent);
+
+        var service = new Yakku.Application.Notifications.Services.NotificationService(new NotificationRepository(context));
+        var updated = await service.MarkContentAsReadAsync(poll.CreatorId, "POLL", poll.Id);
+        var again = await service.MarkContentAsReadAsync(poll.CreatorId, "poll", poll.Id);
+        await Assert.ThrowsAsync<AppException>(() => service.MarkContentAsReadAsync(poll.CreatorId, "survey", poll.Id));
+
+        Assert.Equal(6, updated);
+        Assert.Equal(0, again);
+        await using var verify = _fixture.CreateContext();
+        Assert.Equal(1, await verify.Notifications.CountAsync(n => n.UserId == poll.CreatorId && !n.IsRead));
+
+        var window = await verify.VoteDigestWindows.AsNoTracking().SingleAsync(w => w.ContentId == poll.Id);
+        var push = new ScriptedPushService(new PushUserNotificationResult { EligibleDevices = 1, Successful = 1 });
+        await NewDispatcher(context, push, window.EndsAt.AddMinutes(1)).ProcessWindowsAsync(CancellationToken.None);
+
+        Assert.Empty(push.Payloads);
+        Assert.Equal(VoteDigestWindowStatus.Skipped, (await verify.VoteDigestWindows.SingleAsync(w => w.Id == window.Id)).Status);
+    }
+
+    [SkippableFact]
     public async Task AVoteAfterTheWindowEnded_StartsANewWindow_AndTheOldOneIsDue()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);

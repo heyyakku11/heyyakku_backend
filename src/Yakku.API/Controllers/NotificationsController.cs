@@ -83,6 +83,26 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(new MarkAllReadResponse { Updated = updated }, "Notifications marked as read"));
         }
 
+        [HttpPatch("content/{contentType}/{contentId:guid}/read")]
+        [EndpointSummary("Mark A Card's Notifications Read")]
+        [EndpointDescription("Marks every unread notification of the signed-in user about one poll or check (contentType poll|check) as read, including ones not yet loaded. Call it when the user opens that card's results: answers they have seen are then left out of the 30-minute digest push. Returns how many were changed (updated). Idempotent. Returns 400 for an unknown contentType.")]
+        [ProducesResponseType(typeof(ApiResponse<MarkAllReadResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> MarkContentRead(
+            string contentType,
+            Guid contentId,
+            CancellationToken cancellationToken)
+        {
+            var updated = await _notificationService.MarkContentAsReadAsync(
+                User.GetRequiredUserId(),
+                contentType,
+                contentId,
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(new MarkAllReadResponse { Updated = updated }, "Notifications marked as read"));
+        }
+
         [HttpPatch("{id:guid}/read")]
         [EndpointSummary("Mark Notification Read")]
         [EndpointDescription("Marks one of the signed-in user's notifications as read and returns it. Returns 404 when the notification does not exist or belongs to someone else.")]

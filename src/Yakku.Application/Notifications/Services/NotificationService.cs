@@ -80,6 +80,25 @@ namespace Yakku.Application.Notifications.Services
             return _notifications.MarkAllReadAsync(userId, cancellationToken);
         }
 
+        public Task<int> MarkContentAsReadAsync(
+            Guid userId,
+            string contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default)
+        {
+            var normalized = contentType.Trim().ToLowerInvariant();
+            if (normalized is not ("poll" or "check"))
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "Content type must be poll or check.",
+                    "contentType");
+            }
+
+            return _notifications.MarkContentReadAsync(userId, normalized, contentId, cancellationToken);
+        }
+
         public async Task<NotificationResponse> MarkAsReadAsync(
             Guid userId,
             Guid notificationId,
