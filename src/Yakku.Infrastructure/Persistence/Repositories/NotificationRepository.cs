@@ -59,9 +59,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public Task<int> CountUnreadAsync(Guid userId, CancellationToken cancellationToken = default)
         {
+            // Same visibility rule as the list: expired notifications are not shown, so they do not count.
+            var now = DateTime.UtcNow;
             return _context.Notifications
                 .AsNoTracking()
-                .CountAsync(notification => notification.UserId == userId && !notification.IsRead, cancellationToken);
+                .CountAsync(
+                    notification => notification.UserId == userId
+                                    && !notification.IsRead
+                                    && (notification.ExpiresAt == null || notification.ExpiresAt > now),
+                    cancellationToken);
         }
 
         public async Task<int> MarkAllReadAsync(Guid userId, CancellationToken cancellationToken = default)

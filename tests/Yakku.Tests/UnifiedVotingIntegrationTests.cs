@@ -179,7 +179,7 @@ public sealed class UnifiedVotingIntegrationTests
             admin.Checks.Add(temp);
             await admin.SaveChangesAsync();
             var tempMaker = await AddUserAsync(admin);
-            var userCheck = UserCheck.Create(tempMaker.Id, temp.Id, ShareCodeGenerator.New(tempMaker.Id, DateTime.UtcNow));
+            var userCheck = UserCheck.Create(tempMaker.Id, temp.Id, ShareCodeGenerator.New());
             admin.UserChecks.Add(userCheck);
             admin.ShareCodes.Add(ShareCode.ForCheck(userCheck));
             await admin.SaveChangesAsync();

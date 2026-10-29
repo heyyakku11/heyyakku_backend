@@ -40,8 +40,14 @@ namespace Yakku.Domain.Entities
             Status = PollStatus.Draft;
             ExpiresAt = expiresAt;
             CreatedAt = DateTime.UtcNow;
-            ShareCode = ShareCodeGenerator.New(creatorId, CreatedAt);
+            ShareCode = ShareCodeGenerator.New();
             UpdatedAt = CreatedAt;
+        }
+
+        /// <summary>Replaces the share code, used when the generated one is already taken.</summary>
+        public void AssignShareCode(string shareCode)
+        {
+            ShareCode = shareCode;
         }
 
         public void AddTextOption(string text, int sortOrder)

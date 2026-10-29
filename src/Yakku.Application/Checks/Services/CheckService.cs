@@ -93,7 +93,7 @@ namespace Yakku.Application.Checks.Services
 
             for (var attempt = 0; attempt < ShareCodeAttempts; attempt++)
             {
-                var userCheck = UserCheck.Create(userId, check.Id, ShareCodeGenerator.New(userId, DateTime.UtcNow));
+                var userCheck = UserCheck.Create(userId, check.Id, ShareCodeGenerator.New());
 
                 // The maker's own answer is saved together with the check, so a check is never used without one.
                 var ownerAnswer = BuildVote(userCheck.Id, check, userId, answer);

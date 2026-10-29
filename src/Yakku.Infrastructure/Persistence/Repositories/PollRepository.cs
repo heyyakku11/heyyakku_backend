@@ -17,6 +17,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public async Task AddAsync(Poll poll, CancellationToken cancellationToken = default)
         {
+            // Short codes can collide: pick one that no poll or check uses yet. The unique index on share_codes
+            // stays the final guard against two creators picking the same code at the same instant.
+            for (var attempt = 0;
+                 attempt < 10 && await _context.ShareCodes.AnyAsync(code => code.Code == poll.ShareCode, cancellationToken);
+                 attempt++)
+            {
+                poll.AssignShareCode(ShareCodeGenerator.New());
+            }
+
             await _context.Polls.AddAsync(poll, cancellationToken);
 
             // Saved with the poll, so the universal share code always resolves to it.
