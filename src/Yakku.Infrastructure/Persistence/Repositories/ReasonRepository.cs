@@ -52,7 +52,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .Where(vote => vote.PollId == pollId && vote.VoterId != ownerId && vote.PollOptionId == optionId && vote.Reason != null)
                 .OrderByDescending(vote => vote.CreatedAt)
                 .ThenByDescending(vote => vote.Id)
-                .Select(vote => new ReasonResponse { Id = vote.Id, Text = vote.Reason!, CreatedAt = vote.CreatedAt })
+                .Select(vote => new ReasonResponse
+                {
+                    Id = vote.Id,
+                    Text = vote.Reason!,
+                    CreatedAt = vote.CreatedAt,
+                    CanAskBack = vote.VoterRole == VoterRole.User
+                })
                 .ToListAsync(cancellationToken);
         }
 
@@ -93,7 +99,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .Where(vote => vote.UserCheckId == userCheckId && vote.VoterId != ownerId && vote.CheckOptionId == optionId && vote.Reason != null)
                 .OrderByDescending(vote => vote.CreatedAt)
                 .ThenByDescending(vote => vote.Id)
-                .Select(vote => new ReasonResponse { Id = vote.Id, Text = vote.Reason!, CreatedAt = vote.CreatedAt })
+                .Select(vote => new ReasonResponse
+                {
+                    Id = vote.Id,
+                    Text = vote.Reason!,
+                    CreatedAt = vote.CreatedAt,
+                    CanAskBack = vote.VoterRole == VoterRole.User
+                })
                 .ToListAsync(cancellationToken);
         }
 
@@ -128,7 +140,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     Id = vote.Id,
                     Answer = vote.CustomAnswer!,
                     Reason = vote.Reason,
-                    CreatedAt = vote.CreatedAt
+                    CreatedAt = vote.CreatedAt,
+                    CanAskBack = vote.VoterRole == VoterRole.User
                 })
                 .ToListAsync(cancellationToken);
         }
@@ -164,7 +177,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     Id = vote.Id,
                     Answer = vote.CustomAnswer!,
                     Reason = vote.Reason,
-                    CreatedAt = vote.CreatedAt
+                    CreatedAt = vote.CreatedAt,
+                    CanAskBack = vote.VoterRole == VoterRole.User
                 })
                 .ToListAsync(cancellationToken);
         }

@@ -6,6 +6,9 @@ namespace Yakku.Application.Reasons.DTOs
         public Guid Id { get; set; }
         public string Text { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>True when a registered user gave it, so the asker can chat back. False for a guest.</summary>
+        public bool CanAskBack { get; set; }
     }
 
     /// <summary>A custom answer a voter wrote in ("their own option"), with the reason they gave, if any. Anonymous.</summary>
@@ -16,6 +19,9 @@ namespace Yakku.Application.Reasons.DTOs
         public string Answer { get; set; } = string.Empty;
         public string? Reason { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>True when a registered user wrote it, so the asker can chat back. False for a guest.</summary>
+        public bool CanAskBack { get; set; }
     }
 
     /// <summary>
