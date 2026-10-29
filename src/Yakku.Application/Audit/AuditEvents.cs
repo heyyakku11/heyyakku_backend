@@ -73,6 +73,7 @@ namespace Yakku.Application.Audit
             public const string AuditRetention = "audit_retention";
             public const string AccountDeletion = "account_deletion";
             public const string SessionCleanup = "session_cleanup";
+            public const string VoteNotificationRetention = "vote_notification_retention";
         }
     }
 }

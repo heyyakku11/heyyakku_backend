@@ -630,7 +630,7 @@ public sealed class StreakIntegrationTests
             new VoteRequestValidator(),
             new RecordingAuditLogWriter(),
             NewStreaks(context),
-            new RecordingPushQueue());
+            new RecordingVoteNotificationOutbox());
     }
 
     private static CreatePollRequest QuestionRequest(string contentType = "question")

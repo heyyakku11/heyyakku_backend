@@ -39,6 +39,29 @@ namespace Yakku.Application.PushNotifications
             };
         }
 
+        /// <summary>
+        /// The summary push for a digest window: how many new answers the card got, and where to open it. Like
+        /// every push it carries no voter and no answer.
+        /// </summary>
+        public static NotificationPayload ForDigest(string contentType, Guid contentId, int count)
+        {
+            return new NotificationPayload
+            {
+                Title = "Yakku",
+                Body = count == 1 ? "1 new answer" : $"{count} new answers",
+                Data = new Dictionary<string, string>
+                {
+                    ["type"] = "normal",
+                    ["eventType"] = "PollAnswered",
+                    ["digest"] = "true",
+                    ["count"] = count.ToString(),
+                    ["contentType"] = contentType,
+                    ["contentId"] = contentId.ToString(),
+                    ["deepLink"] = $"yakku://results/{contentType}/{contentId}"
+                }
+            };
+        }
+
         /// <summary>Reads <c>{ contentType, contentId }</c> out of a notification's data JSON; false when absent or malformed.</summary>
         private static bool TryReadTarget(string? json, out string contentType, out string contentId)
         {

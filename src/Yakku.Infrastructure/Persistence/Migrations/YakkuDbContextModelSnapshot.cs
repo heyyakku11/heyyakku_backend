@@ -1772,6 +1772,211 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.VoteDigestWindow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ends_at");
+
+                    b.Property<int>("EventCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("event_count");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EndsAt")
+                        .HasDatabaseName("IX_vote_digest_windows_due")
+                        .HasFilter("\"status\" IN ('OPEN', 'DUE', 'PROCESSING')");
+
+                    b.HasIndex("ContentType", "ContentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_vote_digest_windows_open_per_card")
+                        .HasFilter("\"status\" = 'OPEN'");
+
+                    b.ToTable("vote_digest_windows", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_vote_digest_windows_ends_after_start", "\"ends_at\" > \"starts_at\"");
+
+                            t.HasCheckConstraint("CK_vote_digest_windows_status", "\"status\" IN ('OPEN', 'DUE', 'PROCESSING', 'SENT', 'SKIPPED', 'FAILED')");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.VoteNotificationCard", b =>
+                {
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<Guid>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<int>("VoteCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("vote_count");
+
+                    b.HasKey("ContentType", "ContentId");
+
+                    b.ToTable("vote_notification_cards", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_vote_notification_cards_count_positive", "\"vote_count\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.VoteNotificationEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<Guid>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("notification_id");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer")
+                        .HasColumnName("sequence");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<Guid>("VoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vote_id");
+
+                    b.Property<Guid?>("WindowId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("window_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_vote_notification_events_created_at");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasDatabaseName("IX_vote_notification_events_due")
+                        .HasFilter("\"kind\" = 'IMMEDIATE' AND \"status\" IN ('PENDING', 'SENDING')");
+
+                    b.HasIndex("ContentType", "VoteId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_vote_notification_events_content_type_vote_id");
+
+                    b.HasIndex("WindowId", "Status")
+                        .HasDatabaseName("IX_vote_notification_events_window_id_status")
+                        .HasFilter("\"window_id\" IS NOT NULL");
+
+                    b.ToTable("vote_notification_events", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_vote_notification_events_digest_has_window", "(\"kind\" = 'DIGEST') = (\"window_id\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_vote_notification_events_kind", "\"kind\" IN ('IMMEDIATE', 'DIGEST')");
+
+                            t.HasCheckConstraint("CK_vote_notification_events_status", "\"status\" IN ('PENDING', 'SENDING', 'SUBMITTED', 'SKIPPED', 'FAILED')");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Admin", "Admin")

@@ -23,7 +23,7 @@ namespace Yakku.Application.Sharing.Services
         private readonly IValidator<VoteRequest> _validator;
         private readonly IAuditLogWriter _audit;
         private readonly IStreakService _streaks;
-        private readonly IPushQueue _pushQueue;
+        private readonly IVoteNotificationOutbox _notifications;
 
         public VotingService(
             IVotableContentRepository contents,
@@ -32,10 +32,10 @@ namespace Yakku.Application.Sharing.Services
             IValidator<VoteRequest> validator,
             IAuditLogWriter audit,
             IStreakService streaks,
-            IPushQueue pushQueue)
+            IVoteNotificationOutbox notifications)
         {
             _streaks = streaks;
-            _pushQueue = pushQueue;
+            _notifications = notifications;
             _contents = contents;
             _storage = storage;
             _policy = policy;
@@ -169,33 +169,29 @@ namespace Yakku.Application.Sharing.Services
                 request.OptionId is null ? request.CustomAnswer!.Trim() : null,
                 string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim());
 
-            // A signed-in user's accepted vote earns streak credit in the same transaction as the vote itself, so a
-            // rejected, duplicate or rolled-back vote cannot. Guests never earn streaks (the id is not a user).
-            Func<VoteReceipt, CancellationToken, Task>? creditStreak = voter.IsUser
-                ? (receipt, token) => _streaks.RecordAsync(voter.Id, StreakActivity.VoteCast, receipt.CreatedAt, token)
-                : null;
+            // A signed-in user's accepted vote earns streak credit, and a vote that is not the asker's own is recorded
+            // in the notification outbox, both in the same transaction as the vote itself: a rejected, duplicate or
+            // rolled-back vote earns and notifies nothing, and a committed vote can never lose its notification.
+            // Guests never earn streaks (the id is not a user).
+            async Task AfterAddedAsync(VoteReceipt added, CancellationToken token)
+            {
+                if (voter.IsUser)
+                {
+                    await _streaks.RecordAsync(voter.Id, StreakActivity.VoteCast, added.CreatedAt, token);
+                }
 
-            var receipt = await _contents.AddVoteAsync(content, voter, vote, creditStreak, cancellationToken);
+                if (!isOwner)
+                {
+                    await _notifications.RecordAsync(content, added, token);
+                }
+            }
 
-            // The vote is committed. A notification problem must never fail it, and an owner is not told about
-            // their own answer.
+            var receipt = await _contents.AddVoteAsync(content, voter, vote, AfterAddedAsync, cancellationToken);
+
+            // Committed: wake the dispatcher so the first pushes go out without waiting for its poll.
             if (!isOwner)
             {
-                try
-                {
-                    await _pushQueue.EnqueueAsync(
-                        new VoteNotificationJob(
-                            content.OwnerId,
-                            content.ContentId,
-                            content.IsPoll,
-                            content.ShareCode,
-                            receipt.VoteId),
-                        CancellationToken.None);
-                }
-                catch (Exception)
-                {
-                    // Best effort by design.
-                }
+                _notifications.Wake();
             }
 
             var response = await SharedContentService.BuildAsync(

@@ -357,33 +357,35 @@ public class UnifiedVotingTests
     }
 
     [Fact]
-    public async Task AVote_QueuesOnePushJobForTheOwner_WithoutAnswerContent()
+    public async Task AVote_IsRecordedInTheOutboxForTheOwner_AndWakesTheDispatcher()
     {
         var h = new Harness();
         var poll = h.AddPoll();
 
         await h.Voting.VoteAsync(Request(poll, poll.Options[0].Id, reason: "secret"), VoterIdentity.ForGuest(Guid.NewGuid()));
 
-        var job = Assert.Single(h.PushQueue.Jobs);
-        Assert.Equal(PollOwner, job.OwnerId);
-        Assert.Equal(poll.ContentId, job.ContentId);
-        Assert.True(job.IsPoll);
-        Assert.Equal(poll.ShareCode, job.ShareCode);
+        var (recorded, receipt) = Assert.Single(h.Outbox.Recorded);
+        Assert.Equal(PollOwner, recorded.OwnerId);
+        Assert.Equal(poll.ContentId, recorded.ContentId);
+        Assert.True(recorded.IsPoll);
+        Assert.Equal(poll.ShareCode, recorded.ShareCode);
+        Assert.NotEqual(Guid.Empty, receipt.VoteId);
+        Assert.Equal(1, h.Outbox.Wakes);
     }
 
     [Fact]
-    public async Task AnOwnerVotingOnTheirOwnPoll_QueuesNoPush()
+    public async Task AnOwnerVotingOnTheirOwnPoll_RecordsNoNotification()
     {
         var h = new Harness();
         var poll = h.AddPoll();
 
         await h.Voting.VoteAsync(Request(poll, poll.Options[0].Id), VoterIdentity.ForUser(PollOwner));
 
-        Assert.Empty(h.PushQueue.Jobs);
+        Assert.Empty(h.Outbox.Recorded);
     }
 
     [Fact]
-    public async Task ARejectedVote_QueuesNoPush()
+    public async Task ARejectedVote_RecordsNoNotification()
     {
         var h = new Harness();
         var poll = h.AddPoll(open: false);
@@ -391,20 +393,20 @@ public class UnifiedVotingTests
         await Assert.ThrowsAsync<AppException>(() => h.Voting.VoteAsync(
             Request(poll, poll.Options[0].Id), VoterIdentity.ForUser(Guid.NewGuid())));
 
-        Assert.Empty(h.PushQueue.Jobs);
+        Assert.Empty(h.Outbox.Recorded);
     }
 
     [Fact]
-    public async Task AQueueFailure_DoesNotFailTheVote()
+    public async Task AnOutboxFailure_FailsTheVote_SoTheTransactionRollsItBack()
     {
         var h = new Harness();
-        h.PushQueue.Throw = true;
+        h.Outbox.Throw = true;
         var poll = h.AddPoll();
 
-        var response = await h.Voting.VoteAsync(
-            Request(poll, poll.Options[0].Id), VoterIdentity.ForUser(Guid.NewGuid()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Voting.VoteAsync(
+            Request(poll, poll.Options[0].Id), VoterIdentity.ForUser(Guid.NewGuid())));
 
-        Assert.NotNull(response);
+        Assert.Equal(0, h.Outbox.Wakes);
     }
 
     private static VoteRequest Request(VotableContent content, Guid optionId, string? reason = null)
@@ -427,10 +429,10 @@ public class UnifiedVotingTests
                 new VoteRequestValidator(),
                 Audit,
                 Streaks,
-                PushQueue);
+                Outbox);
         }
 
-        public RecordingPushQueue PushQueue { get; } = new();
+        public RecordingVoteNotificationOutbox Outbox { get; } = new();
         public NoOpStreakService Streaks { get; } = new();
         public InMemoryVotableContents Repository { get; }
         public RecordingAuditLogWriter Audit { get; }

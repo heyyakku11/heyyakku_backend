@@ -113,15 +113,11 @@ namespace Yakku.Infrastructure
             services.AddSingleton<IAdminEmailQueue, AdminEmailQueue>();
             services.AddHostedService<AdminEmailWorker>();
 
-            var pushChannel = Channel.CreateBounded<VoteNotificationJob>(new BoundedChannelOptions(PushQueueOptions.Capacity)
-            {
-                FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = true,
-                SingleWriter = false
-            });
-            services.AddSingleton(pushChannel);
-            services.AddSingleton<IPushQueue, PushQueue>();
+            services.AddSingleton<VoteNotificationSignal>();
+            services.AddScoped<IVoteNotificationOutbox, VoteNotificationOutbox>();
+            services.AddScoped<VoteNotificationDispatcher>();
             services.AddHostedService<VoteNotificationWorker>();
+            services.AddHostedService<VoteNotificationRetentionWorker>();
 
             return services;
         }

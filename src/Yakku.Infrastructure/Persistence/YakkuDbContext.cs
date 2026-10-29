@@ -36,6 +36,9 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<UserCheckVote> UserCheckVotes => Set<UserCheckVote>();
         public DbSet<ShareCode> ShareCodes => Set<ShareCode>();
         public DbSet<ReasonReport> ReasonReports => Set<ReasonReport>();
+        public DbSet<VoteNotificationCard> VoteNotificationCards => Set<VoteNotificationCard>();
+        public DbSet<VoteNotificationEvent> VoteNotificationEvents => Set<VoteNotificationEvent>();
+        public DbSet<VoteDigestWindow> VoteDigestWindows => Set<VoteDigestWindow>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
