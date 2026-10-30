@@ -122,6 +122,289 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("admin_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackConversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BlockedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("blocked_by_user_id");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("creator_user_id");
+
+                    b.Property<DateTime>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_activity_at");
+
+                    b.Property<DateTime?>("LastMessageAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_message_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("VoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vote_id");
+
+                    b.Property<Guid?>("VoterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("voter_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VoteId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ask_back_conversations_vote_id");
+
+                    b.HasIndex("CreatorUserId", "LastActivityAt", "Id")
+                        .HasDatabaseName("IX_ask_back_conversations_creator_activity");
+
+                    b.HasIndex("VoterUserId", "LastActivityAt", "Id")
+                        .HasDatabaseName("IX_ask_back_conversations_voter_activity");
+
+                    b.ToTable("ask_back_conversations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ask_back_conversations_blocked_by", "(\"status\" = 'BLOCKED') = (\"blocked_by_user_id\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ask_back_conversations_distinct_users", "\"creator_user_id\" IS NULL OR \"voter_user_id\" IS NULL OR \"creator_user_id\" <> \"voter_user_id\"");
+
+                            t.HasCheckConstraint("CK_ask_back_conversations_status", "\"status\" IN ('ACTIVE', 'CLOSED', 'BLOCKED')");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientMessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_message_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("content");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateTime?>("EditedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("edited_at");
+
+                    b.Property<Guid?>("SenderUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sender_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SenderUserId");
+
+                    b.HasIndex("ConversationId", "CreatedAt", "Id")
+                        .HasDatabaseName("IX_ask_back_messages_history");
+
+                    b.HasIndex("ConversationId", "SenderUserId", "ClientMessageId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ask_back_messages_idempotency");
+
+                    b.ToTable("ask_back_messages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ask_back_messages_content_length", "char_length(\"content\") BETWEEN 1 AND 2000");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackOutboxEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<DateTime>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<Guid>("RecipientUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_ask_back_outbox_created_at");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ask_back_outbox_message_id");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasDatabaseName("IX_ask_back_outbox_due")
+                        .HasFilter("\"status\" IN ('PENDING', 'PROCESSING')");
+
+                    b.ToTable("ask_back_outbox", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ask_back_outbox_status", "\"status\" IN ('PENDING', 'PROCESSING', 'SENT', 'SKIPPED', 'FAILED')");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<bool>("IsMuted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_muted");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joined_at");
+
+                    b.Property<DateTime?>("LastReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_read_at");
+
+                    b.Property<DateTime?>("LastReadMessageCreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_read_message_created_at");
+
+                    b.Property<Guid?>("LastReadMessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_read_message_id");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_ask_back_participants_user_id");
+
+                    b.HasIndex("ConversationId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ask_back_participants_conversation_user");
+
+                    b.ToTable("ask_back_participants", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("ReportedUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reported_user_id");
+
+                    b.Property<Guid?>("ReporterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reporter_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId")
+                        .HasDatabaseName("IX_ask_back_reports_conversation_id");
+
+                    b.ToTable("ask_back_reports", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.AuthenticationAuditLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1988,6 +2271,51 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Admin");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackConversation", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("VoterUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackMessage", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.AskBackConversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("SenderUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Conversation");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackParticipant", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.AskBackConversation", "Conversation")
+                        .WithMany("Participants")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Conversation");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.CheckOption", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Check", "Check")
@@ -2254,6 +2582,13 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.Admin", b =>
                 {
                     b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackConversation", b =>
+                {
+                    b.Navigation("Messages");
+
+                    b.Navigation("Participants");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Check", b =>

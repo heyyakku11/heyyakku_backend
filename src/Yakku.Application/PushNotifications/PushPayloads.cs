@@ -62,6 +62,26 @@ namespace Yakku.Application.PushNotifications
             };
         }
 
+        /// <summary>
+        /// The push for a new Ask Back message. Like every push it holds no message text, name or phone number:
+        /// a generic line and the conversation id, which only its two participants can open.
+        /// </summary>
+        public static NotificationPayload ForAskBackMessage(Guid conversationId)
+        {
+            return new NotificationPayload
+            {
+                Title = "Yakku",
+                Body = "You have a new message",
+                Data = new Dictionary<string, string>
+                {
+                    ["type"] = "normal",
+                    ["eventType"] = "AskBackMessage",
+                    ["conversationId"] = conversationId.ToString(),
+                    ["deepLink"] = $"yakku://ask-back/{conversationId}"
+                }
+            };
+        }
+
         /// <summary>Reads <c>{ contentType, contentId }</c> out of a notification's data JSON; false when absent or malformed.</summary>
         private static bool TryReadTarget(string? json, out string contentType, out string contentId)
         {

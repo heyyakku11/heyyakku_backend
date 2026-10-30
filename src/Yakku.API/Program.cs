@@ -58,6 +58,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
         options.Events = new JwtBearerEvents
         {
+            // Browsers and mobile WebSocket clients cannot set an Authorization header, so the hub takes the
+            // token from the query string. Only for hub paths; the REST API still needs the header.
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken)
+                    && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            },
             OnChallenge = async context =>
             {
                 context.HandleResponse();
@@ -156,10 +169,19 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("device-write", httpContext => FixedWindow(httpContext, OperationalSettings.Devices.WriteRateLimitPerMinute));
     options.AddPolicy("device-read", httpContext => FixedWindow(httpContext, OperationalSettings.Devices.ReadRateLimitPerMinute));
     options.AddPolicy("guest-create",httpContext => FixedWindow(httpContext, permitLimit: guestCreateLimit));
+    options.AddPolicy("ask-back-write", httpContext => FixedWindow(httpContext, permitLimit: 60));
+    options.AddPolicy("ask-back-read", httpContext => FixedWindow(httpContext, permitLimit: 240));
 });
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, Yakku.API.AskBack.YakkuUserIdProvider>();
+builder.Services.AddSingleton<Yakku.API.AskBack.AskBackPresence>();
+// Registered after AddApplication, so these replace its do-nothing defaults.
+builder.Services.AddSingleton<Yakku.Application.AskBack.Interfaces.IAskBackPresence>(
+    sp => sp.GetRequiredService<Yakku.API.AskBack.AskBackPresence>());
+builder.Services.AddSingleton<Yakku.Application.AskBack.Interfaces.IAskBackRealtime, Yakku.API.AskBack.AskBackRealtime>();
 builder.Services.AddScoped<Yakku.API.Guests.GuestCookieService>();
 builder.Services.AddScoped<Yakku.API.Media.MediaCallerResolver>();
 builder.Services.AddScoped<Yakku.API.Devices.DeviceCallerResolver>();
@@ -202,6 +224,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapControllers();
+app.MapHub<Yakku.API.AskBack.AskBackHub>("/hubs/ask-back");
 
 app.Run();
 

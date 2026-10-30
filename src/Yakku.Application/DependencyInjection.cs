@@ -58,6 +58,10 @@ namespace Yakku.Application
             services.AddScoped<IDeviceSessionBinder>(provider => (DeviceService)provider.GetRequiredService<IDeviceService>());
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IPushNotificationService, PushNotificationService>();
+            services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackService, Yakku.Application.AskBack.Services.AskBackService>();
+            // The API replaces these with the SignalR-backed ones; elsewhere nothing is connected.
+            services.AddSingleton<Yakku.Application.AskBack.Interfaces.IAskBackRealtime, Yakku.Application.AskBack.Interfaces.NullAskBackRealtime>();
+            services.AddSingleton<Yakku.Application.AskBack.Interfaces.IAskBackPresence, Yakku.Application.AskBack.Interfaces.NullAskBackPresence>();
             services.AddSingleton<IOtpGenerator, OtpGenerator>();
             services.AddSingleton<IDisplayNameGenerator, DisplayNameGenerator>();
             services.AddSingleton<IGuestTokenGenerator, GuestTokenGenerator>();

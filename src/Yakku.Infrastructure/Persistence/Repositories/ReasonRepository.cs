@@ -207,6 +207,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var optionId = vote.PollOptionId;
             vote.RemoveReason();
             await _context.SaveChangesAsync(cancellationToken);
+            await CloseAskBackAsync(vote.Id, cancellationToken);
 
             // Counts as they are now: the reported reason, and the asker's own, are not counted.
             var reasonVotes = _context.PollVotes
@@ -245,6 +246,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var optionId = vote.CheckOptionId;
             vote.RemoveReason();
             await _context.SaveChangesAsync(cancellationToken);
+            await CloseAskBackAsync(vote.Id, cancellationToken);
 
             var reasonVotes = _context.UserCheckVotes
                 .AsNoTracking()
@@ -256,6 +258,22 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 OptionWhyCount = await reasonVotes.CountAsync(item => item.CheckOptionId == optionId, cancellationToken),
                 TotalWhyCount = await reasonVotes.CountAsync(cancellationToken)
             };
+        }
+
+        /// <summary>
+        /// A reported reason ends the Ask Back conversation about it: the reason the asker rejected is gone, and the
+        /// voter should not be left able to keep writing to them. The asker can reopen it.
+        /// </summary>
+        private Task<int> CloseAskBackAsync(Guid voteId, CancellationToken cancellationToken)
+        {
+            var now = DateTime.UtcNow;
+            return _context.AskBackConversations
+                .Where(item => item.VoteId == voteId && item.Status == AskBackStatus.Active)
+                .ExecuteUpdateAsync(
+                    set => set
+                        .SetProperty(item => item.Status, AskBackStatus.Closed)
+                        .SetProperty(item => item.ClosedAt, (DateTime?)now),
+                    cancellationToken);
         }
     }
 }

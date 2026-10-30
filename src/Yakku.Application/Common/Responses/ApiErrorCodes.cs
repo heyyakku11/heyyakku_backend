@@ -23,5 +23,7 @@ namespace Yakku.Application.Common.Responses
         public const string OtpInvalid = "OTP_INVALID";
         public const string OtpAttemptsExceeded = "OTP_ATTEMPTS_EXCEEDED";
         public const string OtpResendCooldown = "OTP_RESEND_COOLDOWN";
+        public const string AskBackNotAllowed = "ASK_BACK_NOT_ALLOWED";
+        public const string AskBackNotActive = "ASK_BACK_NOT_ACTIVE";
     }
 }

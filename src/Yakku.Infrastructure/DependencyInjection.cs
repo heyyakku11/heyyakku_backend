@@ -118,6 +118,9 @@ namespace Yakku.Infrastructure
             services.AddScoped<VoteNotificationDispatcher>();
             services.AddHostedService<VoteNotificationWorker>();
             services.AddHostedService<VoteNotificationRetentionWorker>();
+            services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackRepository, AskBackRepository>();
+            services.AddScoped<AskBackPushDispatcher>();
+            services.AddHostedService<AskBackPushWorker>();
 
             return services;
         }
