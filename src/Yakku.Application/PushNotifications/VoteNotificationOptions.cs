@@ -5,7 +5,7 @@ namespace Yakku.Application.PushNotifications
         /// <summary>The first votes of a card that are each pushed on their own.</summary>
         public const int ImmediateVotes = 3;
 
-        public static readonly TimeSpan DigestWindow = TimeSpan.FromMinutes(30);
+        public static readonly TimeSpan DigestWindow = TimeSpan.FromMinutes(15);
 
         /// <summary>How often the dispatcher looks for due work when nothing wakes it.</summary>
         public static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
