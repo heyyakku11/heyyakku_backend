@@ -53,6 +53,7 @@ namespace Yakku.Application
             services.AddScoped<ICheckService, CheckService>();
             services.AddScoped<Yakku.Application.Reasons.Interfaces.IReasonService, Yakku.Application.Reasons.Services.ReasonService>();
             services.AddScoped<IAdminCheckService, AdminCheckService>();
+            services.AddScoped<Yakku.Application.AdminUsers.Interfaces.IAdminUserService, Yakku.Application.AdminUsers.Services.AdminUserService>();
             services.AddScoped<Yakku.Application.Plans.Interfaces.IPlanService, Yakku.Application.Plans.Services.PlanService>();
             services.AddScoped<IDeviceService, DeviceService>();
             services.AddScoped<IDeviceSessionBinder>(provider => (DeviceService)provider.GetRequiredService<IDeviceService>());
