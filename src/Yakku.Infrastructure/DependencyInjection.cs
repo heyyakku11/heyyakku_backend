@@ -71,6 +71,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<IVoteRepository, VoteRepository>();
             services.AddScoped<ICheckRepository, CheckRepository>();
             services.AddScoped<Yakku.Application.AdminUsers.Interfaces.IAdminUserRepository, AdminUserRepository>();
+            services.AddScoped<Yakku.Application.AdminPolls.Interfaces.IAdminPollRepository, AdminPollRepository>();
             services.AddScoped<Yakku.Application.Reasons.Interfaces.IReasonRepository, ReasonRepository>();
             services.AddScoped<Yakku.Application.Plans.Interfaces.IPlanRepository, PlanRepository>();
             services.AddScoped<IDeviceRepository, DeviceRepository>();
