@@ -8,8 +8,8 @@ namespace Yakku.Application.AdminUsers.Services
 {
     public class AdminUserService : IAdminUserService
     {
-        public const int DefaultPageSize = 100;
-        public const int MaxPageSize = 500;
+        public const int DefaultPageSize = 10;
+        public const int MaxPageSize = 50;
 
         private readonly IAdminUserRepository _repository;
         private readonly TimeProvider _time;
@@ -21,7 +21,7 @@ namespace Yakku.Application.AdminUsers.Services
         }
 
         public async Task<(List<AdminUserResponse> Items, PaginationMeta Meta)> ListUsersAsync(
-            string? status, int page, int pageSize, CancellationToken cancellationToken = default)
+            string? status, string? cursor, int pageSize, CancellationToken cancellationToken = default)
         {
             UserStatus? filter = null;
             if (!string.IsNullOrWhiteSpace(status))
@@ -37,13 +37,16 @@ namespace Yakku.Application.AdminUsers.Services
                 filter = parsed;
             }
 
-            (page, pageSize) = Normalize(page, pageSize);
-            var result = await _repository.GetUsersAsync(filter, page, pageSize, cancellationToken);
-            return (result.Items, PaginationMeta.Create(page, pageSize, result.TotalCount));
+            var after = AdminUserCursor.TryDecode(cursor);
+            pageSize = NormalizePageSize(pageSize);
+            var result = await _repository.GetUsersAsync(filter, after, pageSize, cancellationToken);
+            var last = result.Items.LastOrDefault();
+            var next = result.HasMore && last is not null ? AdminUserCursor.Encode(last.CreatedAt, last.Id) : null;
+            return (result.Items, PaginationMeta.ForCursor(pageSize, next, result.HasMore));
         }
 
         public async Task<(List<AdminGuestResponse> Items, PaginationMeta Meta)> ListGuestsAsync(
-            string? status, int page, int pageSize, CancellationToken cancellationToken = default)
+            string? status, string? cursor, int pageSize, CancellationToken cancellationToken = default)
         {
             bool? activeOnly = null;
             if (!string.IsNullOrWhiteSpace(status))
@@ -56,15 +59,18 @@ namespace Yakku.Application.AdminUsers.Services
                 };
             }
 
-            (page, pageSize) = Normalize(page, pageSize);
+            var after = AdminUserCursor.TryDecode(cursor);
+            pageSize = NormalizePageSize(pageSize);
             var result = await _repository.GetGuestsAsync(
-                activeOnly, _time.GetUtcNow().UtcDateTime, page, pageSize, cancellationToken);
-            return (result.Items, PaginationMeta.Create(page, pageSize, result.TotalCount));
+                activeOnly, _time.GetUtcNow().UtcDateTime, after, pageSize, cancellationToken);
+            var last = result.Items.LastOrDefault();
+            var next = result.HasMore && last is not null ? AdminUserCursor.Encode(last.CreatedAt, last.Id) : null;
+            return (result.Items, PaginationMeta.ForCursor(pageSize, next, result.HasMore));
         }
 
-        private static (int Page, int PageSize) Normalize(int page, int pageSize)
+        private static int NormalizePageSize(int pageSize)
         {
-            return (Math.Max(page, 1), pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize));
+            return pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize);
         }
 
         private static AppException Invalid(string message)
