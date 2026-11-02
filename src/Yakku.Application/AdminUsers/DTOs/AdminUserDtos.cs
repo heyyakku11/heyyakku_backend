@@ -52,10 +52,10 @@ namespace Yakku.Application.AdminUsers.DTOs
         public string? AppVersion { get; set; }
     }
 
-    /// <summary>One page of rows from the repository; HasMore is true when older rows follow.</summary>
+    /// <summary>One page of rows from the repository, with the total across all pages.</summary>
     public class AdminPage<T>
     {
         public List<T> Items { get; set; } = new();
-        public bool HasMore { get; set; }
+        public int TotalCount { get; set; }
     }
 }

@@ -15,7 +15,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         }
 
         public async Task<AdminPage<AdminUserResponse>> GetUsersAsync(
-            UserStatus? status, (DateTime CreatedAt, Guid Id)? after, int pageSize, CancellationToken cancellationToken = default)
+            UserStatus? status, int page, int pageSize, CancellationToken cancellationToken = default)
         {
             var query = _context.Users.AsNoTracking();
             if (status.HasValue)
@@ -23,17 +23,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 query = query.Where(user => user.Status == status.Value);
             }
 
-            if (after is { } position)
-            {
-                query = query.Where(user => user.CreatedAt < position.CreatedAt
-                    || (user.CreatedAt == position.CreatedAt && user.Id.CompareTo(position.Id) > 0));
-            }
-
-            // One extra row tells whether another page follows.
+            var total = await query.CountAsync(cancellationToken);
             var rows = await query
                 .OrderByDescending(user => user.CreatedAt)
                 .ThenBy(user => user.Id)
-                .Take(pageSize + 1)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(user => new
                 {
                     user.Id,
@@ -47,11 +42,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 })
                 .ToListAsync(cancellationToken);
 
-            var hasMore = rows.Count > pageSize;
             return new AdminPage<AdminUserResponse>
             {
-                HasMore = hasMore,
-                Items = rows.Take(pageSize).Select(row => new AdminUserResponse
+                TotalCount = total,
+                Items = rows.Select(row => new AdminUserResponse
                 {
                     Id = row.Id,
                     AnonymousName = row.AnonymousName,
@@ -66,7 +60,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         }
 
         public async Task<AdminPage<AdminGuestResponse>> GetGuestsAsync(
-            bool? activeOnly, DateTime utcNow, (DateTime CreatedAt, Guid Id)? after, int pageSize, CancellationToken cancellationToken = default)
+            bool? activeOnly, DateTime utcNow, int page, int pageSize, CancellationToken cancellationToken = default)
         {
             var query = _context.Guests.AsNoTracking();
             if (activeOnly == true)
@@ -78,16 +72,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 query = query.Where(guest => guest.ExpiresAt <= utcNow);
             }
 
-            if (after is { } position)
-            {
-                query = query.Where(guest => guest.CreatedAt < position.CreatedAt
-                    || (guest.CreatedAt == position.CreatedAt && guest.Id.CompareTo(position.Id) > 0));
-            }
-
+            var total = await query.CountAsync(cancellationToken);
             var rows = await query
                 .OrderByDescending(guest => guest.CreatedAt)
                 .ThenBy(guest => guest.Id)
-                .Take(pageSize + 1)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(guest => new
                 {
                     guest.Id,
@@ -100,9 +90,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                         vote.VoterRole == VoterRole.Guest && vote.VoterId == guest.Id)
                 })
                 .ToListAsync(cancellationToken);
-
-            var hasMore = rows.Count > pageSize;
-            rows = rows.Take(pageSize).ToList();
 
             // The most recently seen installation of each guest on this page, in one extra query.
             var ids = rows.Select(row => row.Id).ToList();
@@ -125,7 +112,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
             return new AdminPage<AdminGuestResponse>
             {
-                HasMore = hasMore,
+                TotalCount = total,
                 Items = rows.Select(row => new AdminGuestResponse
                 {
                     Id = row.Id,

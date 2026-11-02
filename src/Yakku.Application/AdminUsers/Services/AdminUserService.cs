@@ -21,7 +21,7 @@ namespace Yakku.Application.AdminUsers.Services
         }
 
         public async Task<(List<AdminUserResponse> Items, PaginationMeta Meta)> ListUsersAsync(
-            string? status, string? cursor, int pageSize, CancellationToken cancellationToken = default)
+            string? status, int page, int pageSize, CancellationToken cancellationToken = default)
         {
             UserStatus? filter = null;
             if (!string.IsNullOrWhiteSpace(status))
@@ -37,16 +37,13 @@ namespace Yakku.Application.AdminUsers.Services
                 filter = parsed;
             }
 
-            var after = AdminUserCursor.TryDecode(cursor);
-            pageSize = NormalizePageSize(pageSize);
-            var result = await _repository.GetUsersAsync(filter, after, pageSize, cancellationToken);
-            var last = result.Items.LastOrDefault();
-            var next = result.HasMore && last is not null ? AdminUserCursor.Encode(last.CreatedAt, last.Id) : null;
-            return (result.Items, PaginationMeta.ForCursor(pageSize, next, result.HasMore));
+            (page, pageSize) = Normalize(page, pageSize);
+            var result = await _repository.GetUsersAsync(filter, page, pageSize, cancellationToken);
+            return (result.Items, PaginationMeta.Create(page, pageSize, result.TotalCount));
         }
 
         public async Task<(List<AdminGuestResponse> Items, PaginationMeta Meta)> ListGuestsAsync(
-            string? status, string? cursor, int pageSize, CancellationToken cancellationToken = default)
+            string? status, int page, int pageSize, CancellationToken cancellationToken = default)
         {
             bool? activeOnly = null;
             if (!string.IsNullOrWhiteSpace(status))
@@ -59,18 +56,15 @@ namespace Yakku.Application.AdminUsers.Services
                 };
             }
 
-            var after = AdminUserCursor.TryDecode(cursor);
-            pageSize = NormalizePageSize(pageSize);
+            (page, pageSize) = Normalize(page, pageSize);
             var result = await _repository.GetGuestsAsync(
-                activeOnly, _time.GetUtcNow().UtcDateTime, after, pageSize, cancellationToken);
-            var last = result.Items.LastOrDefault();
-            var next = result.HasMore && last is not null ? AdminUserCursor.Encode(last.CreatedAt, last.Id) : null;
-            return (result.Items, PaginationMeta.ForCursor(pageSize, next, result.HasMore));
+                activeOnly, _time.GetUtcNow().UtcDateTime, page, pageSize, cancellationToken);
+            return (result.Items, PaginationMeta.Create(page, pageSize, result.TotalCount));
         }
 
-        private static int NormalizePageSize(int pageSize)
+        private static (int Page, int PageSize) Normalize(int page, int pageSize)
         {
-            return pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize);
+            return (Math.Max(page, 1), pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize));
         }
 
         private static AppException Invalid(string message)

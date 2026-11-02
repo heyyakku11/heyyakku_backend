@@ -30,9 +30,9 @@ public class AdminUserIntegrationTests
         await context.Users.Where(user => user.Id == disabled.Id)
             .ExecuteUpdateAsync(set => set.SetProperty(user => user.Status, UserStatus.Disabled));
 
-        var all = await service.ListUsersAsync(null, null, 50);
-        var onlyDisabled = await service.ListUsersAsync("DISABLED", null, 50);
-        var onlyActive = await service.ListUsersAsync("active", null, 50);
+        var all = await service.ListUsersAsync(null, 1, 50);
+        var onlyDisabled = await service.ListUsersAsync("DISABLED", 1, 50);
+        var onlyActive = await service.ListUsersAsync("active", 1, 50);
 
         var row = Assert.Single(all.Items, item => item.Id == active.Id);
         Assert.Equal(active.Profile.AnonymousName, row.AnonymousName);
@@ -51,7 +51,7 @@ public class AdminUserIntegrationTests
     }
 
     [SkippableFact]
-    public async Task Users_PageByCursor_TenByDefault_WithoutRepeatsOrGaps_AndRejectBadInput()
+    public async Task Users_PageByOffset_TenByDefault_WithoutRepeatsOrGaps_AndRejectBadInput()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
@@ -61,27 +61,29 @@ public class AdminUserIntegrationTests
             await AddUserAsync(context);
         }
 
-        var first = await service.ListUsersAsync(null, null, 0);
+        var first = await service.ListUsersAsync(null, 1, 0);
         Assert.Equal(AdminUserService.DefaultPageSize, first.Items.Count);
         Assert.Equal(10, first.Meta.PageSize);
-        Assert.True(first.Meta.HasMore);
-        Assert.NotNull(first.Meta.NextCursor);
+        Assert.Equal(1, first.Meta.Page);
+        Assert.True(first.Meta.TotalCount >= 12);
+        Assert.True(first.Meta.TotalPages >= 2);
 
-        var second = await service.ListUsersAsync(null, first.Meta.NextCursor, 0);
+        var second = await service.ListUsersAsync(null, 2, 0);
         Assert.NotEmpty(second.Items);
         Assert.Empty(first.Items.Select(item => item.Id).Intersect(second.Items.Select(item => item.Id)));
         // Newest first across the page boundary.
         Assert.True(first.Items[^1].CreatedAt >= second.Items[0].CreatedAt);
 
-        var small = await service.ListUsersAsync(null, null, 3);
+        var small = await service.ListUsersAsync(null, 1, 3);
         Assert.Equal(3, small.Items.Count);
-        var capped = await service.ListUsersAsync(null, null, 9999);
+        var capped = await service.ListUsersAsync(null, 1, 9999);
         Assert.Equal(AdminUserService.MaxPageSize, capped.Meta.PageSize);
+        var clamped = await service.ListUsersAsync(null, -5, 10);
+        Assert.Equal(1, clamped.Meta.Page);
 
-        var bad = await Assert.ThrowsAsync<AppException>(() => service.ListUsersAsync("banned", null, 10));
+        var bad = await Assert.ThrowsAsync<AppException>(() => service.ListUsersAsync("banned", 1, 10));
         Assert.Equal(400, bad.StatusCode);
-        await Assert.ThrowsAsync<AppException>(() => service.ListUsersAsync("1", null, 10));
-        await Assert.ThrowsAsync<AppException>(() => service.ListUsersAsync(null, "not-a-cursor", 10));
+        await Assert.ThrowsAsync<AppException>(() => service.ListUsersAsync("1", 1, 10));
     }
 
     [SkippableFact]
@@ -107,9 +109,9 @@ public class AdminUserIntegrationTests
             live.Id, poll.Id, poll.Options.First().Id, reason: null, VoterRole.Guest));
         await context.SaveChangesAsync();
 
-        var all = await service.ListGuestsAsync(null, null, 50);
-        var onlyActive = await service.ListGuestsAsync("active", null, 50);
-        var onlyExpired = await service.ListGuestsAsync("Expired", null, 50);
+        var all = await service.ListGuestsAsync(null, 1, 50);
+        var onlyActive = await service.ListGuestsAsync("active", 1, 50);
+        var onlyExpired = await service.ListGuestsAsync("Expired", 1, 50);
 
         var liveRow = Assert.Single(all.Items, item => item.Id == live.Id);
         Assert.Equal("active", liveRow.Status);
@@ -126,7 +128,7 @@ public class AdminUserIntegrationTests
         Assert.Contains(onlyExpired.Items, item => item.Id == expired.Id);
         Assert.DoesNotContain(onlyExpired.Items, item => item.Id == live.Id);
 
-        var bad = await Assert.ThrowsAsync<AppException>(() => service.ListGuestsAsync("disabled", null, 10));
+        var bad = await Assert.ThrowsAsync<AppException>(() => service.ListGuestsAsync("disabled", 1, 10));
         Assert.Equal(400, bad.StatusCode);
     }
 
