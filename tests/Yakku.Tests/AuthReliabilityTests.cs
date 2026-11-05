@@ -84,7 +84,7 @@ public class AuthReliabilityTests
         {
             UserId = Guid.NewGuid(),
             Purpose = "Registration",
-            User = new VerifyOtpUser { Name = "Goku" },
+            User = new VerifyOtpUser { AnonymousName = "Goku" },
             Auth = new TokenResponse { AccessToken = "access", RefreshToken = "refresh" }
         };
 

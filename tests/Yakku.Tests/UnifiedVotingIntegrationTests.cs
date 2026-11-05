@@ -268,7 +268,7 @@ public sealed class UnifiedVotingIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _sequence);
-        var user = new User($"559{sequence:D10}", $"Voter {sequence}", $"unified-anon-{sequence}");
+        var user = new User($"559{sequence:D10}", $"unified-anon-{sequence}");
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

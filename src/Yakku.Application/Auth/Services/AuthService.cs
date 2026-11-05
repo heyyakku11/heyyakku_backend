@@ -82,15 +82,6 @@ namespace Yakku.Application.Auth.Services
             var user = await _userRepository.GetByPhoneNumberAsync(phoneNumber, cancellationToken);
             var purpose = user is null ? OtpPurpose.Registration : OtpPurpose.Login;
 
-            if (purpose == OtpPurpose.Registration && string.IsNullOrWhiteSpace(request.Name))
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "Name is required.",
-                    "name");
-            }
-
             var existing = await _otpChallengeStore.GetAsync(phoneNumber, cancellationToken);
             if (existing is not null && DateTime.UtcNow - existing.CreatedAt < OtpOptions.ResendCooldown)
             {
@@ -104,10 +95,8 @@ namespace Yakku.Application.Auth.Services
             var otp = _otpGenerator.Generate();
             var challengeId = Guid.NewGuid();
             string? anonymousName = null;
-            string? name = null;
             if (purpose == OtpPurpose.Registration)
             {
-                name = request.Name!.Trim();
                 anonymousName = existing?.AnonymousName ?? await CreateUniqueAnonymousNameAsync(cancellationToken);
             }
 
@@ -117,7 +106,6 @@ namespace Yakku.Application.Auth.Services
                 // OtpHash = OtpHasher.Hash(phoneNumber, otp),
                 OtpHash = otp,
                 Purpose = purpose,
-                Name = name,
                 AnonymousName = anonymousName,
                 AttemptCount = 0,
                 CreatedAt = DateTime.UtcNow
@@ -165,7 +153,6 @@ namespace Yakku.Application.Auth.Services
                 ChallengeId = challengeId,
                 OtpHash = otp,
                 Purpose = existing.Purpose,
-                Name = existing.Name,
                 AnonymousName = existing.AnonymousName,
                 AttemptCount = 0,
                 CreatedAt = DateTime.UtcNow
@@ -276,21 +263,11 @@ namespace Yakku.Application.Auth.Services
             RegisterDeviceRequest? installation,
             CancellationToken cancellationToken)
         {
-            var name = challenge.Name?.Trim();
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "Name is required.",
-                    "name");
-            }
-
             var anonymousName = string.IsNullOrWhiteSpace(challenge.AnonymousName)
                 ? await CreateUniqueAnonymousNameAsync(cancellationToken)
                 : challenge.AnonymousName;
 
-            var user = new User(phoneNumber, name, anonymousName);
+            var user = new User(phoneNumber, anonymousName);
             await _userRepository.AddAsync(user, cancellationToken);
             await _userRepository.SaveChangesAsync(cancellationToken);
             await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
@@ -369,7 +346,6 @@ namespace Yakku.Application.Auth.Services
                 Purpose = purpose.ToString(),
                 User = new VerifyOtpUser
                 {
-                    Name = user.Profile?.Name ?? string.Empty,
                     AnonymousName = user.Profile?.AnonymousName ?? string.Empty
                 },
                 Auth = tokens

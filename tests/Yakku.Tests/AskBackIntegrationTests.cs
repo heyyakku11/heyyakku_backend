@@ -946,7 +946,7 @@ public sealed class AskBackIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _sequence);
-        var user = new User($"571{sequence:D10}", $"Real Name {sequence}", $"askback-anon-{sequence}");
+        var user = new User($"571{sequence:D10}", $"askback-anon-{sequence}");
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

@@ -692,7 +692,7 @@ public sealed class StreakIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _sequence);
-        var user = new User($"560{sequence:D10}{Random.Shared.Next(10, 99)}", $"Streak {sequence}", $"streak-anon-{sequence}-{Guid.NewGuid():N}"[..40]);
+        var user = new User($"560{sequence:D10}{Random.Shared.Next(10, 99)}", $"streak-anon-{sequence}-{Guid.NewGuid():N}"[..40]);
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

@@ -35,7 +35,7 @@ namespace Yakku.Domain.Entities
         {
         }
 
-        public User(string phoneNumber, string name, string anonymousName)
+        public User(string phoneNumber, string anonymousName)
         {
             Id = Guid.NewGuid();
             PhoneNumber = phoneNumber;
@@ -44,7 +44,7 @@ namespace Yakku.Domain.Entities
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
             LoginAt = DateTime.UtcNow;
-            Profile = new UserProfile(Id, name, anonymousName);
+            Profile = new UserProfile(Id, anonymousName);
         }
 
         public void RecordLogin()

@@ -140,7 +140,7 @@ public class AdminUserIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _userSequence);
-        var user = new User($"+916{sequence:D9}", $"Admin List {sequence}", $"admin-list-anon-{sequence}");
+        var user = new User($"+916{sequence:D9}", $"admin-list-anon-{sequence}");
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

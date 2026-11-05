@@ -115,7 +115,7 @@ public class AdminPollIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _userSequence);
-        var user = new User($"+917{sequence:D9}", $"Admin Poll {sequence}", $"admin-poll-anon-{sequence}");
+        var user = new User($"+917{sequence:D9}", $"admin-poll-anon-{sequence}");
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

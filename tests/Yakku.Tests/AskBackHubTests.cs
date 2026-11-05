@@ -367,7 +367,7 @@ public sealed class AskBackHubTests
         {
             await using var context = _fixture.CreateContext();
             var sequence = Interlocked.Increment(ref _sequence);
-            var user = new User($"572{sequence:D10}", $"Hub Real {sequence}", $"hub-anon-{sequence}");
+            var user = new User($"572{sequence:D10}", $"hub-anon-{sequence}");
             context.Users.Add(user);
             await context.SaveChangesAsync();
             return new TestUser(user.Id, Guid.NewGuid(), user.Profile.AnonymousName, user.PhoneNumber);

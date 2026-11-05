@@ -327,7 +327,7 @@ public class CheckIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _userSequence);
-        var user = new User($"556{sequence:D10}", $"Checker {sequence}", $"check-anon-{sequence}");
+        var user = new User($"556{sequence:D10}", $"check-anon-{sequence}");
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

@@ -14,10 +14,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.UserId)
                 .IsRequired();
 
-            builder.Property(x => x.Name)
-                .IsRequired()
-                .HasMaxLength(100);
-
             builder.Property(x => x.AnonymousName)
                 .IsRequired()
                 .HasMaxLength(50);

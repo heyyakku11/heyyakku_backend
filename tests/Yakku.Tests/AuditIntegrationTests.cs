@@ -394,7 +394,7 @@ public sealed class AuditIntegrationTests
     {
         var suffix = Guid.NewGuid().ToString("N");
         var phone = "+1" + string.Concat(suffix.Where(char.IsDigit).Concat("0123456789").Take(10));
-        var user = new User(phone, "Audit Tester", "anon-" + suffix);
+        var user = new User(phone, "anon-" + suffix);
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

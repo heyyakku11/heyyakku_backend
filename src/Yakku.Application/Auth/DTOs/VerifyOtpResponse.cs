@@ -26,7 +26,6 @@ namespace Yakku.Application.Auth.DTOs
 
     public class VerifyOtpUser
     {
-        public string Name { get; set; } = string.Empty;
         public string AnonymousName { get; set; } = string.Empty;
     }
 }

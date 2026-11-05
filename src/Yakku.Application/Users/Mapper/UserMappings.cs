@@ -12,7 +12,6 @@ namespace Yakku.Application.Users.Mapper
             {
                 Profile = new UserProfileDetails
                 {
-                    Name = user.Profile?.Name ?? string.Empty,
                     AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
                     AvatarUrl = null
                 },

@@ -453,7 +453,7 @@ public sealed class VoteNotificationOutboxIntegrationTests
         await context.VoteNotificationCards.ExecuteDeleteAsync();
 
         var sequence = Interlocked.Increment(ref _sequence);
-        var owner = new User($"562{sequence:D10}", $"Asker {sequence}", $"outbox-anon-{sequence}");
+        var owner = new User($"562{sequence:D10}", $"outbox-anon-{sequence}");
         context.Users.Add(owner);
         await context.SaveChangesAsync();
 

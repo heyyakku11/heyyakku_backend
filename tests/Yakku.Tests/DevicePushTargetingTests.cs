@@ -193,7 +193,7 @@ public class DevicePushTargetingTests
 
         public KnownUser(Guid id)
         {
-            _user = new User("+15551230000", "Sam", "Quiet Fox");
+            _user = new User("+15551230000", "Quiet Fox");
             typeof(User).GetProperty(nameof(User.Id))!.SetValue(_user, id);
         }
 
@@ -276,7 +276,7 @@ public sealed class DevicePushTargetsIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _sequence);
-        var user = new User($"557{sequence:D10}", $"Pusher {sequence}", $"push-anon-{sequence}");
+        var user = new User($"557{sequence:D10}", $"push-anon-{sequence}");
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

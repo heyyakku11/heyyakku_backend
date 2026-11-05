@@ -848,7 +848,7 @@ public sealed class SessionDeviceAssociationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _sequence);
-        var user = new User($"558{sequence:D10}{Random.Shared.Next(10, 99)}", $"Assoc {sequence}", $"assoc-anon-{sequence}-{Guid.NewGuid():N}"[..40]);
+        var user = new User($"558{sequence:D10}{Random.Shared.Next(10, 99)}", $"assoc-anon-{sequence}-{Guid.NewGuid():N}"[..40]);
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

@@ -202,7 +202,7 @@ public sealed class PollSchemaIntegrationTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _userSequence);
-        var user = new User($"555{sequence:D10}", $"User {sequence}", $"anon-{sequence}");
+        var user = new User($"555{sequence:D10}", $"anon-{sequence}");
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

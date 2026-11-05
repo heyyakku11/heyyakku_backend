@@ -195,7 +195,7 @@ public sealed class UserProfileStatsTests
     private static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _sequence);
-        var user = new User($"561{sequence:D10}{Random.Shared.Next(10, 99)}", $"Stats {sequence}", $"stats-anon-{sequence}-{Guid.NewGuid():N}"[..40]);
+        var user = new User($"561{sequence:D10}{Random.Shared.Next(10, 99)}", $"stats-anon-{sequence}-{Guid.NewGuid():N}"[..40]);
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;

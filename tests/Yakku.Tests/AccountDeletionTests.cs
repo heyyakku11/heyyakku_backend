@@ -20,7 +20,7 @@ public class AccountDeletionTests
     [Fact]
     public void RequestDeletion_SchedulesThirtyDaysOut_AndCancelClearsIt()
     {
-        var user = new User(Phone, "Sam", "Quiet Fox");
+        var user = new User(Phone, "Quiet Fox");
         var now = DateTime.UtcNow;
 
         user.RequestDeletion(now, TimeSpan.FromDays(OperationalSettings.AccountDeletion.GraceDays));
@@ -140,7 +140,7 @@ public class AccountDeletionTests
     {
         public Harness()
         {
-            User = new User(Phone, "Sam", "Quiet Fox");
+            User = new User(Phone, "Quiet Fox");
             Users = new FakeUsers(User);
             Sessions = new FakeSessions();
             Deletions = new FakeDeletions();

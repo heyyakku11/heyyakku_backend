@@ -8,7 +8,7 @@ public class PlanDefaultsTests
     [Fact]
     public void NewUser_StartsOnTheFreePlan()
     {
-        var user = new User("5550000000001", "Name", "anon");
+        var user = new User("5550000000001", "anon");
 
         Assert.Equal(Plan.FreeId, user.PlanId);
     }
@@ -44,7 +44,7 @@ public class PlanIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        var user = new User($"557{suffix}", "Plan Tester", "plan-anon-" + suffix);
+        var user = new User($"557{suffix}", "plan-anon-" + suffix);
         context.Users.Add(user);
         await context.SaveChangesAsync();
 

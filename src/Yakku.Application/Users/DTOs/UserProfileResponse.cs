@@ -15,7 +15,6 @@ namespace Yakku.Application.Users.DTOs
 
     public class UserProfileDetails
     {
-        public string Name { get; set; } = string.Empty;
         public string AnonymousName { get; set; } = string.Empty;
         public string? AvatarUrl { get; set; }
     }
