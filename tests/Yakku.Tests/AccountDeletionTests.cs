@@ -152,7 +152,7 @@ public class AccountDeletionTests
                 Users,
                 Otp,
                 new FixedOtpGenerator(),
-                new FixedNameGenerator(),
+                new FixedNameAllocator(),
                 Sessions,
                 new InlineValidator<RequestOtpRequest>(),
                 new InlineValidator<ResendOtpRequest>(),
@@ -193,6 +193,10 @@ public class AccountDeletionTests
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public void ClearTracking()
+        {
+        }
     }
 
     private sealed class FakeSessions : ISessionService
@@ -288,8 +292,15 @@ public class AccountDeletionTests
         public string Generate() => "123456";
     }
 
-    private sealed class FixedNameGenerator : IDisplayNameGenerator
+    private sealed class FixedNameAllocator : Yakku.Application.Users.Interfaces.IAnonymousNameAllocator
     {
-        public string Generate() => "Quiet Fox";
+        public Task<string> ReserveAsync(TimeSpan holdFor, CancellationToken cancellationToken = default)
+            => Task.FromResult("Quiet Fox");
+
+        public Task RefreshAsync(string name, TimeSpan holdFor, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task ReleaseAsync(string name, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 }

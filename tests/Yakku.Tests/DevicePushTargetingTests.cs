@@ -209,6 +209,10 @@ public class DevicePushTargetingTests
         public Task AddAsync(User user, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public void ClearTracking()
+        {
+        }
     }
 }
 

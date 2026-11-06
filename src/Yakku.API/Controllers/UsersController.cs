@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Yakku.API.Auth;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Streaks.DTOs;
@@ -17,12 +18,15 @@ namespace Yakku.API.Controllers
         private readonly IUserService _userService;
         private readonly IAccountDeletionService _accountDeletionService;
         private readonly IStreakService _streakService;
+        private readonly IAnonymousNameService _anonymousNameService;
 
         public UsersController(
             IUserService userService,
             IAccountDeletionService accountDeletionService,
-            IStreakService streakService)
+            IStreakService streakService,
+            IAnonymousNameService anonymousNameService)
         {
+            _anonymousNameService = anonymousNameService;
             _accountDeletionService = accountDeletionService;
             _streakService = streakService;
             _userService = userService;
@@ -40,6 +44,21 @@ namespace Yakku.API.Controllers
             return user is null
                 ? NotFound(ApiResponse.NotFound<UserProfileResponse>("User not found"))
                 : Ok(ApiResponse.Ok(user, "User retrieved successfully"));
+        }
+
+        [HttpPost("me/anonymous-name")]
+        [EnableRateLimiting("anonymous-name-regenerate")]
+        [EndpointSummary("Regenerate My Anonymous Name")]
+        [EndpointDescription("Gives the signed-in user a new random, unique anonymous name, saves it to their profile and returns it. The user comes from the access token; there is no request body. Limited to 10 calls per minute per user.")]
+        [ProducesResponseType(typeof(ApiResponse<AnonymousNameResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status503ServiceUnavailable)]
+        public async Task<IActionResult> RegenerateAnonymousName(CancellationToken cancellationToken)
+        {
+            var result = await _anonymousNameService.RegenerateAsync(User.GetRequiredUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Anonymous name updated successfully"));
         }
 
         [HttpGet("streak")]

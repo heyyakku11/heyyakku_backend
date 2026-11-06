@@ -60,6 +60,18 @@ namespace Yakku.Application.Common
             public const int ReadRateLimitPerMinute = 60;
         }
 
+        public static class AnonymousNames
+        {
+            /// <summary>How many candidates are tried before giving up (generation, registration insert, regeneration).</summary>
+            public const int MaxAttempts = 8;
+
+            /// <summary>How long a candidate is held in Redis while a regeneration saves it.</summary>
+            public static readonly TimeSpan RegenerationHold = TimeSpan.FromSeconds(30);
+
+            /// <summary>Regenerate requests per user per minute.</summary>
+            public const int RegenerateRateLimitPerMinute = 10;
+        }
+
         public static class Retention
         {
             public const int AuthenticationDays = 180;

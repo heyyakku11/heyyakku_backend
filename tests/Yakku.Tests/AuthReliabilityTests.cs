@@ -95,7 +95,7 @@ public class AuthReliabilityTests
         Assert.DoesNotContain("userId", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(response.UserId.ToString(), json);
         Assert.Contains("\"auth\":{\"accessToken\":\"access\"", json);
-        Assert.Contains("\"user\":{\"name\":\"Goku\"", json);
+        Assert.Contains("\"user\":{\"anonymousName\":\"Goku\"", json);
         Assert.NotEqual(Guid.Empty, response.UserId);
     }
 

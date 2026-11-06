@@ -3,9 +3,11 @@ using Yakku.Application.Audit;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Models;
+using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Devices.DTOs;
+using Yakku.Application.Users.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -13,12 +15,13 @@ namespace Yakku.Application.Auth.Services
 {
     public class AuthService : IAuthService
     {
-        private const int AnonymousNameRetryLimit = 8;
+        /// <summary>A reserved name outlives its OTP challenge slightly, then frees itself if unclaimed.</summary>
+        private static readonly TimeSpan NameHold = OtpOptions.Ttl + TimeSpan.FromMinutes(1);
 
         private readonly IUserRepository _userRepository;
         private readonly IOtpChallengeStore _otpChallengeStore;
         private readonly IOtpGenerator _otpGenerator;
-        private readonly IDisplayNameGenerator _displayNameGenerator;
+        private readonly IAnonymousNameAllocator _anonymousNames;
         private readonly ISessionService _sessionService;
         private readonly IValidator<RequestOtpRequest> _requestOtpValidator;
         private readonly IValidator<ResendOtpRequest> _resendOtpValidator;
@@ -29,7 +32,7 @@ namespace Yakku.Application.Auth.Services
             IUserRepository userRepository,
             IOtpChallengeStore otpChallengeStore,
             IOtpGenerator otpGenerator,
-            IDisplayNameGenerator displayNameGenerator,
+            IAnonymousNameAllocator anonymousNames,
             ISessionService sessionService,
             IValidator<RequestOtpRequest> requestOtpValidator,
             IValidator<ResendOtpRequest> resendOtpValidator,
@@ -39,7 +42,7 @@ namespace Yakku.Application.Auth.Services
             _userRepository = userRepository;
             _otpChallengeStore = otpChallengeStore;
             _otpGenerator = otpGenerator;
-            _displayNameGenerator = displayNameGenerator;
+            _anonymousNames = anonymousNames;
             _sessionService = sessionService;
             _requestOtpValidator = requestOtpValidator;
             _resendOtpValidator = resendOtpValidator;
@@ -97,7 +100,15 @@ namespace Yakku.Application.Auth.Services
             string? anonymousName = null;
             if (purpose == OtpPurpose.Registration)
             {
-                anonymousName = existing?.AnonymousName ?? await CreateUniqueAnonymousNameAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(existing?.AnonymousName))
+                {
+                    anonymousName = existing!.AnonymousName;
+                    await _anonymousNames.RefreshAsync(anonymousName!, NameHold, cancellationToken);
+                }
+                else
+                {
+                    anonymousName = await _anonymousNames.ReserveAsync(NameHold, cancellationToken);
+                }
             }
 
             var challenge = new OtpChallenge
@@ -159,6 +170,10 @@ namespace Yakku.Application.Auth.Services
             };
 
             await _otpChallengeStore.SetAsync(phoneNumber, challenge, OtpOptions.Ttl, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(existing.AnonymousName))
+            {
+                await _anonymousNames.RefreshAsync(existing.AnonymousName, NameHold, cancellationToken);
+            }
 
             return new RequestOtpResponse
             {
@@ -264,12 +279,32 @@ namespace Yakku.Application.Auth.Services
             CancellationToken cancellationToken)
         {
             var anonymousName = string.IsNullOrWhiteSpace(challenge.AnonymousName)
-                ? await CreateUniqueAnonymousNameAsync(cancellationToken)
+                ? await _anonymousNames.ReserveAsync(NameHold, cancellationToken)
                 : challenge.AnonymousName;
 
-            var user = new User(phoneNumber, anonymousName);
-            await _userRepository.AddAsync(user, cancellationToken);
-            await _userRepository.SaveChangesAsync(cancellationToken);
+            User user;
+            for (var attempt = 1; ; attempt++)
+            {
+                user = new User(phoneNumber, anonymousName);
+                await _userRepository.AddAsync(user, cancellationToken);
+                try
+                {
+                    await _userRepository.SaveChangesAsync(cancellationToken);
+                    break;
+                }
+                catch (AppException exception) when (
+                    exception.StatusCode == 409
+                    && exception.Field == "anonymousName"
+                    && attempt < OperationalSettings.AnonymousNames.MaxAttempts)
+                {
+                    // Someone took the name between the check and the insert: try another.
+                    _userRepository.ClearTracking();
+                    await _anonymousNames.ReleaseAsync(anonymousName, CancellationToken.None);
+                    anonymousName = await _anonymousNames.ReserveAsync(NameHold, cancellationToken);
+                }
+            }
+
+            await _anonymousNames.ReleaseAsync(anonymousName, CancellationToken.None);
             await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
 
             return await ToResponseAsync(user, OtpPurpose.Registration, installation, cancellationToken);
@@ -312,24 +347,6 @@ namespace Yakku.Application.Auth.Services
             var response = await ToResponseAsync(user, OtpPurpose.Login, installation, cancellationToken);
             response.AccountRestored = restored;
             return response;
-        }
-
-        private async Task<string> CreateUniqueAnonymousNameAsync(CancellationToken cancellationToken)
-        {
-            for (var attempt = 0; attempt < AnonymousNameRetryLimit; attempt++)
-            {
-                var anonymousName = _displayNameGenerator.Generate();
-                if (!await _userRepository.AnonymousNameExistsAsync(anonymousName, cancellationToken))
-                {
-                    return anonymousName;
-                }
-            }
-
-            throw new AppException(
-                409,
-                ApiErrorCodes.Conflict,
-                "Anonymous name already exists.",
-                "anonymousName");
         }
 
         private async Task<VerifyOtpResponse> ToResponseAsync(

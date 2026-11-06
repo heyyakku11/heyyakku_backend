@@ -77,6 +77,8 @@ namespace Yakku.Infrastructure
             services.AddScoped<IDeviceRepository, DeviceRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
+            services.AddScoped<Yakku.Application.Users.Interfaces.IAnonymousNameRepository, AnonymousNameRepository>();
+            services.AddScoped<Yakku.Application.Users.Interfaces.IAnonymousNameReservations, RedisAnonymousNameReservations>();
             services.AddScoped<IAdminAuthStore, RedisAdminAuthStore>();
             services.AddScoped<ISystemHealthService, SystemHealthService>();
             services.AddSingleton<IFirebaseNotificationProvider, FirebaseNotificationProvider>();

@@ -5,6 +5,7 @@ using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
+using Yakku.Infrastructure.Persistence.Configurations;
 
 namespace Yakku.Infrastructure.Persistence.Repositories
 {
@@ -34,8 +35,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public async Task<bool> AnonymousNameExistsAsync(string anonymousName, CancellationToken cancellationToken = default)
         {
+            // Compared on the stored lower-case key, so it matches the case-insensitive unique index.
+            var key = anonymousName.ToLowerInvariant();
             return await _context.UserProfiles
-                .AnyAsync(profile => profile.AnonymousName == anonymousName, cancellationToken);
+                .AnyAsync(profile => EF.Property<string>(profile, UserProfileConfiguration.AnonymousNameKey) == key, cancellationToken);
         }
 
         public async Task AddAsync(User user, CancellationToken cancellationToken = default)
@@ -43,13 +46,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             await _context.Users.AddAsync(user, cancellationToken);
         }
 
+        public void ClearTracking() => _context.ChangeTracker.Clear();
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             try
             {
                 await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException exception) when (IsUniqueViolation(exception, "IX_UserProfiles_AnonymousName"))
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception, UserProfileConfiguration.AnonymousNameIndex))
             {
                 throw new AppException(
                     409,

@@ -1,14 +1,11 @@
-using System.Security.Cryptography;
 using Yakku.Application.Auth.Interfaces;
+using Yakku.Application.Users.AnonymousNames;
 
 namespace Yakku.Application.Auth.Services
 {
+    /// <summary>Produces a random anonymous-name candidate such as "SilentTigerMoon". It does not check uniqueness.</summary>
     public class DisplayNameGenerator : IDisplayNameGenerator
     {
-        public string Generate()
-        {
-            var number = RandomNumberGenerator.GetInt32(1000, 100_000);
-            return $"yakku@{number}";
-        }
+        public string Generate() => AnonymousNameFormat.Generate();
     }
 }

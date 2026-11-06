@@ -169,6 +169,7 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("device-write", httpContext => FixedWindow(httpContext, OperationalSettings.Devices.WriteRateLimitPerMinute));
     options.AddPolicy("device-read", httpContext => FixedWindow(httpContext, OperationalSettings.Devices.ReadRateLimitPerMinute));
     options.AddPolicy("guest-create",httpContext => FixedWindow(httpContext, permitLimit: guestCreateLimit));
+    options.AddPolicy("anonymous-name-regenerate", httpContext => FixedWindow(httpContext, OperationalSettings.AnonymousNames.RegenerateRateLimitPerMinute));
     options.AddPolicy("ask-back-write", httpContext => FixedWindow(httpContext, permitLimit: 60));
     options.AddPolicy("ask-back-read", httpContext => FixedWindow(httpContext, permitLimit: 240));
 });

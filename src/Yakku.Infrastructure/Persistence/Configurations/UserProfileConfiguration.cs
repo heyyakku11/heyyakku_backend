@@ -6,6 +6,11 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 {
     internal class UserProfileConfiguration : IEntityTypeConfiguration<UserProfile>
     {
+        public const string AnonymousNameIndex = "IX_UserProfiles_AnonymousName";
+
+        /// <summary>Stored lower-case copy of the name, so the unique index is case-insensitive.</summary>
+        public const string AnonymousNameKey = "AnonymousNameKey";
+
         public void Configure(EntityTypeBuilder<UserProfile> builder)
         {
             builder.ToTable("user_profiles");
@@ -18,9 +23,13 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasMaxLength(50);
 
-            builder.HasIndex(x => x.AnonymousName)
+            builder.Property<string>(AnonymousNameKey)
+                .HasColumnName(AnonymousNameKey)
+                .HasComputedColumnSql("lower(\"AnonymousName\")", stored: true);
+
+            builder.HasIndex(AnonymousNameKey)
                 .IsUnique()
-                .HasDatabaseName("IX_UserProfiles_AnonymousName");
+                .HasDatabaseName(AnonymousNameIndex);
 
             builder.HasIndex(x => x.UserId)
                 .IsUnique()

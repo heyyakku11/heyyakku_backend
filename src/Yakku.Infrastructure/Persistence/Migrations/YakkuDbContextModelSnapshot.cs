@@ -1948,6 +1948,12 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("AnonymousNameKey")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasColumnName("AnonymousNameKey")
+                        .HasComputedColumnSql("lower(\"AnonymousName\")", true);
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1959,7 +1965,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AnonymousName")
+                    b.HasIndex("AnonymousNameKey")
                         .IsUnique()
                         .HasDatabaseName("IX_UserProfiles_AnonymousName");
 
