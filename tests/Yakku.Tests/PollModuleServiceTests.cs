@@ -353,7 +353,7 @@ public class PollModuleServiceTests
         var locked = await harness.Polls.GetResultsAsync(created.Id, harness.UserId);
 
         Assert.False(locked.ResultsUnlocked);
-        Assert.Equal(1, locked.MinVotes);
+        Assert.Equal(Yakku.Application.Common.OperationalSettings.Results.MinVotesToReveal, locked.MinVotes);
         Assert.Equal(0, locked.VoteProgress);
         Assert.Equal(0, locked.TotalVoteCount);
         Assert.All(locked.Options, option =>
@@ -391,12 +391,20 @@ public class PollModuleServiceTests
         Assert.False(results.ResultsUnlocked);
         Assert.Equal(0, results.VoteProgress);
 
+        var min = Yakku.Application.Common.OperationalSettings.Results.MinVotesToReveal;
+        for (var i = 0; i < min - 1; i++)
+        {
+            await harness.Votes.CastAsync(created.Id, Guid.NewGuid(), new CastVoteRequest { PollId = created.Id, PollOptionId = created.Options[0].Id }, CancellationToken.None);
+        }
+
+        Assert.False((await harness.Polls.GetResultsAsync(created.Id, harness.UserId)).ResultsUnlocked);
+
         await harness.Votes.CastAsync(created.Id, Guid.NewGuid(), new CastVoteRequest { PollId = created.Id, PollOptionId = created.Options[0].Id }, CancellationToken.None);
 
         results = await harness.Polls.GetResultsAsync(created.Id, harness.UserId);
 
         Assert.True(results.ResultsUnlocked);
-        Assert.Equal(1, results.VoteProgress);
+        Assert.Equal(min, results.VoteProgress);
     }
 
     [Fact]

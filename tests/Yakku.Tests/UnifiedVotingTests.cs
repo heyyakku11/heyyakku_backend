@@ -190,14 +190,21 @@ public class UnifiedVotingTests
     }
 
     [Fact]
-    public async Task Results_StayHidden_UntilOneOtherVoted_ForEveryone()
+    public async Task Results_StayHidden_UntilEnoughOthersVoted_ForEveryone()
     {
         var h = new Harness();
         var locked = h.AddPoll();
         h.SeedVotes(locked, others: 0, ownerVote: true);
         var asOwner = await h.Shared.GetAsync(locked.ShareCode, VoterIdentity.ForUser(PollOwner));
 
-        // The owner's own vote does not count; the first other voter unlocks the results.
+        // The owner's own vote does not count; results unlock once MinVotesToReveal other people have voted.
+        var min = Yakku.Application.Common.OperationalSettings.Results.MinVotesToReveal;
+        for (var i = 0; i < min - 1; i++)
+        {
+            var early = await h.Voting.VoteAsync(Request(locked, locked.Options[0].Id), VoterIdentity.ForUser(Guid.NewGuid()));
+            Assert.False(early.Stats.ResultsVisible);
+        }
+
         var afterVote = await h.Voting.VoteAsync(Request(locked, locked.Options[0].Id), VoterIdentity.ForUser(Guid.NewGuid()));
 
         Assert.False(asOwner.Stats.ResultsVisible);
@@ -205,7 +212,7 @@ public class UnifiedVotingTests
         Assert.All(asOwner.Options, option => Assert.Null(option.VoteCount));
         Assert.Null(asOwner.Stats.TotalVotes);
         Assert.True(afterVote.Stats.ResultsVisible);
-        Assert.Equal(1, afterVote.Stats.VoteProgress);
+        Assert.Equal(min, afterVote.Stats.VoteProgress);
     }
 
     [Theory]

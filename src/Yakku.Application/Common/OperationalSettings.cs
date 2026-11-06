@@ -92,7 +92,7 @@ namespace Yakku.Application.Common
         public static class Results
         {
             /// <summary>Votes from others a poll or check needs before its results are revealed.</summary>
-            public const int MinVotesToReveal = 1;
+            public const int MinVotesToReveal = 3;
         }
 
         public static class Monitoring
