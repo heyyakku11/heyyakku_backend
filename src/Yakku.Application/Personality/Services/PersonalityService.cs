@@ -47,7 +47,7 @@ namespace Yakku.Application.Personality.Services
             return ToResponse(card);
         }
 
-        public async Task<PersonalityCardResponse> SubmitSelfAssessmentAsync(
+        public async Task<PersonalitySelfAssessmentResponse> SubmitSelfAssessmentAsync(
             Guid userId,
             SubmitTraitsRequest request,
             CancellationToken cancellationToken = default)
@@ -56,6 +56,7 @@ namespace Yakku.Application.Personality.Services
             await EnsureAllActiveAsync(request.TraitIds, cancellationToken);
             await _repository.EnsureCardAsync(userId, cancellationToken);
 
+            PersonalitySelfAssessmentResponse? response = null;
             await _repository.ExecuteInTransactionAsync(async token =>
             {
                 var card = await _repository.LockCardByUserIdAsync(userId, token)
@@ -68,9 +69,15 @@ namespace Yakku.Application.Personality.Services
 
                 card.SubmitSelfAssessment(request.TraitIds);
                 await _repository.SaveChangesAsync(token);
+
+                response = new PersonalitySelfAssessmentResponse
+                {
+                    ShareCode = card.ShareCode,
+                    Status = card.Status.ToString()
+                };
             }, cancellationToken);
 
-            return await GetMyCardAsync(userId, cancellationToken);
+            return response!;
         }
 
         public async Task<SharedPersonalityCardResponse> GetSharedCardAsync(
@@ -224,7 +231,6 @@ namespace Yakku.Application.Personality.Services
         {
             return new PersonalityCardResponse
             {
-                CardId = card.Id,
                 ShareCode = card.ShareCode,
                 Status = card.Status.ToString(),
                 SelfTraits = card.SelfTraits

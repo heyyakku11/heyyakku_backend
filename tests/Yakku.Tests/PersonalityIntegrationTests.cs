@@ -189,7 +189,9 @@ public sealed class PersonalityIntegrationTests
         var result = await ServiceFor(context).SubmitSelfAssessmentAsync(user.Id, Traits(3, 1, 2));
 
         Assert.Equal("Collecting", result.Status);
-        Assert.Equal(new[] { 1, 2, 3 }, result.SelfTraits.Select(t => N(t.Id)));
+        Assert.Matches("^[0-9a-f]{6}$", result.ShareCode);
+        var mine = await ServiceFor(context).GetMyCardAsync(user.Id);
+        Assert.Equal(new[] { 1, 2, 3 }, mine.SelfTraits.Select(t => N(t.Id)));
     }
 
     [SkippableFact]

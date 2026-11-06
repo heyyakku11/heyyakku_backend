@@ -22,7 +22,6 @@ namespace Yakku.Application.Personality.DTOs
     /// <summary>The caller's own card. The status and counters are owned by the backend.</summary>
     public class PersonalityCardResponse
     {
-        public Guid CardId { get; set; }
         public string ShareCode { get; set; } = string.Empty;
 
         /// <summary>Draft, Collecting or Completed.</summary>
@@ -31,6 +30,15 @@ namespace Yakku.Application.Personality.DTOs
         public int TotalVotes { get; set; }
         public int RequiredVotes { get; set; }
         public DateTime? CompletedAt { get; set; }
+    }
+
+    /// <summary>What submitting the self-assessment returns: just enough to build the share link and show the new state.</summary>
+    public class PersonalitySelfAssessmentResponse
+    {
+        public string ShareCode { get; set; } = string.Empty;
+
+        /// <summary>Collecting once the self-assessment is accepted.</summary>
+        public string Status { get; set; } = string.Empty;
     }
 
     /// <summary>A card as a voter sees it: no self-assessment (it would bias the vote) and no voter details.</summary>

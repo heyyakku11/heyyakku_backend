@@ -47,7 +47,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             });
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.Id).HasColumnName("id");
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             builder.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
             builder.Property(x => x.ShareCode)
                 .HasColumnName("share_code")
@@ -84,7 +84,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("personality_card_self_traits");
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.Id).HasColumnName("id");
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             builder.Property(x => x.PersonalityCardId).HasColumnName("personality_card_id").IsRequired();
             builder.Property(x => x.TraitId).HasColumnName("trait_id").IsRequired();
 
@@ -115,7 +115,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("personality_votes");
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.Id).HasColumnName("id");
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             builder.Property(x => x.PersonalityCardId).HasColumnName("personality_card_id").IsRequired();
             builder.Property(x => x.VoterUserId).HasColumnName("voter_user_id").IsRequired();
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
@@ -146,7 +146,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("personality_vote_traits");
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.Id).HasColumnName("id");
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             builder.Property(x => x.PersonalityVoteId).HasColumnName("personality_vote_id").IsRequired();
             builder.Property(x => x.TraitId).HasColumnName("trait_id").IsRequired();
 

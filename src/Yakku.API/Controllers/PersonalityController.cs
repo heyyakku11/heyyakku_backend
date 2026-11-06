@@ -44,8 +44,8 @@ namespace Yakku.API.Controllers
         [ServiceFilter(typeof(LiveSessionFilter))]
         [HttpPost("personality-cards/me/self-assessment")]
         [EndpointSummary("Submit Self-Assessment")]
-        [EndpointDescription("Picks exactly 3 distinct active traits to describe yourself. Allowed once, while the card is a draft; the card then starts collecting votes.")]
-        [ProducesResponseType(typeof(ApiResponse<PersonalityCardResponse>), StatusCodes.Status200OK)]
+        [EndpointDescription("Picks exactly 3 distinct active traits to describe yourself. Allowed once, while the card is a draft; the card then starts collecting votes. Returns only the share code and the new status; read the picks with GET /personality-cards/me.")]
+        [ProducesResponseType(typeof(ApiResponse<PersonalitySelfAssessmentResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> SubmitSelfAssessment(

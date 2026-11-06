@@ -8,7 +8,7 @@ namespace Yakku.Application.Personality.Interfaces
 
         Task<PersonalityCardResponse> GetMyCardAsync(Guid userId, CancellationToken cancellationToken = default);
 
-        Task<PersonalityCardResponse> SubmitSelfAssessmentAsync(
+        Task<PersonalitySelfAssessmentResponse> SubmitSelfAssessmentAsync(
             Guid userId,
             SubmitTraitsRequest request,
             CancellationToken cancellationToken = default);
