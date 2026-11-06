@@ -1064,6 +1064,202 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("RequiredVotes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(5)
+                        .HasColumnName("required_votes");
+
+                    b.Property<string>("ShareCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("share_code");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Draft")
+                        .HasColumnName("status");
+
+                    b.Property<int>("TotalVotes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("total_votes");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShareCode")
+                        .IsUnique()
+                        .HasDatabaseName("IX_personality_cards_share_code");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_personality_cards_user_id");
+
+                    b.ToTable("personality_cards", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_personality_cards_completed_at_matches_status", "(\"status\" = 'Completed') = (\"completed_at\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_personality_cards_required_votes_positive", "\"required_votes\" > 0");
+
+                            t.HasCheckConstraint("CK_personality_cards_status", "\"status\" IN ('Draft', 'Collecting', 'Completed')");
+
+                            t.HasCheckConstraint("CK_personality_cards_total_votes_in_range", "\"total_votes\" >= 0 AND \"total_votes\" <= \"required_votes\"");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCardSelfTrait", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("PersonalityCardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("personality_card_id");
+
+                    b.Property<int>("TraitId")
+                        .HasColumnType("integer")
+                        .HasColumnName("trait_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TraitId")
+                        .HasDatabaseName("IX_personality_card_self_traits_trait_id");
+
+                    b.HasIndex("PersonalityCardId", "TraitId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_personality_card_self_traits_card_id_trait_id");
+
+                    b.ToTable("personality_card_self_traits", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityTrait", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("display_order");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DisplayOrder")
+                        .HasDatabaseName("IX_personality_traits_display_order");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_personality_traits_name");
+
+                    b.ToTable("personality_traits", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("PersonalityCardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("personality_card_id");
+
+                    b.Property<Guid>("VoterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("voter_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VoterUserId")
+                        .HasDatabaseName("IX_personality_votes_voter_user_id");
+
+                    b.HasIndex("PersonalityCardId", "VoterUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_personality_votes_card_id_voter_user_id");
+
+                    b.ToTable("personality_votes", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVoteTrait", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("PersonalityVoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("personality_vote_id");
+
+                    b.Property<int>("TraitId")
+                        .HasColumnType("integer")
+                        .HasColumnName("trait_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TraitId")
+                        .HasDatabaseName("IX_personality_vote_traits_trait_id");
+
+                    b.HasIndex("PersonalityVoteId", "TraitId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_personality_vote_traits_vote_id_trait_id");
+
+                    b.ToTable("personality_vote_traits", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Plan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1616,6 +1812,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<Guid?>("PersonalityCardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("personality_card_id");
+
                     b.Property<Guid?>("PollId")
                         .HasColumnType("uuid")
                         .HasColumnName("poll_id");
@@ -1625,6 +1825,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnName("user_check_id");
 
                     b.HasKey("Code");
+
+                    b.HasIndex("PersonalityCardId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_share_codes_personality_card_id")
+                        .HasFilter("\"personality_card_id\" IS NOT NULL");
 
                     b.HasIndex("PollId")
                         .IsUnique()
@@ -1640,9 +1845,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_share_codes_code_not_blank", "char_length(btrim(\"code\")) > 0");
 
-                            t.HasCheckConstraint("CK_share_codes_content_type", "\"content_type\" IN ('POLL', 'CHECK')");
+                            t.HasCheckConstraint("CK_share_codes_content_type", "\"content_type\" IN ('POLL', 'CHECK', 'PERSONALITY')");
 
-                            t.HasCheckConstraint("CK_share_codes_one_target", "(\"content_type\" = 'POLL' AND \"poll_id\" IS NOT NULL AND \"user_check_id\" IS NULL)\nOR\n(\"content_type\" = 'CHECK' AND \"poll_id\" IS NULL AND \"user_check_id\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_share_codes_one_target", "(\"content_type\" = 'POLL' AND \"poll_id\" IS NOT NULL AND \"user_check_id\" IS NULL AND \"personality_card_id\" IS NULL)\nOR\n(\"content_type\" = 'CHECK' AND \"poll_id\" IS NULL AND \"user_check_id\" IS NOT NULL AND \"personality_card_id\" IS NULL)\nOR\n(\"content_type\" = 'PERSONALITY' AND \"poll_id\" IS NULL AND \"user_check_id\" IS NULL AND \"personality_card_id\" IS NOT NULL)");
                         });
                 });
 
@@ -2387,6 +2592,74 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCard", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithOne("PersonalityCard")
+                        .HasForeignKey("Yakku.Domain.Entities.PersonalityCard", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCardSelfTrait", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.PersonalityCard", "PersonalityCard")
+                        .WithMany("SelfTraits")
+                        .HasForeignKey("PersonalityCardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.PersonalityTrait", "Trait")
+                        .WithMany()
+                        .HasForeignKey("TraitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PersonalityCard");
+
+                    b.Navigation("Trait");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVote", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.PersonalityCard", "PersonalityCard")
+                        .WithMany("Votes")
+                        .HasForeignKey("PersonalityCardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", "Voter")
+                        .WithMany()
+                        .HasForeignKey("VoterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PersonalityCard");
+
+                    b.Navigation("Voter");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVoteTrait", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.PersonalityVote", "PersonalityVote")
+                        .WithMany("Traits")
+                        .HasForeignKey("PersonalityVoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.PersonalityTrait", "Trait")
+                        .WithMany()
+                        .HasForeignKey("TraitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PersonalityVote");
+
+                    b.Navigation("Trait");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Poll", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.User", "Creator")
@@ -2469,6 +2742,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.ShareCode", b =>
                 {
+                    b.HasOne("Yakku.Domain.Entities.PersonalityCard", null)
+                        .WithMany()
+                        .HasForeignKey("PersonalityCardId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("Yakku.Domain.Entities.Poll", null)
                         .WithMany()
                         .HasForeignKey("PollId")
@@ -2609,6 +2887,18 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Sessions");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCard", b =>
+                {
+                    b.Navigation("SelfTraits");
+
+                    b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVote", b =>
+                {
+                    b.Navigation("Traits");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Plan", b =>
                 {
                     b.Navigation("Users");
@@ -2637,6 +2927,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Devices");
 
                     b.Navigation("Notifications");
+
+                    b.Navigation("PersonalityCard")
+                        .IsRequired();
 
                     b.Navigation("Polls");
 

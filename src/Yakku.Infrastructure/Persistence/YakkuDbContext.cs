@@ -45,6 +45,12 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<AskBackOutboxEvent> AskBackOutbox => Set<AskBackOutboxEvent>();
         public DbSet<AskBackReport> AskBackReports => Set<AskBackReport>();
 
+        public DbSet<PersonalityTrait> PersonalityTraits => Set<PersonalityTrait>();
+        public DbSet<PersonalityCard> PersonalityCards => Set<PersonalityCard>();
+        public DbSet<PersonalityCardSelfTrait> PersonalityCardSelfTraits => Set<PersonalityCardSelfTrait>();
+        public DbSet<PersonalityVote> PersonalityVotes => Set<PersonalityVote>();
+        public DbSet<PersonalityVoteTrait> PersonalityVoteTraits => Set<PersonalityVoteTrait>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(YakkuDbContext).Assembly);

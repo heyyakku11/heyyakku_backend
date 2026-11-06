@@ -302,6 +302,15 @@ namespace Yakku.Application.Auth.Services
                     await _anonymousNames.ReleaseAsync(anonymousName, CancellationToken.None);
                     anonymousName = await _anonymousNames.ReserveAsync(NameHold, cancellationToken);
                 }
+                catch (AppException exception) when (
+                    exception.StatusCode == 409
+                    && exception.Field == "personalityShareCode"
+                    && attempt < OperationalSettings.AnonymousNames.MaxAttempts)
+                {
+                    // The new personality card's random share code collided: retry with a fresh user and code.
+                    // The anonymous name is still ours, so it is kept.
+                    _userRepository.ClearTracking();
+                }
             }
 
             await _anonymousNames.ReleaseAsync(anonymousName, CancellationToken.None);

@@ -24,6 +24,9 @@ namespace Yakku.Domain.Entities
 
         public Plan Plan { get; private set; } = null!;
         public UserProfile Profile { get; private set; } = null!;
+
+        /// <summary>The user's personality card, created together with the account.</summary>
+        public PersonalityCard PersonalityCard { get; private set; } = null!;
         public ICollection<UserSession> Sessions { get; private set; } = new List<UserSession>();
         public ICollection<Poll> Polls { get; private set; } = new List<Poll>();
         public ICollection<SavedPoll> SavedPolls { get; private set; } = new List<SavedPoll>();
@@ -45,6 +48,7 @@ namespace Yakku.Domain.Entities
             UpdatedAt = CreatedAt;
             LoginAt = DateTime.UtcNow;
             Profile = new UserProfile(Id, anonymousName);
+            PersonalityCard = new PersonalityCard(Id);
         }
 
         public void RecordLogin()

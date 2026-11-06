@@ -13,6 +13,7 @@ namespace Yakku.Domain.Entities
         public ShareContentType ContentType { get; private set; }
         public Guid? PollId { get; private set; }
         public Guid? UserCheckId { get; private set; }
+        public Guid? PersonalityCardId { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
         private ShareCode()
@@ -26,6 +27,17 @@ namespace Yakku.Domain.Entities
                 Code = poll.ShareCode,
                 ContentType = ShareContentType.Poll,
                 PollId = poll.Id,
+                CreatedAt = DateTime.UtcNow
+            };
+        }
+
+        public static ShareCode ForPersonalityCard(PersonalityCard card)
+        {
+            return new ShareCode
+            {
+                Code = card.ShareCode,
+                ContentType = ShareContentType.Personality,
+                PersonalityCardId = card.Id,
                 CreatedAt = DateTime.UtcNow
             };
         }

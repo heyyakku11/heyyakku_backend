@@ -35,9 +35,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 return null;
             }
 
-            return entry.ContentType == ShareContentType.Poll
-                ? await LoadPollAsync(entry.PollId!.Value, cancellationToken)
-                : await LoadCheckAsync(entry.UserCheckId!.Value, cancellationToken);
+            // Personality card codes live in the same registry but are opened through the personality card endpoints.
+            return entry.ContentType switch
+            {
+                ShareContentType.Poll => await LoadPollAsync(entry.PollId!.Value, cancellationToken),
+                ShareContentType.Check => await LoadCheckAsync(entry.UserCheckId!.Value, cancellationToken),
+                _ => null
+            };
         }
 
         public async Task<PollVoteCountSnapshot> GetTallyAsync(

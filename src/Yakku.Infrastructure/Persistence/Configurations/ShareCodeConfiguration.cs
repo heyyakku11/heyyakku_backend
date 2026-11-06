@@ -12,7 +12,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             {
                 table.HasCheckConstraint(
                     "CK_share_codes_content_type",
-                    "\"content_type\" IN ('POLL', 'CHECK')");
+                    "\"content_type\" IN ('POLL', 'CHECK', 'PERSONALITY')");
                 table.HasCheckConstraint(
                     "CK_share_codes_code_not_blank",
                     "char_length(btrim(\"code\")) > 0");
@@ -20,9 +20,11 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 table.HasCheckConstraint(
                     "CK_share_codes_one_target",
                     """
-                    ("content_type" = 'POLL' AND "poll_id" IS NOT NULL AND "user_check_id" IS NULL)
+                    ("content_type" = 'POLL' AND "poll_id" IS NOT NULL AND "user_check_id" IS NULL AND "personality_card_id" IS NULL)
                     OR
-                    ("content_type" = 'CHECK' AND "poll_id" IS NULL AND "user_check_id" IS NOT NULL)
+                    ("content_type" = 'CHECK' AND "poll_id" IS NULL AND "user_check_id" IS NOT NULL AND "personality_card_id" IS NULL)
+                    OR
+                    ("content_type" = 'PERSONALITY' AND "poll_id" IS NULL AND "user_check_id" IS NULL AND "personality_card_id" IS NOT NULL)
                     """);
             });
 
@@ -41,6 +43,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.PollId).HasColumnName("poll_id");
             builder.Property(x => x.UserCheckId).HasColumnName("user_check_id");
+            builder.Property(x => x.PersonalityCardId).HasColumnName("personality_card_id");
 
             builder.Property(x => x.CreatedAt)
                 .HasColumnName("created_at")
@@ -57,6 +60,17 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsUnique()
                 .HasFilter("\"user_check_id\" IS NOT NULL")
                 .HasDatabaseName("IX_share_codes_user_check_id");
+
+            builder.HasIndex(x => x.PersonalityCardId)
+                .IsUnique()
+                .HasFilter("\"personality_card_id\" IS NOT NULL")
+                .HasDatabaseName("IX_share_codes_personality_card_id");
+
+            builder.HasOne<PersonalityCard>()
+                .WithMany()
+                .HasForeignKey(x => x.PersonalityCardId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasOne<Poll>()
                 .WithMany()

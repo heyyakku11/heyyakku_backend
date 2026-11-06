@@ -60,6 +60,25 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     .Where(vote => vote.VoterId == userId)
                     .ExecuteDeleteAsync(cancellationToken);
 
+                // Personality votes this user cast: keep each card's counter equal to its remaining votes, then
+                // remove them (their trait rows cascade). The user's own card cascades with the user below.
+                await _context.Database.ExecuteSqlInterpolatedAsync(
+                    $"""
+                    UPDATE personality_cards c
+                    SET total_votes = c.total_votes - v.cnt
+                    FROM (
+                        SELECT personality_card_id, count(*)::int AS cnt
+                        FROM personality_votes
+                        WHERE voter_user_id = {userId}
+                        GROUP BY personality_card_id
+                    ) v
+                    WHERE c.id = v.personality_card_id
+                    """,
+                    cancellationToken);
+                await _context.PersonalityVotes
+                    .Where(vote => vote.VoterUserId == userId)
+                    .ExecuteDeleteAsync(cancellationToken);
+
                 await _context.MediaUploadSessions
                     .Where(session => session.UserId == userId
                                       || (session.PollId != null && session.Poll!.CreatorId == userId))

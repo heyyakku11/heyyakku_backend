@@ -53,6 +53,7 @@ namespace Yakku.Application
             services.AddScoped<IVotingService, VotingService>();
             services.AddScoped<Yakku.Application.Streaks.Interfaces.IStreakService, Yakku.Application.Streaks.Services.StreakService>();
             services.AddScoped<ICheckService, CheckService>();
+            services.AddScoped<Yakku.Application.Personality.Interfaces.IPersonalityService, Yakku.Application.Personality.Services.PersonalityService>();
             services.AddScoped<Yakku.Application.Reasons.Interfaces.IReasonService, Yakku.Application.Reasons.Services.ReasonService>();
             services.AddScoped<IAdminCheckService, AdminCheckService>();
             services.AddScoped<Yakku.Application.AdminUsers.Interfaces.IAdminUserService, Yakku.Application.AdminUsers.Services.AdminUserService>();
