@@ -157,7 +157,8 @@ public class AccountDeletionTests
                 new InlineValidator<RequestOtpRequest>(),
                 new InlineValidator<ResendOtpRequest>(),
                 new InlineValidator<VerifyOtpRequest>(),
-                Audit);
+                Audit,
+                new FakeSnapshot());
         }
 
         public User User { get; }
@@ -169,6 +170,12 @@ public class AccountDeletionTests
         public RecordingAuditLogWriter Audit { get; }
         public AccountDeletionService Service { get; }
         public AuthService Auth { get; }
+    }
+
+    private sealed class FakeSnapshot : ILoginSnapshotReader
+    {
+        public Task<LoginSnapshot> GetAsync(Guid userId, string? installationId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new LoginSnapshot("abc123", "Draft", "Unknown", false));
     }
 
     private sealed class FakeUsers : IUserRepository

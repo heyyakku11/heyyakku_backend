@@ -27,5 +27,36 @@ namespace Yakku.Application.Auth.DTOs
     public class VerifyOtpUser
     {
         public string AnonymousName { get; set; } = string.Empty;
+
+        /// <summary>The user's personality card: its share code and where it is in its lifecycle.</summary>
+        public VerifyOtpPersonalityCard PersonalityCard { get; set; } = new();
+
+        /// <summary>Permission state of the device that signed in.</summary>
+        public VerifyOtpPermissions Permissions { get; set; } = new();
     }
+
+    public class VerifyOtpPersonalityCard
+    {
+        /// <summary>The code in the card's share link.</summary>
+        public string ShareCode { get; set; } = string.Empty;
+
+        /// <summary>Draft, Collecting or Completed.</summary>
+        public string Status { get; set; } = string.Empty;
+    }
+
+    public class VerifyOtpPermissions
+    {
+        /// <summary>Unknown, Granted or Denied. Unknown when no device was sent or it never reported one.</summary>
+        public string Notification { get; set; } = "Unknown";
+
+        /// <summary>Whether push is switched on for this device.</summary>
+        public bool IsPushAllowed { get; set; }
+    }
+
+    /// <summary>What <see cref="Yakku.Application.Auth.Interfaces.ILoginSnapshotReader"/> returns.</summary>
+    public sealed record LoginSnapshot(
+        string CardShareCode,
+        string CardStatus,
+        string NotificationPermission,
+        bool IsPushAllowed);
 }

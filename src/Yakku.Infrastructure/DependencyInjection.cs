@@ -57,6 +57,7 @@ namespace Yakku.Infrastructure
             services.AddHostedService<AuditRetentionWorker>();
             services.AddScoped<ISavedPollRepository, SavedPollRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<Yakku.Application.Auth.Interfaces.ILoginSnapshotReader, LoginSnapshotReader>();
             services.AddScoped<IAccountDeletionRepository, AccountDeletionRepository>();
             services.AddScoped<IVotableContentRepository, VotableContentRepository>();
             services.AddScoped<IGuestVoteClaimRepository, GuestVoteClaimRepository>();

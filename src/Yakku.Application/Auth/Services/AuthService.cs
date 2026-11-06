@@ -27,6 +27,7 @@ namespace Yakku.Application.Auth.Services
         private readonly IValidator<ResendOtpRequest> _resendOtpValidator;
         private readonly IValidator<VerifyOtpRequest> _verifyOtpValidator;
         private readonly IAuditLogWriter _audit;
+        private readonly ILoginSnapshotReader _loginSnapshot;
 
         public AuthService(
             IUserRepository userRepository,
@@ -37,7 +38,8 @@ namespace Yakku.Application.Auth.Services
             IValidator<RequestOtpRequest> requestOtpValidator,
             IValidator<ResendOtpRequest> resendOtpValidator,
             IValidator<VerifyOtpRequest> verifyOtpValidator,
-            IAuditLogWriter audit)
+            IAuditLogWriter audit,
+            ILoginSnapshotReader loginSnapshot)
         {
             _userRepository = userRepository;
             _otpChallengeStore = otpChallengeStore;
@@ -48,6 +50,7 @@ namespace Yakku.Application.Auth.Services
             _resendOtpValidator = resendOtpValidator;
             _verifyOtpValidator = verifyOtpValidator;
             _audit = audit;
+            _loginSnapshot = loginSnapshot;
         }
 
         public async Task<RequestOtpResponse> RequestOtpAsync(
@@ -365,6 +368,7 @@ namespace Yakku.Application.Auth.Services
             CancellationToken cancellationToken)
         {
             var tokens = await _sessionService.CreateAsync(user.Id, installation, cancellationToken);
+            var snapshot = await _loginSnapshot.GetAsync(user.Id, installation?.InstallationId, cancellationToken);
 
             return new VerifyOtpResponse
             {
@@ -372,7 +376,17 @@ namespace Yakku.Application.Auth.Services
                 Purpose = purpose.ToString(),
                 User = new VerifyOtpUser
                 {
-                    AnonymousName = user.Profile?.AnonymousName ?? string.Empty
+                    AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
+                    PersonalityCard = new VerifyOtpPersonalityCard
+                    {
+                        ShareCode = snapshot.CardShareCode,
+                        Status = snapshot.CardStatus
+                    },
+                    Permissions = new VerifyOtpPermissions
+                    {
+                        Notification = snapshot.NotificationPermission,
+                        IsPushAllowed = snapshot.IsPushAllowed
+                    }
                 },
                 Auth = tokens
             };
