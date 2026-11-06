@@ -1,10 +1,10 @@
 namespace Yakku.Application.Personality
 {
     /// <summary>A trait with its vote count across all valid votes of a card.</summary>
-    public sealed record TraitTally(int TraitId, string Name, int DisplayOrder, int Votes);
+    public sealed record TraitTally(Guid TraitId, string Name, int DisplayOrder, int Votes);
 
     /// <summary>A trait the owner chose for themselves.</summary>
-    public sealed record SelfTraitRef(int TraitId, string Name, int DisplayOrder);
+    public sealed record SelfTraitRef(Guid TraitId, string Name, int DisplayOrder);
 
     public sealed record PersonalityComparison(
         IReadOnlyList<SelfTraitRef> SelfTraits,

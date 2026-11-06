@@ -33,7 +33,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         }
 
         public Task<List<PersonalityTrait>> GetTraitsByIdsAsync(
-            IReadOnlyCollection<int> ids,
+            IReadOnlyCollection<Guid> ids,
             CancellationToken cancellationToken = default)
         {
             return _context.PersonalityTraits

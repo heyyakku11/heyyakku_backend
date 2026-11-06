@@ -20,9 +20,10 @@ namespace Yakku.API.Controllers
             _service = service;
         }
 
+        [AllowAnonymous]
         [HttpGet("personality/traits")]
         [EndpointSummary("List Personality Traits")]
-        [EndpointDescription("Returns the active predefined personality traits, in display order.")]
+        [EndpointDescription("Returns the active predefined personality traits, in display order. Public: no sign-in needed.")]
         [ProducesResponseType(typeof(ApiResponse<List<PersonalityTraitResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetTraits(CancellationToken cancellationToken)
         {

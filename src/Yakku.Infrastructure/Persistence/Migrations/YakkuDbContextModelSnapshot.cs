@@ -1150,8 +1150,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("personality_card_id");
 
-                    b.Property<int>("TraitId")
-                        .HasColumnType("integer")
+                    b.Property<Guid>("TraitId")
+                        .HasColumnType("uuid")
                         .HasColumnName("trait_id");
 
                     b.HasKey("Id");
@@ -1168,8 +1168,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityTrait", b =>
                 {
-                    b.Property<int>("Id")
-                        .HasColumnType("integer")
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
                         .HasColumnName("id");
 
                     b.Property<int>("DisplayOrder")
@@ -1244,8 +1244,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("personality_vote_id");
 
-                    b.Property<int>("TraitId")
-                        .HasColumnType("integer")
+                    b.Property<Guid>("TraitId")
+                        .HasColumnType("uuid")
                         .HasColumnName("trait_id");
 
                     b.HasKey("Id");

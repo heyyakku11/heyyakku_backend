@@ -5,7 +5,7 @@ namespace Yakku.Domain.Entities
     {
         public Guid Id { get; private set; }
         public Guid PersonalityCardId { get; private set; }
-        public int TraitId { get; private set; }
+        public Guid TraitId { get; private set; }
 
         public PersonalityCard PersonalityCard { get; private set; } = null!;
         public PersonalityTrait Trait { get; private set; } = null!;
@@ -14,7 +14,7 @@ namespace Yakku.Domain.Entities
         {
         }
 
-        internal PersonalityCardSelfTrait(Guid personalityCardId, int traitId)
+        internal PersonalityCardSelfTrait(Guid personalityCardId, Guid traitId)
         {
             Id = Guid.NewGuid();
             PersonalityCardId = personalityCardId;

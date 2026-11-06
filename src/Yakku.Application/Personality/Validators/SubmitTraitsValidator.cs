@@ -14,8 +14,8 @@ namespace Yakku.Application.Personality.Validators
                 .WithMessage($"Select exactly {PersonalityCard.TraitsPerSelection} traits.")
                 .Must(ids => ids is null || ids.Distinct().Count() == ids.Count)
                 .WithMessage("Traits must be distinct.")
-                .Must(ids => ids is null || ids.All(id => id > 0))
-                .WithMessage("Trait ids must be positive.");
+                .Must(ids => ids is null || ids.All(id => id != Guid.Empty))
+                .WithMessage("Trait ids must be valid ids.");
         }
     }
 }

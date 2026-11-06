@@ -3,19 +3,19 @@ namespace Yakku.Application.Personality.DTOs
     /// <summary>A predefined trait a user can pick.</summary>
     public class PersonalityTraitResponse
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
     }
 
     /// <summary>Exactly three distinct trait ids. Used for both the self-assessment and a vote.</summary>
     public class SubmitTraitsRequest
     {
-        public List<int> TraitIds { get; set; } = new();
+        public List<Guid> TraitIds { get; set; } = new();
     }
 
     public class PersonalityTraitSummary
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
     }
 
@@ -61,7 +61,7 @@ namespace Yakku.Application.Personality.DTOs
 
     public class PersonalityTraitCountResponse
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
 
         /// <summary>How many voters picked this trait. An aggregate only: voters are never identified.</summary>

@@ -16,7 +16,7 @@ namespace Yakku.Domain.Entities
         {
         }
 
-        public PersonalityVote(Guid personalityCardId, Guid voterUserId, IEnumerable<int> traitIds)
+        public PersonalityVote(Guid personalityCardId, Guid voterUserId, IEnumerable<Guid> traitIds)
         {
             Id = Guid.NewGuid();
             PersonalityCardId = personalityCardId;
@@ -34,7 +34,7 @@ namespace Yakku.Domain.Entities
     {
         public Guid Id { get; private set; }
         public Guid PersonalityVoteId { get; private set; }
-        public int TraitId { get; private set; }
+        public Guid TraitId { get; private set; }
 
         public PersonalityVote PersonalityVote { get; private set; } = null!;
         public PersonalityTrait Trait { get; private set; } = null!;
@@ -43,7 +43,7 @@ namespace Yakku.Domain.Entities
         {
         }
 
-        internal PersonalityVoteTrait(Guid personalityVoteId, int traitId)
+        internal PersonalityVoteTrait(Guid personalityVoteId, Guid traitId)
         {
             Id = Guid.NewGuid();
             PersonalityVoteId = personalityVoteId;

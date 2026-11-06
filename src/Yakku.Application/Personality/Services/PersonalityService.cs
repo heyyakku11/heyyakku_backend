@@ -208,7 +208,7 @@ namespace Yakku.Application.Personality.Services
         }
 
         /// <summary>Every id must be an existing, active trait.</summary>
-        private async Task EnsureAllActiveAsync(IReadOnlyCollection<int> traitIds, CancellationToken cancellationToken)
+        private async Task EnsureAllActiveAsync(IReadOnlyCollection<Guid> traitIds, CancellationToken cancellationToken)
         {
             var traits = await _repository.GetTraitsByIdsAsync(traitIds, cancellationToken);
             if (traits.Count != traitIds.Count || traits.Any(trait => !trait.IsActive))

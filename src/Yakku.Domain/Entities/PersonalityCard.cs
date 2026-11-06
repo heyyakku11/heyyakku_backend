@@ -50,7 +50,7 @@ namespace Yakku.Domain.Entities
         }
 
         /// <summary>Records the owner's three traits and opens the card for voting. Only valid while Draft.</summary>
-        public void SubmitSelfAssessment(IReadOnlyCollection<int> traitIds)
+        public void SubmitSelfAssessment(IReadOnlyCollection<Guid> traitIds)
         {
             if (Status != PersonalityCardStatus.Draft)
             {

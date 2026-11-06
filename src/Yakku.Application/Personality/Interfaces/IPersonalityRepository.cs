@@ -8,7 +8,7 @@ namespace Yakku.Application.Personality.Interfaces
 
         /// <summary>The traits with these ids, active or not (the caller checks).</summary>
         Task<List<PersonalityTrait>> GetTraitsByIdsAsync(
-            IReadOnlyCollection<int> ids,
+            IReadOnlyCollection<Guid> ids,
             CancellationToken cancellationToken = default);
 
         /// <summary>Creates the user's card if it is missing. Safe to call repeatedly and concurrently.</summary>

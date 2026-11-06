@@ -1,3 +1,4 @@
+using static Yakku.Tests.PersonalityTestIds;
 using Yakku.Application.Personality;
 using Yakku.Application.Personality.DTOs;
 using Yakku.Application.Personality.Validators;
@@ -41,11 +42,11 @@ public sealed class PersonalityUnitTests
     {
         var card = new PersonalityCard(Guid.NewGuid());
 
-        card.SubmitSelfAssessment(new[] { 1, 2, 3 });
+        card.SubmitSelfAssessment(new[] { 1, 2, 3 }.Select(T).ToArray());
 
         Assert.Equal(PersonalityCardStatus.Collecting, card.Status);
         Assert.Equal(3, card.SelfTraits.Count);
-        Assert.Throws<InvalidOperationException>(() => card.SubmitSelfAssessment(new[] { 4, 5, 6 }));
+        Assert.Throws<InvalidOperationException>(() => card.SubmitSelfAssessment(new[] { 4, 5, 6 }.Select(T).ToArray()));
         Assert.Equal(3, card.SelfTraits.Count);
     }
 
@@ -62,7 +63,7 @@ public sealed class PersonalityUnitTests
     public void FourVotes_KeepCollecting_FifthCompletes_SixthIsRejected()
     {
         var card = new PersonalityCard(Guid.NewGuid());
-        card.SubmitSelfAssessment(new[] { 1, 2, 3 });
+        card.SubmitSelfAssessment(new[] { 1, 2, 3 }.Select(T).ToArray());
 
         for (var i = 0; i < 4; i++)
         {
@@ -89,13 +90,19 @@ public sealed class PersonalityUnitTests
     [InlineData(new int[] { 1, 2, 3, 4 }, false)]
     [InlineData(new int[] { }, false)]
     [InlineData(new int[] { 1, 1, 2 }, false)]
-    [InlineData(new int[] { 0, 1, 2 }, false)]
-    [InlineData(new int[] { -1, 1, 2 }, false)]
-    public void Validator_RequiresExactlyThreeDistinctPositiveIds(int[] ids, bool valid)
+    public void Validator_RequiresExactlyThreeDistinctIds(int[] ids, bool valid)
     {
-        var result = new SubmitTraitsValidator().Validate(new SubmitTraitsRequest { TraitIds = ids.ToList() });
+        var result = new SubmitTraitsValidator().Validate(new SubmitTraitsRequest { TraitIds = ids.Select(T).ToList() });
 
         Assert.Equal(valid, result.IsValid);
+    }
+
+    [Fact]
+    public void Validator_RejectsAnEmptyGuid()
+    {
+        var request = new SubmitTraitsRequest { TraitIds = new List<Guid> { Guid.Empty, T(1), T(2) } };
+
+        Assert.False(new SubmitTraitsValidator().Validate(request).IsValid);
     }
 
     [Fact]
@@ -108,9 +115,9 @@ public sealed class PersonalityUnitTests
 
     // ---- results -----------------------------------------------------------------------------------------------
 
-    private static SelfTraitRef Self(int id, int order) => new(id, $"T{id}", order);
+    private static SelfTraitRef Self(int id, int order) => new(T(id), $"T{id}", order);
 
-    private static TraitTally Tally(int id, int order, int votes) => new(id, $"T{id}", order, votes);
+    private static TraitTally Tally(int id, int order, int votes) => new(T(id), $"T{id}", order, votes);
 
     [Fact]
     public void Compare_SplitsCommonSelfOnlyAndCrowdOnly()
@@ -124,11 +131,11 @@ public sealed class PersonalityUnitTests
 
         var result = PersonalityResultCalculator.Compare(self, tallies);
 
-        Assert.Equal(new[] { 1, 10, 3 }, result.CrowdTop.Select(t => t.TraitId));
-        Assert.Equal(new[] { 1, 3 }, result.Common.Select(t => t.TraitId));
-        Assert.Equal(new[] { 5 }, result.SelfOnly.Select(t => t.TraitId));
-        Assert.Equal(new[] { 10 }, result.CrowdOnly.Select(t => t.TraitId));
-        Assert.Equal(new[] { 1, 3, 5 }, result.SelfTraits.Select(t => t.TraitId));
+        Assert.Equal(new[] { 1, 10, 3 }, result.CrowdTop.Select(t => N(t.TraitId)));
+        Assert.Equal(new[] { 1, 3 }, result.Common.Select(t => N(t.TraitId)));
+        Assert.Equal(new[] { 5 }, result.SelfOnly.Select(t => N(t.TraitId)));
+        Assert.Equal(new[] { 10 }, result.CrowdOnly.Select(t => N(t.TraitId)));
+        Assert.Equal(new[] { 1, 3, 5 }, result.SelfTraits.Select(t => N(t.TraitId)));
     }
 
     [Fact]
@@ -141,8 +148,8 @@ public sealed class PersonalityUnitTests
         var forward = PersonalityResultCalculator.Compare(self, tallies);
         var reversed = PersonalityResultCalculator.Compare(self, tallies.Reverse());
 
-        Assert.Equal(new[] { 2, 4, 7 }, forward.CrowdTop.Select(t => t.TraitId));
-        Assert.Equal(forward.CrowdTop.Select(t => t.TraitId), reversed.CrowdTop.Select(t => t.TraitId));
+        Assert.Equal(new[] { 2, 4, 7 }, forward.CrowdTop.Select(t => N(t.TraitId)));
+        Assert.Equal(forward.CrowdTop.Select(t => N(t.TraitId)), reversed.CrowdTop.Select(t => N(t.TraitId)));
     }
 
     [Fact]

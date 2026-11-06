@@ -1,3 +1,4 @@
+using static Yakku.Tests.PersonalityTestIds;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Yakku.Application.Common.Exceptions;
@@ -35,7 +36,7 @@ public sealed class PersonalityIntegrationTests
         return card.Id;
     }
 
-    private static SubmitTraitsRequest Traits(params int[] ids) => new() { TraitIds = ids.ToList() };
+    private static SubmitTraitsRequest Traits(params int[] ids) => new() { TraitIds = ids.Select(T).ToList() };
 
     private static PersonalityService ServiceFor(YakkuDbContext context) =>
         new(new PersonalityRepository(context), new SubmitTraitsValidator());
@@ -143,7 +144,7 @@ public sealed class PersonalityIntegrationTests
 
         var traits = await context.PersonalityTraits.AsNoTracking().OrderBy(t => t.Id).ToListAsync();
 
-        Assert.Equal(Enumerable.Range(1, 10), traits.Select(t => t.Id));
+        Assert.Equal(Enumerable.Range(1, 10), traits.Select(t => N(t.Id)));
         Assert.Equal("Confident", traits[0].Name);
         Assert.Equal("Reliable", traits[9].Name);
         Assert.All(traits, t => Assert.True(t.IsActive));
@@ -188,7 +189,7 @@ public sealed class PersonalityIntegrationTests
         var result = await ServiceFor(context).SubmitSelfAssessmentAsync(user.Id, Traits(3, 1, 2));
 
         Assert.Equal("Collecting", result.Status);
-        Assert.Equal(new[] { 1, 2, 3 }, result.SelfTraits.Select(t => t.Id));
+        Assert.Equal(new[] { 1, 2, 3 }, result.SelfTraits.Select(t => N(t.Id)));
     }
 
     [SkippableFact]
@@ -204,7 +205,7 @@ public sealed class PersonalityIntegrationTests
 
         Assert.Equal(409, error.StatusCode);
         var mine = await ServiceFor(second).GetMyCardAsync(user.Id);
-        Assert.Equal(new[] { 1, 2, 3 }, mine.SelfTraits.Select(t => t.Id));
+        Assert.Equal(new[] { 1, 2, 3 }, mine.SelfTraits.Select(t => N(t.Id)));
     }
 
     [SkippableFact]
@@ -232,10 +233,10 @@ public sealed class PersonalityIntegrationTests
         var user = await AddUserAsync(context);
         try
         {
-            await context.Database.ExecuteSqlRawAsync("UPDATE personality_traits SET is_active = false WHERE id = 10");
+            await context.Database.ExecuteSqlRawAsync($"UPDATE personality_traits SET is_active = false WHERE id = '{T(10)}'");
 
             var listed = await ServiceFor(context).GetTraitsAsync();
-            Assert.DoesNotContain(listed, t => t.Id == 10);
+            Assert.DoesNotContain(listed, t => N(t.Id) == 10);
             Assert.Equal(9, listed.Count);
 
             var error = await ExpectErrorAsync(() => ServiceFor(context).SubmitSelfAssessmentAsync(user.Id, Traits(1, 2, 10)));
@@ -243,7 +244,7 @@ public sealed class PersonalityIntegrationTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("UPDATE personality_traits SET is_active = true WHERE id = 10");
+            await context.Database.ExecuteSqlRawAsync($"UPDATE personality_traits SET is_active = true WHERE id = '{T(10)}'");
         }
     }
 
@@ -331,18 +332,18 @@ public sealed class PersonalityIntegrationTests
         var (_, cardId) = await CollectingCardAsync(0);
         await using var context = _fixture.CreateContext();
         var voter = await AddUserAsync(context);
-        context.PersonalityVotes.Add(new PersonalityVote(cardId, voter.Id, new[] { 1, 2, 3 }));
+        context.PersonalityVotes.Add(new PersonalityVote(cardId, voter.Id, new[] { 1, 2, 3 }.Select(T)));
         await context.SaveChangesAsync();
 
         // Bypasses the service entirely: only the unique index stands in the way.
         await using var second = _fixture.CreateContext();
-        second.PersonalityVotes.Add(new PersonalityVote(cardId, voter.Id, new[] { 4, 5, 6 }));
+        second.PersonalityVotes.Add(new PersonalityVote(cardId, voter.Id, new[] { 4, 5, 6 }.Select(T)));
         var duplicateVote = await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
         Assert.Equal(PostgresErrorCodes.UniqueViolation, ((PostgresException)duplicateVote.InnerException!).SqlState);
 
         await using var third = _fixture.CreateContext();
         var otherVoter = await AddUserAsync(third);
-        third.PersonalityVotes.Add(new PersonalityVote(cardId, otherVoter.Id, new[] { 7, 7, 8 }));
+        third.PersonalityVotes.Add(new PersonalityVote(cardId, otherVoter.Id, new[] { 7, 7, 8 }.Select(T)));
         var duplicateTrait = await Assert.ThrowsAsync<DbUpdateException>(() => third.SaveChangesAsync());
         Assert.Equal(PostgresErrorCodes.UniqueViolation, ((PostgresException)duplicateTrait.InnerException!).SqlState);
         Assert.False(await third.PersonalityVotes.AnyAsync(v => v.VoterUserId == otherVoter.Id));
@@ -480,12 +481,12 @@ public sealed class PersonalityIntegrationTests
 
         var results = await ServiceFor(context).GetResultsAsync(Code(cardId), owner.Id);
 
-        Assert.Equal(new[] { 1, 10, 3 }, results.CrowdTopTraits.Select(t => t.Id));
+        Assert.Equal(new[] { 1, 10, 3 }, results.CrowdTopTraits.Select(t => N(t.Id)));
         Assert.Equal(new[] { 4, 4, 3 }, results.CrowdTopTraits.Select(t => t.Votes));
-        Assert.Equal(new[] { 1, 3 }, results.CommonTraits.Select(t => t.Id));
-        Assert.Equal(new[] { 5 }, results.SelfOnlyTraits.Select(t => t.Id));
-        Assert.Equal(new[] { 10 }, results.CrowdOnlyTraits.Select(t => t.Id));
-        Assert.Equal(new[] { 1, 3, 5 }, results.SelfSelectedTraits.Select(t => t.Id));
+        Assert.Equal(new[] { 1, 3 }, results.CommonTraits.Select(t => N(t.Id)));
+        Assert.Equal(new[] { 5 }, results.SelfOnlyTraits.Select(t => N(t.Id)));
+        Assert.Equal(new[] { 10 }, results.CrowdOnlyTraits.Select(t => N(t.Id)));
+        Assert.Equal(new[] { 1, 3, 5 }, results.SelfSelectedTraits.Select(t => N(t.Id)));
 
         // No property of the payload can carry a voter: only trait ids, names, counts and the card's own numbers.
         var properties = typeof(PersonalityResultsResponse).GetProperties().Select(p => p.Name);
