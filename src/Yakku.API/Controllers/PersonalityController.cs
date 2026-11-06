@@ -9,7 +9,6 @@ namespace Yakku.API.Controllers
 {
     [ApiController]
     [Authorize]
-    [ServiceFilter(typeof(LiveSessionFilter))]
     [Route("api/v1")]
     public class PersonalityController : ControllerBase
     {
@@ -31,6 +30,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Personality traits retrieved successfully"));
         }
 
+        [ServiceFilter(typeof(LiveSessionFilter))]
         [HttpGet("personality-cards/me")]
         [EndpointSummary("Get My Personality Card")]
         [EndpointDescription("Returns the signed-in user's card: status, self-selected traits, vote progress and completion time.")]
@@ -41,6 +41,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Personality card retrieved successfully"));
         }
 
+        [ServiceFilter(typeof(LiveSessionFilter))]
         [HttpPost("personality-cards/me/self-assessment")]
         [EndpointSummary("Submit Self-Assessment")]
         [EndpointDescription("Picks exactly 3 distinct active traits to describe yourself. Allowed once, while the card is a draft; the card then starts collecting votes.")]
@@ -55,6 +56,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Self-assessment submitted successfully"));
         }
 
+        [ServiceFilter(typeof(LiveSessionFilter))]
         [HttpGet("personality-cards/{shareCode}")]
         [EndpointSummary("Get A Shared Personality Card")]
         [EndpointDescription("Opens a card by its share code, as a voter sees it. Cards still in draft are not found. The owner's own picks and any voter details are never included.")]
@@ -66,6 +68,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Personality card retrieved successfully"));
         }
 
+        [ServiceFilter(typeof(LiveSessionFilter))]
         [HttpPost("personality-cards/{shareCode}/votes")]
         [EndpointSummary("Vote On A Personality Card")]
         [EndpointDescription("Picks exactly 3 distinct active traits that describe the card's owner. One vote per user per card, never on your own card, and only while the card is collecting votes. The vote that reaches the threshold completes the card.")]
@@ -83,6 +86,7 @@ namespace Yakku.API.Controllers
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Vote submitted successfully"));
         }
 
+        [ServiceFilter(typeof(LiveSessionFilter))]
         [HttpGet("personality-cards/{shareCode}/results")]
         [EndpointSummary("Get Personality Results")]
         [EndpointDescription("You vs the crowd: your 3 traits, the crowd's top 3, and what they share. Owner only, and only once the card is completed (409 before that). No voter is ever identified.")]
