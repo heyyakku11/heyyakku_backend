@@ -57,6 +57,8 @@ namespace Yakku.Application.Users.Mapper
                     .ToList(),
                 Check = new UserCheckStyleResponse
                 {
+                    CheckType = Checks.Themes.CheckThemeMapper.ToResponse(item.Check).CheckType,
+                    Theme = Checks.Themes.CheckThemeMapper.ToResponse(item.Check),
                     Title = item.Check.Title,
                     BackgroundColor = item.Check.BackgroundColor,
                     Sticker = item.Check.Sticker

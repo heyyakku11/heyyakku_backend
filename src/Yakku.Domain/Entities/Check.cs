@@ -19,6 +19,14 @@ namespace Yakku.Domain.Entities
         public string BackgroundColor { get; private set; } = string.Empty;
         public string Sticker { get; private set; } = string.Empty;
         public bool IsActive { get; private set; }
+
+        /// <summary>
+        /// The check type, which owns the visual theme. Null only for legacy checks made before types existed;
+        /// those keep rendering from Title/BackgroundColor/Sticker.
+        /// </summary>
+        public Guid? CheckTypeId { get; private set; }
+        public CheckType? CheckType { get; private set; }
+
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
@@ -35,7 +43,8 @@ namespace Yakku.Domain.Entities
             string question,
             string backgroundColor,
             string sticker,
-            IEnumerable<string> options)
+            IEnumerable<string> options,
+            Guid? checkTypeId = null)
         {
             var now = DateTime.UtcNow;
             var check = new Check
@@ -47,6 +56,7 @@ namespace Yakku.Domain.Entities
                 BackgroundColor = backgroundColor,
                 Sticker = sticker,
                 IsActive = true,
+                CheckTypeId = checkTypeId,
                 CreatedAt = now,
                 UpdatedAt = now
             };
@@ -68,6 +78,16 @@ namespace Yakku.Domain.Entities
             BackgroundColor = backgroundColor;
             Sticker = sticker;
             IsActive = isActive;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>Assigns the type plus the legacy snapshot fields (the type theme at that moment). Callers allow this only while nobody has used the check.</summary>
+        public void AssignType(Guid checkTypeId, string title, string backgroundColor, string sticker)
+        {
+            CheckTypeId = checkTypeId;
+            Title = title;
+            BackgroundColor = backgroundColor;
+            Sticker = sticker;
             UpdatedAt = DateTime.UtcNow;
         }
 

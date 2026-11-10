@@ -34,6 +34,16 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => new { x.LiveWeekStart, x.CreatedAt })
                 .HasDatabaseName("IX_checks_live_week_start_created_at");
 
+            builder.Property(x => x.CheckTypeId).HasColumnName("check_type_id");
+            builder.HasIndex(x => x.CheckTypeId).HasDatabaseName("IX_checks_check_type_id");
+
+            builder.HasOne(x => x.CheckType)
+                .WithMany()
+                .HasForeignKey(x => x.CheckTypeId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+            builder.Navigation(x => x.CheckType).AutoInclude();
+
             builder.HasMany(x => x.Options)
                 .WithOne(x => x.Check)
                 .HasForeignKey(x => x.CheckId)

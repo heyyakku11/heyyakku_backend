@@ -1,3 +1,5 @@
+using Yakku.Application.Checks.Themes;
+
 namespace Yakku.Application.Checks.DTOs
 {
     public class CheckOptionResponse
@@ -19,6 +21,10 @@ namespace Yakku.Application.Checks.DTOs
         public string Sticker { get; set; } = string.Empty;
         public List<CheckOptionResponse> Options { get; set; } = new();
         public bool Used { get; set; }
+
+        /// <summary>Stable check type code (null for legacy checks).</summary>
+        public string? CheckType { get; set; }
+        public CheckThemeResponse Theme { get; set; } = new();
     }
 
     public class UserCheckOptionResponse
@@ -61,17 +67,21 @@ namespace Yakku.Application.Checks.DTOs
         public int? CustomAnswerVotes { get; set; }
         public List<UserCheckOptionResponse> Options { get; set; } = new();
         public DateTime CreatedAt { get; set; }
+        public string? CheckType { get; set; }
+        public CheckThemeResponse Theme { get; set; } = new();
     }
 
-    /// <summary>Admin create/update body. weekStart may be any date; it is snapped to that week's Monday.</summary>
+    /// <summary>
+    /// Admin create/update body. weekStart may be any date; it is snapped to that week's Monday.
+    /// Visuals (heading, colors, sticker, theme version) are never accepted: the backend resolves them from the check type.
+    /// </summary>
     public class SaveCheckRequest
     {
         public DateOnly WeekStart { get; set; }
 
-        public string Title { get; set; } = string.Empty;
+        /// <summary>Id of a theme from the check-themes list. Required on create; omit on update to keep the current type.</summary>
+        public Guid? CheckTypeId { get; set; }
         public string Question { get; set; } = string.Empty;
-        public string BackgroundColor { get; set; } = string.Empty;
-        public string Sticker { get; set; } = string.Empty;
         public List<string> Options { get; set; } = new();
         public bool IsActive { get; set; } = true;
     }
@@ -89,6 +99,9 @@ namespace Yakku.Application.Checks.DTOs
         /// <summary>live = this week or earlier, upcoming = a later week.</summary>
         public string Status { get; set; } = string.Empty;
         public List<CheckOptionResponse> Options { get; set; } = new();
+        public string? CheckType { get; set; }
+        public Guid? CheckTypeId { get; set; }
+        public CheckThemeResponse Theme { get; set; } = new();
     }
 
     /// <summary>An answer to a check: exactly one of checkOptionId or customAnswer, plus an optional reason.</summary>

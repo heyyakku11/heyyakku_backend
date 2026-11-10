@@ -7,7 +7,12 @@ namespace Yakku.Application.Sharing
 
     public sealed record VotablePollDetails(string PollType, PollMedia? Media);
 
-    public sealed record VotableCheckDetails(Guid CheckId, string Title, string BackgroundColor, string Sticker);
+    public sealed record VotableCheckDetails(
+        Guid CheckId,
+        string Title,
+        string BackgroundColor,
+        string Sticker,
+        Yakku.Application.Checks.Themes.CheckThemeResponse? Theme = null);
 
     /// <summary>
     /// What voting needs to know about a poll or a made check, independent of which one it is. Built by the

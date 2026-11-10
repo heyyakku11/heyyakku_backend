@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using FluentValidation;
 using Yakku.Application.Checks.DTOs;
+using Yakku.Application.Checks.Themes;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
@@ -244,8 +245,11 @@ namespace Yakku.Application.Checks.Services
 
         private static CheckResponse ToCheckResponse(Check check, UserCheck? used)
         {
+            var theme = CheckThemeMapper.ToResponse(check);
             return new CheckResponse
             {
+                CheckType = theme.CheckType,
+                Theme = theme,
                 Id = check.Id,
                 WeekStart = check.LiveWeekStart,
                 Title = check.Title,
@@ -277,8 +281,11 @@ namespace Yakku.Application.Checks.Services
                 .GroupBy(vote => vote.CheckOptionId!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
 
+            var theme = CheckThemeMapper.ToResponse(item.Check);
             return new UserCheckResponse
             {
+                CheckType = theme.CheckType,
+                Theme = theme,
                 Id = item.Id,
                 CheckId = item.CheckId,
                 Title = item.Check.Title,

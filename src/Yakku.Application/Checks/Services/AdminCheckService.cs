@@ -1,22 +1,31 @@
 using FluentValidation;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Interfaces;
+using Yakku.Application.Checks.Themes;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
 
 namespace Yakku.Application.Checks.Services
 {
-    /// <summary>Admin scheduling of checks: which checks go live in which week.</summary>
+    /// <summary>
+    /// Admin scheduling of checks: which checks go live in which week.
+    /// Admins choose only the check type, question, options and week; the type decides every visual property.
+    /// </summary>
     public class AdminCheckService : IAdminCheckService
     {
         private readonly ICheckRepository _repository;
         private readonly IValidator<SaveCheckRequest> _validator;
+        private readonly ICheckThemeService _themes;
 
-        public AdminCheckService(ICheckRepository repository, IValidator<SaveCheckRequest> validator)
+        public AdminCheckService(
+            ICheckRepository repository,
+            IValidator<SaveCheckRequest> validator,
+            ICheckThemeService themes)
         {
             _repository = repository;
             _validator = validator;
+            _themes = themes;
         }
 
         public async Task<List<AdminCheckResponse>> ListAsync(
@@ -34,22 +43,34 @@ namespace Yakku.Application.Checks.Services
         {
             await _validator.ValidateAndThrowAsync(request, cancellationToken);
 
+            if (request.CheckTypeId is null || request.CheckTypeId == Guid.Empty)
+            {
+                throw new AppException(400, ApiErrorCodes.ValidationError, "Check type is required.", "checkTypeId");
+            }
+
+            // The type decides the look; the heading, color and sticker are also copied onto the check for older clients.
+            var theme = await _themes.ResolveForNewCheckAsync(request.CheckTypeId.Value, cancellationToken);
+
             var week = CheckWeek.StartOf(request.WeekStart);
             var check = Check.Create(
                 week,
-                request.Title.Trim(),
+                theme.Config.Heading,
                 request.Question.Trim(),
-                request.BackgroundColor.ToUpperInvariant(),
-                request.Sticker.Trim(),
-                request.Options.Select(option => option.Trim()));
+                theme.Config.BackgroundColor,
+                theme.Config.StickerLabel ?? string.Empty,
+                request.Options.Select(option => option.Trim()),
+                theme.CheckTypeId);
             if (!request.IsActive)
             {
                 check.Update(week, check.Title, check.Question, check.BackgroundColor, check.Sticker, false);
             }
 
+            // The check and its options are saved together in one SaveChanges (a single transaction).
             await _repository.AddCheckAsync(check, cancellationToken);
             await _repository.SaveChecksAsync(cancellationToken);
-            return ToResponse(check);
+
+            var saved = await _repository.GetForUpdateAsync(check.Id, cancellationToken) ?? check;
+            return ToResponse(saved);
         }
 
         public async Task<AdminCheckResponse> UpdateAsync(
@@ -70,13 +91,18 @@ namespace Yakku.Application.Checks.Services
                 .Select(option => option.Text)
                 .SequenceEqual(options);
 
-            // Votes point at options, so the wording can only change while nobody has used the check.
+            // Omitting the type keeps the current one; only an explicit different type changes it.
+            ResolvedCheckTheme? newTheme = null;
+            if (request.CheckTypeId is { } requested && requested != check.CheckTypeId)
+            {
+                newTheme = await _themes.ResolveForNewCheckAsync(requested, cancellationToken);
+            }
+
+            // Votes point at options, so the content can only change while nobody has used the check.
             var used = await _repository.HasUserChecksAsync(id, cancellationToken);
             var contentChanged = optionsChanged ||
-                check.Title != request.Title.Trim() ||
                 check.Question != request.Question.Trim() ||
-                !string.Equals(check.BackgroundColor, request.BackgroundColor, StringComparison.OrdinalIgnoreCase) ||
-                check.Sticker != request.Sticker.Trim();
+                newTheme is not null;
             if (used && contentChanged)
             {
                 throw new AppException(
@@ -90,15 +116,31 @@ namespace Yakku.Application.Checks.Services
                 check.ReplaceOptions(options);
             }
 
+            if (newTheme is not null)
+            {
+                check.AssignType(
+                    newTheme.CheckTypeId,
+                    newTheme.Config.Heading,
+                    newTheme.Config.BackgroundColor,
+                    newTheme.Config.StickerLabel);
+            }
+
             check.Update(
                 week,
-                used ? check.Title : request.Title.Trim(),
+                check.Title,
                 used ? check.Question : request.Question.Trim(),
-                used ? check.BackgroundColor : request.BackgroundColor.ToUpperInvariant(),
-                used ? check.Sticker : request.Sticker.Trim(),
+                check.BackgroundColor,
+                check.Sticker,
                 request.IsActive);
 
             await _repository.SaveChecksAsync(cancellationToken);
+
+            if (newTheme is not null)
+            {
+                // Reload so the response carries the newly assigned type navigation.
+                check = await _repository.GetForUpdateAsync(id, cancellationToken) ?? check;
+            }
+
             return ToResponse(check);
         }
 
@@ -121,6 +163,7 @@ namespace Yakku.Application.Checks.Services
 
         private static AdminCheckResponse ToResponse(Check check)
         {
+            var theme = CheckThemeMapper.ToResponse(check);
             return new AdminCheckResponse
             {
                 Id = check.Id,
@@ -134,7 +177,10 @@ namespace Yakku.Application.Checks.Services
                 Options = check.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new CheckOptionResponse { Id = option.Id, Text = option.Text })
-                    .ToList()
+                    .ToList(),
+                CheckType = theme.CheckType,
+                CheckTypeId = theme.CheckTypeId,
+                Theme = theme
             };
         }
     }

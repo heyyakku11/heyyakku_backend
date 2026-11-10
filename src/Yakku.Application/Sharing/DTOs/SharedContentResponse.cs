@@ -95,6 +95,8 @@ namespace Yakku.Application.Sharing.DTOs
 
     public class CheckDetailsResponse
     {
+        public string? CheckType { get; set; }
+        public Yakku.Application.Checks.Themes.CheckThemeResponse? Theme { get; set; }
         public Guid CheckId { get; set; }
         public string Title { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;

@@ -77,6 +77,8 @@ namespace Yakku.Application.Sharing
             {
                 response.Check = new CheckDetailsResponse
                 {
+                    CheckType = content.Check.Theme?.CheckType,
+                    Theme = content.Check.Theme,
                     CheckId = content.Check.CheckId,
                     Title = content.Check.Title,
                     BackgroundColor = content.Check.BackgroundColor,

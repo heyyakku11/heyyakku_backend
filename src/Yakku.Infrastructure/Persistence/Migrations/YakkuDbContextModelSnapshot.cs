@@ -512,6 +512,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(7)")
                         .HasColumnName("background_color");
 
+                    b.Property<Guid?>("CheckTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("check_type_id");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -554,6 +558,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CheckTypeId")
+                        .HasDatabaseName("IX_checks_check_type_id");
+
                     b.HasIndex("LiveWeekStart", "CreatedAt")
                         .HasDatabaseName("IX_checks_live_week_start_created_at");
 
@@ -593,6 +600,54 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_check_options_check_id_sort_order");
 
                     b.ToTable("check_options", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CheckType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BackgroundColor")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("background_color");
+
+                    b.Property<string>("HeadingColor")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("heading_color");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Sticker")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sticker");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_check_types_name");
+
+                    b.ToTable("check_types", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_check_types_background_color", "\"background_color\" ~ '^#[0-9A-Fa-f]{6}$'");
+
+                            t.HasCheckConstraint("CK_check_types_heading_color", "\"heading_color\" ~ '^#[0-9A-Fa-f]{6}$'");
+
+                            t.HasCheckConstraint("CK_check_types_name_not_blank", "char_length(btrim(\"name\")) > 0");
+
+                            t.HasCheckConstraint("CK_check_types_sticker_not_blank", "\"sticker\" IS NULL OR char_length(btrim(\"sticker\")) > 0");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
@@ -2521,6 +2576,16 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Conversation");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.Check", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.CheckType", "CheckType")
+                        .WithMany()
+                        .HasForeignKey("CheckTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CheckType");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.CheckOption", b =>

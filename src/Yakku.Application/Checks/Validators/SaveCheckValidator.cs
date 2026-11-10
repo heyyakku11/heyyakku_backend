@@ -12,13 +12,13 @@ namespace Yakku.Application.Checks.Validators
                 .Must(date => date != default)
                 .WithMessage("Week start is required.");
 
-            RuleFor(x => x.Title).NotEmpty().MaximumLength(100);
-            RuleFor(x => x.Question).NotEmpty().MaximumLength(500);
-            RuleFor(x => x.Sticker).NotEmpty().MaximumLength(100);
+            // Whether the type exists is checked against the database by the service.
+            RuleFor(x => x.CheckTypeId!.Value)
+                .NotEqual(Guid.Empty)
+                .WithMessage("Check type is invalid.")
+                .When(x => x.CheckTypeId is not null);
 
-            RuleFor(x => x.BackgroundColor)
-                .Matches("^#[0-9A-Fa-f]{6}$")
-                .WithMessage("Background color must be a hex color like #FFE0E8.");
+            RuleFor(x => x.Question).NotEmpty().MaximumLength(500);
 
             RuleFor(x => x.Options)
                 .NotNull()

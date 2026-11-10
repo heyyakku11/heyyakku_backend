@@ -32,6 +32,8 @@ namespace Yakku.Application.Users.DTOs
 
     public class UserCheckStyleResponse
     {
+        public string? CheckType { get; set; }
+        public Yakku.Application.Checks.Themes.CheckThemeResponse? Theme { get; set; }
         public string Title { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
         public string Sticker { get; set; } = string.Empty;

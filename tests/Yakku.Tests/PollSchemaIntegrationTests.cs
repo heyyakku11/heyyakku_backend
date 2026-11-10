@@ -44,12 +44,29 @@ public sealed class PostgresFixture : IAsyncLifetime
             ConnectionString = _container.GetConnectionString();
             await using var context = CreateContext();
             await context.Database.MigrateAsync();
+            await SeedFixtureAsync(context);
             IsAvailable = true;
         }
         catch (Exception exception) when (exception is DockerUnavailableException or TimeoutException)
         {
             IsAvailable = false;
         }
+    }
+
+    /// <summary>A theme that exists in the fixture database; tests build check requests with it.</summary>
+    public static Guid DefaultTypeId { get; private set; }
+
+    // Test-only data (the product itself seeds no checks or themes): one theme and one live check,
+    // so tests can create and list checks.
+    private static async Task SeedFixtureAsync(YakkuDbContext context)
+    {
+        var type = Yakku.Domain.Entities.CheckType.Create("Fixture Check", "#FFE0E8", "#21191D", "Fixture sticker");
+        context.CheckTypes.Add(type);
+        DefaultTypeId = type.Id;
+
+        context.Checks.Add(Yakku.Domain.Entities.Check.Create(
+            Yakku.Application.Checks.CheckWeek.Current(), "Fixture Check", "Fixture question?", "#FFFFFF", "Fixture", ["A", "B"]));
+        await context.SaveChangesAsync();
     }
 
     public async Task DisposeAsync()

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Yakku.Application.Checks;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Services;
+using Yakku.Application.Checks.Themes;
 using Yakku.Application.Checks.Validators;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
@@ -26,10 +27,10 @@ public class CheckWeekTests
     }
 
     [Fact]
-    public void SaveCheckValidator_EnforcesOptionsAndColor()
+    public void SaveCheckValidator_EnforcesOptionsAndTypeId()
     {
         var validator = new SaveCheckValidator();
-        var valid = NewRequest(CheckWeek.Current());
+        var valid = NewRequest(CheckWeek.Current(), typeId: Guid.NewGuid());
 
         Assert.True(validator.Validate(valid).IsValid);
 
@@ -40,17 +41,15 @@ public class CheckWeekTests
         Assert.False(validator.Validate(valid).IsValid);
 
         valid.Options = ["A", "B"];
-        valid.BackgroundColor = "pink";
+        valid.CheckTypeId = Guid.Empty;
         Assert.False(validator.Validate(valid).IsValid);
     }
 
-    internal static SaveCheckRequest NewRequest(DateOnly week, string title = "Test Check") => new()
+    internal static SaveCheckRequest NewRequest(DateOnly week, string tag = "Test Check", Guid? typeId = null) => new()
     {
         WeekStart = week,
-        Title = title,
-        Question = "Is this a test?",
-        BackgroundColor = "#ABCDEF",
-        Sticker = "Test",
+        CheckTypeId = typeId ?? PostgresFixture.DefaultTypeId,
+        Question = $"Is this a test? {tag}",
         Options = ["Yes", "No"]
     };
 }
@@ -64,22 +63,6 @@ public class CheckIntegrationTests
     public CheckIntegrationTests(PostgresFixture fixture)
     {
         _fixture = fixture;
-    }
-
-    [SkippableFact]
-    public async Task Migration_SeedsTheInitialChecks_LiveFromTheMigrationWeek()
-    {
-        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
-        await using var context = _fixture.CreateContext();
-
-        var seeded = await context.Checks.Include(c => c.Options)
-            .Where(c => c.Title == "Mirror Check")
-            .ToListAsync();
-
-        Assert.NotEmpty(seeded);
-        Assert.Equal(["Genuinely like you", "Like having you around", "Both"],
-            seeded[0].Options.OrderBy(o => o.SortOrder).Select(o => o.Text));
-        Assert.True(seeded[0].LiveWeekStart <= CheckWeek.Current());
     }
 
     [SkippableFact]
@@ -101,7 +84,7 @@ public class CheckIntegrationTests
         Assert.Equal("upcoming", next.Status);
 
         var list = await service.GetChecksAsync(user.Id);
-        var ours = list.Where(c => c.Title.EndsWith(tag)).ToList();
+        var ours = list.Where(c => c.Question.EndsWith(tag)).ToList();
 
         Assert.Equal([current1.Id, current2.Id], ours.Select(c => c.Id));
         Assert.DoesNotContain(list, c => c.Id == next.Id);
@@ -113,7 +96,7 @@ public class CheckIntegrationTests
         Assert.DoesNotContain(currentOnly, c => c.Id == past.Id);
 
         var detail = await service.GetByIdAsync(current1.Id, user.Id);
-        Assert.Equal($"cur1-{tag}", detail.Title);
+        Assert.EndsWith($"cur1-{tag}", detail.Question);
         Assert.Equal(2, detail.Options.Count);
         Assert.False(detail.Used);
         Assert.Equal(404, (await Assert.ThrowsAsync<AppException>(() => service.GetByIdAsync(next.Id, null))).StatusCode);
@@ -162,7 +145,7 @@ public class CheckIntegrationTests
         var request = CheckWeekTests.NewRequest(week, "draft v2");
         request.Options = ["Yes", "No", "Maybe"];
         var updated = await admin.UpdateAsync(created.Id, request);
-        Assert.Equal("draft v2", updated.Title);
+        Assert.EndsWith("draft v2", updated.Question);
         Assert.Equal(["Yes", "No", "Maybe"], updated.Options.Select(o => o.Text));
 
         await admin.DeleteAsync(created.Id);
@@ -321,7 +304,7 @@ public class CheckIntegrationTests
         var repository = new CheckRepository(context);
         return (
             new CheckService(repository, new CastCheckVoteValidator(), new NoOpStreakService()),
-            new AdminCheckService(repository, new SaveCheckValidator()));
+            new AdminCheckService(repository, new SaveCheckValidator(), new CheckThemeService(new CheckThemeRepository(context), new CreateCheckThemeValidator())));
     }
 
     private static async Task<User> AddUserAsync(YakkuDbContext context)
