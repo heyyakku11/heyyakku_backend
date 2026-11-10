@@ -1067,7 +1067,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCard", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -1142,7 +1141,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCardSelfTrait", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -1203,7 +1201,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVote", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -1236,7 +1233,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVoteTrait", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -2147,6 +2143,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("AllowAskBack")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("AnonymousName")
                         .IsRequired()

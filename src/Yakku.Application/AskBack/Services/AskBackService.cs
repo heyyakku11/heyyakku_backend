@@ -105,6 +105,12 @@ namespace Yakku.Application.AskBack.Services
                 throw NotAllowed("This voter cannot be asked back.");
             }
 
+            // The voter decides whether the people they answered may start a conversation.
+            if (!await _repository.AcceptsAskBacksAsync(vote.VoterId, cancellationToken))
+            {
+                throw NotAllowed("This voter cannot be asked back.");
+            }
+
             var conversation = AskBackConversation.Create(
                 vote.ContentType,
                 vote.ContentId,

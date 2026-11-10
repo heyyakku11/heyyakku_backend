@@ -23,6 +23,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasMaxLength(50);
 
+            builder.Property(x => x.AllowAskBack)
+                .IsRequired()
+                .HasDefaultValue(true);
+
             builder.Property<string>(AnonymousNameKey)
                 .HasColumnName(AnonymousNameKey)
                 .HasComputedColumnSql("lower(\"AnonymousName\")", stored: true);

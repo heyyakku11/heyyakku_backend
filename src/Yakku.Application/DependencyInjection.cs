@@ -45,6 +45,7 @@ namespace Yakku.Application
             services.AddScoped<IAccountDeletionService, AccountDeletionService>();
             services.AddScoped<IAnonymousNameAllocator, AnonymousNameAllocator>();
             services.AddScoped<IAnonymousNameService, AnonymousNameService>();
+            services.AddScoped<IUserSettingsService, UserSettingsService>();
             services.AddScoped<IGuestIdentityService, GuestIdentityService>();
             services.AddScoped<IGuestMediaClaimService, GuestMediaClaimService>();
             services.AddScoped<IGuestCleanupService, GuestCleanupService>();

@@ -552,7 +552,7 @@ public sealed class StreakIntegrationTests
         await streaks.RecordAsync(user.Id, StreakActivity.VoteCast, Monday.AddDays(1));
         await streaks.RecordAsync(other.Id, StreakActivity.VoteCast, Monday.AddDays(1));
         await streaks.RecordAsync(other.Id, StreakActivity.VoteCast, Monday.AddDays(2));
-        var controller = new UsersController(null!, null!, streaks, null!)
+        var controller = new UsersController(null!, null!, streaks, null!, null!)
         {
             ControllerContext = new ControllerContext
             {

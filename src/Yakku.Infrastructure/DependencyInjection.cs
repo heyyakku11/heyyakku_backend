@@ -80,6 +80,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IOtpChallengeStore, RedisOtpChallengeStore>();
             services.AddScoped<Yakku.Application.Users.Interfaces.IAnonymousNameRepository, AnonymousNameRepository>();
+            services.AddScoped<Yakku.Application.Users.Interfaces.IUserSettingsRepository, UserSettingsRepository>();
             services.AddScoped<Yakku.Application.Users.Interfaces.IAnonymousNameReservations, RedisAnonymousNameReservations>();
             services.AddScoped<IAdminAuthStore, RedisAdminAuthStore>();
             services.AddScoped<ISystemHealthService, SystemHealthService>();

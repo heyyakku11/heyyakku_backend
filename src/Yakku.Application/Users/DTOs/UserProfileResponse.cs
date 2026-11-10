@@ -11,6 +11,9 @@ namespace Yakku.Application.Users.DTOs
 
         /// <summary>Activity counts and the daily streak.</summary>
         public UserStatsDetails Stats { get; set; } = new();
+
+        /// <summary>Account-level settings (push notifications are per device: see /devices).</summary>
+        public UserSettingsResponse Settings { get; set; } = new();
     }
 
     public class UserProfileDetails

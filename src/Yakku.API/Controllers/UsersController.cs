@@ -19,14 +19,17 @@ namespace Yakku.API.Controllers
         private readonly IAccountDeletionService _accountDeletionService;
         private readonly IStreakService _streakService;
         private readonly IAnonymousNameService _anonymousNameService;
+        private readonly IUserSettingsService _settingsService;
 
         public UsersController(
             IUserService userService,
             IAccountDeletionService accountDeletionService,
             IStreakService streakService,
-            IAnonymousNameService anonymousNameService)
+            IAnonymousNameService anonymousNameService,
+            IUserSettingsService settingsService)
         {
             _anonymousNameService = anonymousNameService;
+            _settingsService = settingsService;
             _accountDeletionService = accountDeletionService;
             _streakService = streakService;
             _userService = userService;
@@ -44,6 +47,33 @@ namespace Yakku.API.Controllers
             return user is null
                 ? NotFound(ApiResponse.NotFound<UserProfileResponse>("User not found"))
                 : Ok(ApiResponse.Ok(user, "User retrieved successfully"));
+        }
+
+        [HttpGet("me/settings")]
+        [EndpointSummary("Get My Settings")]
+        [EndpointDescription("Returns the signed-in user's account settings: allowAskBack (whether people they answer may ask them back). Push notifications are per device and live under /devices.")]
+        [ProducesResponseType(typeof(ApiResponse<UserSettingsResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetSettings(CancellationToken cancellationToken)
+        {
+            var settings = await _settingsService.GetAsync(User.GetRequiredUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok(settings, "Settings retrieved successfully"));
+        }
+
+        [HttpPatch("me/settings")]
+        [EndpointSummary("Update My Settings")]
+        [EndpointDescription("Changes the settings that are sent (currently allowAskBack) and returns all of them. Independent of the device's push setting.")]
+        [ProducesResponseType(typeof(ApiResponse<UserSettingsResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateSettings(
+            [FromBody] UpdateUserSettingsRequest request,
+            CancellationToken cancellationToken)
+        {
+            var settings = await _settingsService.UpdateAsync(User.GetRequiredUserId(), request, cancellationToken);
+            return Ok(ApiResponse.Ok(settings, "Settings updated successfully"));
         }
 
         [HttpPost("me/anonymous-name")]

@@ -24,6 +24,11 @@ namespace Yakku.Application.AskBack.Interfaces
             IReadOnlyCollection<Guid> userIds,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Whether the user lets the people they answered ask them back (their "allow ask back" setting).
+        /// </summary>
+        Task<bool> AcceptsAskBacksAsync(Guid userId, CancellationToken cancellationToken = default);
+
         Task<string?> GetAnonymousNameAsync(Guid userId, CancellationToken cancellationToken = default);
 
         Task<Guid?> FindConversationIdByVoteAsync(Guid voteId, CancellationToken cancellationToken = default);

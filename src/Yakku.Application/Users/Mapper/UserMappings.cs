@@ -15,6 +15,10 @@ namespace Yakku.Application.Users.Mapper
                     AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
                     AvatarUrl = null
                 },
+                Settings = new UserSettingsResponse
+                {
+                    AllowAskBack = user.Profile?.AllowAskBack ?? true
+                },
                 Account = new UserAccountDetails
                 {
                     Status = user.Status.ToString(),

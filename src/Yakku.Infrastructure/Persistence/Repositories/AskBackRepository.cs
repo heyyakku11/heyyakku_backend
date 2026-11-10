@@ -98,6 +98,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return usable.ToHashSet();
         }
 
+        public async Task<bool> AcceptsAskBacksAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            // A user with no profile row cannot be asked back either.
+            return await _context.UserProfiles
+                .AsNoTracking()
+                .AnyAsync(profile => profile.UserId == userId && profile.AllowAskBack, cancellationToken);
+        }
+
         public Task<string?> GetAnonymousNameAsync(Guid userId, CancellationToken cancellationToken = default)
         {
             return _context.UserProfiles
