@@ -60,7 +60,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     // so tests can create and list checks.
     private static async Task SeedFixtureAsync(YakkuDbContext context)
     {
-        var type = Yakku.Domain.Entities.CheckType.Create("Fixture Check", "#FFE0E8", "Fixture sticker");
+        var type = Yakku.Domain.Entities.CheckType.Create("Fixture Check", "#FFE0E8", "#993556", "Fixture sticker");
         context.CheckTypes.Add(type);
         DefaultTypeId = type.Id;
 

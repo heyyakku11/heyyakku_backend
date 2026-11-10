@@ -10,6 +10,7 @@ namespace Yakku.Application.Checks.Themes
         {
             RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
             RuleFor(x => x.BackgroundColor).Matches(HexPattern).WithMessage("Background color must be a hex color like #FFE0E8.");
+            RuleFor(x => x.LabelColor).Matches(HexPattern).WithMessage("Label color must be a hex color like #993556.");
             RuleFor(x => x.Sticker!).MaximumLength(100).When(x => x.Sticker is not null);
         }
     }

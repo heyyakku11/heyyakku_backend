@@ -8,6 +8,7 @@ namespace Yakku.Application.Checks.Themes
         {
             Heading = type.Name,
             BackgroundColor = type.BackgroundColor,
+            LabelColor = type.LabelColor,
             StickerLabel = type.Sticker
         };
 
@@ -31,6 +32,7 @@ namespace Yakku.Application.Checks.Themes
                 {
                     Heading = title,
                     BackgroundColor = backgroundColor,
+                    LabelColor = "#21191D",
                     StickerLabel = string.IsNullOrWhiteSpace(sticker) ? null : sticker
                 }
             };
