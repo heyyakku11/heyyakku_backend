@@ -615,12 +615,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(7)")
                         .HasColumnName("background_color");
 
-                    b.Property<string>("HeadingColor")
-                        .IsRequired()
-                        .HasMaxLength(7)
-                        .HasColumnType("character varying(7)")
-                        .HasColumnName("heading_color");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -641,8 +635,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("check_types", null, t =>
                         {
                             t.HasCheckConstraint("CK_check_types_background_color", "\"background_color\" ~ '^#[0-9A-Fa-f]{6}$'");
-
-                            t.HasCheckConstraint("CK_check_types_heading_color", "\"heading_color\" ~ '^#[0-9A-Fa-f]{6}$'");
 
                             t.HasCheckConstraint("CK_check_types_name_not_blank", "char_length(btrim(\"name\")) > 0");
 

@@ -9,7 +9,6 @@ namespace Yakku.Domain.Entities
         public Guid Id { get; private set; }
         public string Name { get; private set; } = string.Empty;
         public string BackgroundColor { get; private set; } = string.Empty;
-        public string HeadingColor { get; private set; } = string.Empty;
 
         /// <summary>Optional sticker text; null when the type has no sticker.</summary>
         public string? Sticker { get; private set; }
@@ -18,14 +17,13 @@ namespace Yakku.Domain.Entities
         {
         }
 
-        public static CheckType Create(string name, string backgroundColor, string headingColor, string? sticker = null)
+        public static CheckType Create(string name, string backgroundColor, string? sticker = null)
         {
             return new CheckType
             {
                 Id = Guid.NewGuid(),
                 Name = name,
                 BackgroundColor = backgroundColor,
-                HeadingColor = headingColor,
                 Sticker = sticker
             };
         }

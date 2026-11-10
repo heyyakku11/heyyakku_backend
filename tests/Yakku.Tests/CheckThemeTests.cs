@@ -20,7 +20,6 @@ internal static class ThemeSamples
     {
         Name = name,
         BackgroundColor = "#ecE3ff",
-        HeadingColor = "#21191D",
         Sticker = "Read the room"
     };
 }
@@ -64,7 +63,6 @@ public class CheckThemeUnitTests
         Assert.Equal(created.Id, listed.Id);
         Assert.Equal("Vibe Check", listed.Name);
         Assert.Equal("#ECE3FF", listed.BackgroundColor);
-        Assert.Equal("#21191D", listed.HeadingColor);
         Assert.Equal("Read the room", listed.Sticker);
     }
 
@@ -104,10 +102,6 @@ public class CheckThemeUnitTests
         badBackground.BackgroundColor = "pink";
         await Assert.ThrowsAsync<ValidationException>(() => service.CreateAsync(badBackground));
 
-        var badHeading = ThemeSamples.Request("C");
-        badHeading.HeadingColor = "#12345";
-        await Assert.ThrowsAsync<ValidationException>(() => service.CreateAsync(badHeading));
-
         var longSticker = ThemeSamples.Request("D");
         longSticker.Sticker = new string('x', 101);
         await Assert.ThrowsAsync<ValidationException>(() => service.CreateAsync(longSticker));
@@ -124,7 +118,6 @@ public class CheckThemeUnitTests
         Assert.Equal(created.Id, resolved.CheckTypeId);
         Assert.Equal("Confidence Check", resolved.Config.Heading);
         Assert.Equal("#ECE3FF", resolved.Config.BackgroundColor);
-        Assert.Equal("#21191D", resolved.Config.HeadingColor);
         Assert.Equal("Read the room", resolved.Config.StickerLabel);
         Assert.Equal(400, (await Assert.ThrowsAsync<AppException>(() => service.ResolveForNewCheckAsync(Guid.NewGuid()))).StatusCode);
     }
@@ -155,11 +148,11 @@ public class CheckThemeUnitTests
     }
 
     [Fact]
-    public void ThemeRequest_ExposesOnlyNameBackgroundHeadingColorAndSticker()
+    public void ThemeRequest_ExposesOnlyNameBackgroundColorAndSticker()
     {
         var names = typeof(CreateCheckThemeRequest).GetProperties().Select(p => p.Name).OrderBy(n => n).ToList();
 
-        Assert.Equal(["BackgroundColor", "HeadingColor", "Name", "Sticker"], names);
+        Assert.Equal(["BackgroundColor", "Name", "Sticker"], names);
     }
 
     [Fact]
@@ -279,19 +272,19 @@ public class CheckThemeIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
 
         await using var badColor = _fixture.CreateContext();
-        badColor.CheckTypes.Add(CheckType.Create(NewName("Bad"), "pink", "#000000"));
+        badColor.CheckTypes.Add(CheckType.Create(NewName("Bad"), "pink"));
         await Assert.ThrowsAsync<DbUpdateException>(() => badColor.SaveChangesAsync());
 
         await using var blank = _fixture.CreateContext();
-        blank.CheckTypes.Add(CheckType.Create("   ", "#FFFFFF", "#000000"));
+        blank.CheckTypes.Add(CheckType.Create("   ", "#FFFFFF"));
         await Assert.ThrowsAsync<DbUpdateException>(() => blank.SaveChangesAsync());
 
         var name = NewName("Same");
         await using var first = _fixture.CreateContext();
-        first.CheckTypes.Add(CheckType.Create(name, "#FFFFFF", "#000000"));
+        first.CheckTypes.Add(CheckType.Create(name, "#FFFFFF"));
         await first.SaveChangesAsync();
         await using var second = _fixture.CreateContext();
-        second.CheckTypes.Add(CheckType.Create(name, "#FFFFFF", "#000000"));
+        second.CheckTypes.Add(CheckType.Create(name, "#FFFFFF"));
         await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
     }
 }

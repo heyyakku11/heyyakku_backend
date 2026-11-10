@@ -33,7 +33,6 @@ namespace Yakku.Application.Checks.Services
             var type = CheckType.Create(
                 request.Name.Trim(),
                 request.BackgroundColor.ToUpperInvariant(),
-                request.HeadingColor.ToUpperInvariant(),
                 sticker);
 
             if (!await _repository.TryAddTypeAsync(type, cancellationToken))
@@ -57,7 +56,6 @@ namespace Yakku.Application.Checks.Services
             Id = type.Id,
             Name = type.Name,
             BackgroundColor = type.BackgroundColor,
-            HeadingColor = type.HeadingColor,
             Sticker = type.Sticker
         };
     }

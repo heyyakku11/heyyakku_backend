@@ -4,13 +4,10 @@ namespace Yakku.Application.Checks.Themes
 {
     public static class CheckThemeMapper
     {
-        private const string DefaultInk = "#21191D";
-
         public static CheckThemeConfig ConfigOf(CheckType type) => new()
         {
             Heading = type.Name,
             BackgroundColor = type.BackgroundColor,
-            HeadingColor = type.HeadingColor,
             StickerLabel = type.Sticker
         };
 
@@ -34,7 +31,6 @@ namespace Yakku.Application.Checks.Themes
                 {
                     Heading = title,
                     BackgroundColor = backgroundColor,
-                    HeadingColor = DefaultInk,
                     StickerLabel = string.IsNullOrWhiteSpace(sticker) ? null : sticker
                 }
             };

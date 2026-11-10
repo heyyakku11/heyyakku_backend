@@ -6,7 +6,6 @@ namespace Yakku.Application.Checks.Themes
         /// <summary>The check type name; shown as the heading of every check of this type.</summary>
         public string Name { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
-        public string HeadingColor { get; set; } = string.Empty;
 
         /// <summary>Optional sticker text.</summary>
         public string? Sticker { get; set; }
@@ -18,7 +17,6 @@ namespace Yakku.Application.Checks.Themes
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
-        public string HeadingColor { get; set; } = string.Empty;
         public string? Sticker { get; set; }
     }
 

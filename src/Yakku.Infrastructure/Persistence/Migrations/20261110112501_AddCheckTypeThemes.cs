@@ -24,14 +24,12 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     background_color = table.Column<string>(type: "character varying(7)", maxLength: 7, nullable: false),
-                    heading_color = table.Column<string>(type: "character varying(7)", maxLength: 7, nullable: false),
                     sticker = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_check_types", x => x.id);
                     table.CheckConstraint("CK_check_types_background_color", "\"background_color\" ~ '^#[0-9A-Fa-f]{6}$'");
-                    table.CheckConstraint("CK_check_types_heading_color", "\"heading_color\" ~ '^#[0-9A-Fa-f]{6}$'");
                     table.CheckConstraint("CK_check_types_name_not_blank", "char_length(btrim(\"name\")) > 0");
                     table.CheckConstraint("CK_check_types_sticker_not_blank", "\"sticker\" IS NULL OR char_length(btrim(\"sticker\")) > 0");
                 });
