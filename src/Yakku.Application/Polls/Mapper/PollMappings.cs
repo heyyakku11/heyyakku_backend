@@ -65,6 +65,9 @@ namespace Yakku.Application.Polls.Mapper
                 ContentType = ToEnumString(poll.ContentType),
                 Status = ToEnumString(poll.Status),
                 CreatedAt = poll.CreatedAt,
+                ExpiresAt = poll.ExpiresAt,
+                // A closed poll is not edited afterwards, so its last update is when it closed.
+                ClosedAt = poll.Status == Yakku.Domain.Enums.PollStatus.Closed ? poll.UpdatedAt : null,
                 TotalVoteCount = counts.TotalVotes,
                 MinVotes = counts.MinVotes,
                 VoteProgress = counts.OtherVotes,

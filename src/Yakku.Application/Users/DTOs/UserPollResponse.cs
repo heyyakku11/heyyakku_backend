@@ -12,6 +12,12 @@ namespace Yakku.Application.Users.DTOs
         public string ContentType { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>When the card stops taking votes by itself. Null for cards with no expiry (checks).</summary>
+        public DateTime? ExpiresAt { get; set; }
+
+        /// <summary>When the card was closed; null while it is live.</summary>
+        public DateTime? ClosedAt { get; set; }
         public int TotalVoteCount { get; set; }
         public int MinVotes { get; set; }
         public int VoteProgress { get; set; }
