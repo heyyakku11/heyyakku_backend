@@ -227,6 +227,23 @@ app.UseRateLimiter();
 app.MapControllers();
 app.MapHub<Yakku.API.AskBack.AskBackHub>("/hubs/ask-back");
 
+// Keep the database schema at the same version as the code: apply any pending migrations before serving.
+// If a migration fails the app does not start, so a deploy can never serve code against an older schema.
+// Set DB_AUTO_MIGRATE=false to apply migrations yourself (dotnet ef database update) instead.
+if (!string.Equals(Environment.GetEnvironmentVariable("DB_AUTO_MIGRATE"), "false", StringComparison.OrdinalIgnoreCase))
+{
+    using var migrationScope = app.Services.CreateScope();
+    var migrationDb = migrationScope.ServiceProvider.GetRequiredService<YakkuDbContext>();
+    var migrationLog = migrationScope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseMigration");
+    var pendingMigrations = (await migrationDb.Database.GetPendingMigrationsAsync()).ToList();
+    if (pendingMigrations.Count > 0)
+    {
+        migrationLog.LogInformation("Applying {Count} pending database migration(s): {Migrations}", pendingMigrations.Count, string.Join(", ", pendingMigrations));
+        await migrationDb.Database.MigrateAsync();
+        migrationLog.LogInformation("Database schema is up to date.");
+    }
+}
+
 app.Run();
 
 static RateLimitPartition<string> FixedWindow(HttpContext httpContext, int permitLimit)

@@ -41,6 +41,7 @@ Fill in `.env`. Never commit that file; `.env.example` is the template that stay
 | Variable | Required | Purpose |
 |---|---|---|
 | `DB_CONNECTION_STRING` | Yes | Postgres connection string |
+| `DB_AUTO_MIGRATE` | No | Pending EF migrations are applied at startup so the schema always matches the code; the app will not start if one fails. Set `false` to run `dotnet ef database update` yourself. |
 | `UPSTASH_REDIS_REST_URL` | Yes | Redis REST base URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes | Redis REST token |
 | `JWT_SECRET` | Yes | Access-token signing key (at least 32 characters) |

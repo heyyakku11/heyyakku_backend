@@ -4,6 +4,7 @@ namespace Yakku.Application.Common.Responses
     {
         public const string ValidationError = "VALIDATION_ERROR";
         public const string InternalServerError = "INTERNAL_SERVER_ERROR";
+        public const string ServiceUnavailable = "SERVICE_UNAVAILABLE";
         public const string NotFound = "NOT_FOUND";
         public const string Unauthorized = "UNAUTHORIZED";
         public const string Forbidden = "FORBIDDEN";

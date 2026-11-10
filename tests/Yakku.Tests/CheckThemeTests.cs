@@ -295,3 +295,27 @@ public class CheckThemeIntegrationTests
         await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
     }
 }
+
+public class DatabaseSchemaErrorTests
+{
+    [Fact]
+    public void AMissingTableOrColumn_IsRecognized_EvenWhenWrapped()
+    {
+        var missingTable = new Npgsql.PostgresException("relation \"check_types\" does not exist", "ERROR", "ERROR", "42P01");
+        var missingColumn = new Npgsql.PostgresException("column does not exist", "ERROR", "ERROR", "42703");
+
+        Assert.True(Yakku.API.Middleware.DatabaseSchemaErrors.IsSchemaMismatch(missingTable));
+        Assert.True(Yakku.API.Middleware.DatabaseSchemaErrors.IsSchemaMismatch(missingColumn));
+        Assert.True(Yakku.API.Middleware.DatabaseSchemaErrors.IsSchemaMismatch(new InvalidOperationException("wrapped", missingTable)));
+    }
+
+    [Fact]
+    public void OtherErrors_AreNotTreatedAsSchemaMismatch()
+    {
+        var uniqueViolation = new Npgsql.PostgresException("duplicate key", "ERROR", "ERROR", "23505");
+
+        Assert.False(Yakku.API.Middleware.DatabaseSchemaErrors.IsSchemaMismatch(uniqueViolation));
+        Assert.False(Yakku.API.Middleware.DatabaseSchemaErrors.IsSchemaMismatch(new InvalidOperationException("x")));
+        Assert.False(Yakku.API.Middleware.DatabaseSchemaErrors.IsSchemaMismatch(null));
+    }
+}
