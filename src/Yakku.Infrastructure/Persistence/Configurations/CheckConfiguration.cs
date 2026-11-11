@@ -14,14 +14,22 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 table.HasCheckConstraint(
                     "CK_checks_background_color",
                     "\"background_color\" ~ '^#[0-9A-Fa-f]{6}$'");
+                // Weekly checks go live on a Monday; just-for-fun cards have no live date at all.
                 table.HasCheckConstraint(
-                    "CK_checks_live_week_start_monday",
-                    "EXTRACT(ISODOW FROM \"live_week_start\") = 1");
+                    "CK_checks_kind_live_week_start",
+                    "(\"kind\" = 'WEEKLY' AND \"live_week_start\" IS NOT NULL AND EXTRACT(ISODOW FROM \"live_week_start\") = 1) " +
+                    "OR (\"kind\" = 'FUN' AND \"live_week_start\" IS NULL)");
             });
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Id).HasColumnName("id");
-            builder.Property(x => x.LiveWeekStart).HasColumnName("live_week_start").HasColumnType("date").IsRequired();
+            builder.Property(x => x.Kind)
+                .HasColumnName("kind")
+                .HasUppercaseEnumConversion()
+                .HasMaxLength(20)
+                .IsRequired()
+                .HasDefaultValue(CheckKind.Weekly);
+            builder.Property(x => x.LiveWeekStart).HasColumnName("live_week_start").HasColumnType("date");
             builder.Property(x => x.Title).HasColumnName("title").HasMaxLength(100).IsRequired();
             builder.Property(x => x.Question).HasColumnName("question").HasMaxLength(500).IsRequired();
             builder.Property(x => x.BackgroundColor).HasColumnName("background_color").HasMaxLength(7).IsRequired();
@@ -34,15 +42,15 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => new { x.LiveWeekStart, x.CreatedAt })
                 .HasDatabaseName("IX_checks_live_week_start_created_at");
 
-            builder.Property(x => x.CheckTypeId).HasColumnName("check_type_id");
-            builder.HasIndex(x => x.CheckTypeId).HasDatabaseName("IX_checks_check_type_id");
+            builder.Property(x => x.CardThemeId).HasColumnName("card_theme_id");
+            builder.HasIndex(x => x.CardThemeId).HasDatabaseName("IX_checks_card_theme_id");
 
-            builder.HasOne(x => x.CheckType)
+            builder.HasOne(x => x.CardTheme)
                 .WithMany()
-                .HasForeignKey(x => x.CheckTypeId)
+                .HasForeignKey(x => x.CardThemeId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
-            builder.Navigation(x => x.CheckType).AutoInclude();
+            builder.Navigation(x => x.CardTheme).AutoInclude();
 
             builder.HasMany(x => x.Options)
                 .WithOne(x => x.Check)

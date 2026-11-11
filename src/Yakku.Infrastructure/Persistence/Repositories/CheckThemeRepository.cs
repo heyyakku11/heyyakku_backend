@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Yakku.Application.Checks.Themes;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Persistence.Repositories
 {
@@ -14,30 +15,39 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public Task<List<CheckType>> GetAllTypesAsync(CancellationToken cancellationToken = default)
+        public Task<List<CardTheme>> GetAllTypesAsync(CancellationToken cancellationToken = default)
         {
-            return _context.CheckTypes
+            return GetByKindAsync(CardThemeKind.Check, cancellationToken);
+        }
+
+        public Task<List<CardTheme>> GetByKindAsync(CardThemeKind kind, CancellationToken cancellationToken = default)
+        {
+            return _context.CardThemes
                 .AsNoTracking()
-                .OrderBy(type => type.Name)
+                .Where(theme => theme.Kind == kind)
+                .OrderBy(theme => theme.Name)
                 .ToListAsync(cancellationToken);
         }
 
-        public Task<CheckType?> GetTypeByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public Task<CardTheme?> GetTypeByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            return _context.CheckTypes
+            // Check themes only: a weekly check cannot be styled with another kind of theme.
+            return _context.CardThemes
                 .AsNoTracking()
-                .FirstOrDefaultAsync(type => type.Id == id, cancellationToken);
+                .FirstOrDefaultAsync(theme => theme.Id == id && theme.Kind == CardThemeKind.Check, cancellationToken);
         }
 
-        public async Task<bool> TryAddTypeAsync(CheckType type, CancellationToken cancellationToken = default)
+        public async Task<bool> TryAddTypeAsync(CardTheme type, CancellationToken cancellationToken = default)
         {
             var lowered = type.Name.ToLower();
-            if (await _context.CheckTypes.AnyAsync(existing => existing.Name.ToLower() == lowered, cancellationToken))
+            if (await _context.CardThemes.AnyAsync(
+                    existing => existing.Kind == type.Kind && existing.Name.ToLower() == lowered,
+                    cancellationToken))
             {
                 return false;
             }
 
-            _context.CheckTypes.Add(type);
+            _context.CardThemes.Add(type);
             try
             {
                 await _context.SaveChangesAsync(cancellationToken);

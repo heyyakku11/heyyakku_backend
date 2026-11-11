@@ -18,7 +18,6 @@ namespace Yakku.Application.Checks.DTOs
         public string Title { get; set; } = string.Empty;
         public string Question { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
-        public string Sticker { get; set; } = string.Empty;
         public List<CheckOptionResponse> Options { get; set; } = new();
         public bool Used { get; set; }
 
@@ -47,7 +46,6 @@ namespace Yakku.Application.Checks.DTOs
         public string Title { get; set; } = string.Empty;
         public string Question { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
-        public string Sticker { get; set; } = string.Empty;
         public string ShareCode { get; set; } = string.Empty;
         public bool IsOwner { get; set; }
         public Guid? MyVoteOptionId { get; set; }
@@ -93,7 +91,6 @@ namespace Yakku.Application.Checks.DTOs
         public string Title { get; set; } = string.Empty;
         public string Question { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
-        public string Sticker { get; set; } = string.Empty;
         public bool IsActive { get; set; }
 
         /// <summary>live = this week or earlier, upcoming = a later week.</summary>

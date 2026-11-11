@@ -57,9 +57,9 @@ namespace Yakku.Application.Checks.Services
                 theme.Config.Heading,
                 request.Question.Trim(),
                 theme.Config.BackgroundColor,
-                theme.Config.StickerLabel ?? string.Empty,
+                string.Empty, // stickers are no longer configured per type; clients show a fixed tag line
                 request.Options.Select(option => option.Trim()),
-                theme.CheckTypeId);
+                theme.CardThemeId);
             if (!request.IsActive)
             {
                 check.Update(week, check.Title, check.Question, check.BackgroundColor, check.Sticker, false);
@@ -93,7 +93,7 @@ namespace Yakku.Application.Checks.Services
 
             // Omitting the type keeps the current one; only an explicit different type changes it.
             ResolvedCheckTheme? newTheme = null;
-            if (request.CheckTypeId is { } requested && requested != check.CheckTypeId)
+            if (request.CheckTypeId is { } requested && requested != check.CardThemeId)
             {
                 newTheme = await _themes.ResolveForNewCheckAsync(requested, cancellationToken);
             }
@@ -118,11 +118,11 @@ namespace Yakku.Application.Checks.Services
 
             if (newTheme is not null)
             {
-                check.AssignType(
-                    newTheme.CheckTypeId,
+                check.AssignTheme(
+                    newTheme.CardThemeId,
                     newTheme.Config.Heading,
                     newTheme.Config.BackgroundColor,
-                    newTheme.Config.StickerLabel);
+                    string.Empty);
             }
 
             check.Update(
@@ -167,13 +167,12 @@ namespace Yakku.Application.Checks.Services
             return new AdminCheckResponse
             {
                 Id = check.Id,
-                WeekStart = check.LiveWeekStart,
+                WeekStart = check.LiveWeekStart ?? default,
                 Title = check.Title,
                 Question = check.Question,
                 BackgroundColor = check.BackgroundColor,
-                Sticker = check.Sticker,
                 IsActive = check.IsActive,
-                Status = check.LiveWeekStart <= CheckWeek.Current() ? "live" : "upcoming",
+                Status = check.LiveWeekStart is { } live && live <= CheckWeek.Current() ? "live" : "upcoming",
                 Options = check.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new CheckOptionResponse { Id = option.Id, Text = option.Text })

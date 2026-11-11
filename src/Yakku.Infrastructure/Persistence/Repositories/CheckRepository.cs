@@ -4,6 +4,7 @@ using Yakku.Application.Checks;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Votes;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Persistence.Repositories
 {
@@ -32,19 +33,40 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public Task<List<Check>> GetFunCardsAsync(bool activeOnly, CancellationToken cancellationToken = default)
+        {
+            var query = _context.Checks
+                .AsNoTracking()
+                .Include(check => check.Options)
+                .Where(check => check.Kind == CheckKind.Fun);
+            if (activeOnly)
+            {
+                query = query.Where(check => check.IsActive);
+            }
+
+            return query
+                .OrderBy(check => check.CreatedAt)
+                .ThenBy(check => check.Id)
+                .ToListAsync(cancellationToken);
+        }
+
         public Task<Check?> GetLiveByIdAsync(Guid id, DateOnly throughWeek, CancellationToken cancellationToken = default)
         {
             return _context.Checks
                 .AsNoTracking()
                 .Include(check => check.Options)
                 .FirstOrDefaultAsync(
-                    check => check.Id == id && check.IsActive && check.LiveWeekStart <= throughWeek,
+                    check => check.Id == id && check.IsActive
+                        && (check.Kind == CheckKind.Fun || check.LiveWeekStart <= throughWeek),
                     cancellationToken);
         }
 
         public Task<List<Check>> GetAllAsync(DateOnly? weekStart, CancellationToken cancellationToken = default)
         {
-            var query = _context.Checks.AsNoTracking().Include(check => check.Options).AsQueryable();
+            var query = _context.Checks
+                .AsNoTracking()
+                .Include(check => check.Options)
+                .Where(check => check.Kind == CheckKind.Weekly);
             if (weekStart is not null)
             {
                 query = query.Where(check => check.LiveWeekStart == weekStart);

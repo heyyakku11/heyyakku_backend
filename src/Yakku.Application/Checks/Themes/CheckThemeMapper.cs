@@ -4,18 +4,18 @@ namespace Yakku.Application.Checks.Themes
 {
     public static class CheckThemeMapper
     {
-        public static CheckThemeConfig ConfigOf(CheckType type) => new()
+        public static CheckThemeConfig ConfigOf(CardTheme type) => new()
         {
             Heading = type.Name,
             BackgroundColor = type.BackgroundColor,
             LabelColor = type.LabelColor,
-            StickerLabel = type.Sticker
+            Tag = type.Tag
         };
 
         /// <summary>The theme of a check: its check type, or one synthesized from the legacy fields.</summary>
         public static CheckThemeResponse ToResponse(Check check)
         {
-            if (check.CheckType is { } type)
+            if (check.CardTheme is { } type)
             {
                 return new CheckThemeResponse { CheckTypeId = type.Id, CheckType = type.Name, Config = ConfigOf(type) };
             }
@@ -32,8 +32,7 @@ namespace Yakku.Application.Checks.Themes
                 {
                     Heading = title,
                     BackgroundColor = backgroundColor,
-                    LabelColor = "#21191D",
-                    StickerLabel = string.IsNullOrWhiteSpace(sticker) ? null : sticker
+                    LabelColor = "#21191D"
                 }
             };
         }

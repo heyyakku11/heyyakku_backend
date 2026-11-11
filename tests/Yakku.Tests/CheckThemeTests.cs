@@ -1,4 +1,5 @@
 using FluentValidation;
+using Yakku.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Yakku.API.Controllers;
@@ -21,7 +22,7 @@ internal static class ThemeSamples
         Name = name,
         BackgroundColor = "#ecE3ff",
         LabelColor = "#4a3a8c",
-        Sticker = "Read the room"
+        Tag = "Read the room"
     };
 }
 
@@ -30,15 +31,18 @@ public class CheckThemeUnitTests
 {
     private sealed class FakeThemeRepository : ICheckThemeRepository
     {
-        public readonly List<CheckType> Types = new();
+        public readonly List<CardTheme> Types = new();
 
-        public Task<List<CheckType>> GetAllTypesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(Types.OrderBy(t => t.Name).ToList());
+        public Task<List<CardTheme>> GetAllTypesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Types.Where(t => t.Kind == CardThemeKind.Check).OrderBy(t => t.Name).ToList());
 
-        public Task<CheckType?> GetTypeByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Types.FirstOrDefault(t => t.Id == id));
+        public Task<List<CardTheme>> GetByKindAsync(CardThemeKind kind, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Types.Where(t => t.Kind == kind).OrderBy(t => t.Name).ToList());
 
-        public Task<bool> TryAddTypeAsync(CheckType type, CancellationToken cancellationToken = default)
+        public Task<CardTheme?> GetTypeByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Types.FirstOrDefault(t => t.Id == id && t.Kind == CardThemeKind.Check));
+
+        public Task<bool> TryAddTypeAsync(CardTheme type, CancellationToken cancellationToken = default)
         {
             if (Types.Any(t => string.Equals(t.Name, type.Name, StringComparison.OrdinalIgnoreCase)))
             {
@@ -65,19 +69,6 @@ public class CheckThemeUnitTests
         Assert.Equal("Vibe Check", listed.Name);
         Assert.Equal("#ECE3FF", listed.BackgroundColor);
         Assert.Equal("#4A3A8C", listed.LabelColor);
-        Assert.Equal("Read the room", listed.Sticker);
-    }
-
-    [Fact]
-    public async Task Create_StickerIsOptional()
-    {
-        var service = NewService();
-        var request = ThemeSamples.Request();
-        request.Sticker = "  ";
-
-        var created = await service.CreateAsync(request);
-
-        Assert.Null(created.Sticker);
     }
 
     [Fact]
@@ -109,7 +100,7 @@ public class CheckThemeUnitTests
         await Assert.ThrowsAsync<ValidationException>(() => service.CreateAsync(badLabel));
 
         var longSticker = ThemeSamples.Request("D");
-        longSticker.Sticker = new string('x', 101);
+        longSticker.Tag = new string('x', 101);
         await Assert.ThrowsAsync<ValidationException>(() => service.CreateAsync(longSticker));
     }
 
@@ -121,11 +112,10 @@ public class CheckThemeUnitTests
 
         var resolved = await service.ResolveForNewCheckAsync(created.Id);
 
-        Assert.Equal(created.Id, resolved.CheckTypeId);
+        Assert.Equal(created.Id, resolved.CardThemeId);
         Assert.Equal("Confidence Check", resolved.Config.Heading);
         Assert.Equal("#ECE3FF", resolved.Config.BackgroundColor);
         Assert.Equal("#4A3A8C", resolved.Config.LabelColor);
-        Assert.Equal("Read the room", resolved.Config.StickerLabel);
         Assert.Equal(400, (await Assert.ThrowsAsync<AppException>(() => service.ResolveForNewCheckAsync(Guid.NewGuid()))).StatusCode);
     }
 
@@ -139,7 +129,6 @@ public class CheckThemeUnitTests
         Assert.Null(theme.CheckTypeId);
         Assert.Equal("Loyalty Check", theme.Config.Heading);
         Assert.Equal("#FFEFC2", theme.Config.BackgroundColor);
-        Assert.Equal("Say it plain", theme.Config.StickerLabel);
     }
 
     [Fact]
@@ -155,11 +144,11 @@ public class CheckThemeUnitTests
     }
 
     [Fact]
-    public void ThemeRequest_ExposesOnlyNameBackgroundLabelColorAndSticker()
+    public void ThemeRequest_ExposesOnlyNameBackgroundLabelColorAndTag()
     {
         var names = typeof(CreateCheckThemeRequest).GetProperties().Select(p => p.Name).OrderBy(n => n).ToList();
 
-        Assert.Equal(["BackgroundColor", "LabelColor", "Name", "Sticker"], names);
+        Assert.Equal(["BackgroundColor", "LabelColor", "Name", "Tag"], names);
     }
 
     [Fact]
@@ -214,7 +203,7 @@ public class CheckThemeIntegrationTests
         Assert.Equal("#ECE3FF", check.BackgroundColor);
         Assert.False(check.Theme.IsLegacy);
         var stored = await context.Checks.AsNoTracking().SingleAsync(c => c.Id == check.Id);
-        Assert.Equal(theme.Id, stored.CheckTypeId);
+        Assert.Equal(theme.Id, stored.CardThemeId);
     }
 
     [SkippableFact]
@@ -265,7 +254,7 @@ public class CheckThemeIntegrationTests
 
         // One theme per type: changing it changes how every check of that type renders.
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE check_types SET background_color = '#112233', name = 'Renamed' WHERE id = {theme.Id}");
+            $"UPDATE card_themes SET background_color = '#112233', name = 'Renamed' WHERE id = {theme.Id}");
 
         await using var fresh = _fixture.CreateContext();
         var listed = (await NewAdmin(fresh).ListAsync(week)).Single(c => c.Id == created.Id);
@@ -279,19 +268,19 @@ public class CheckThemeIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
 
         await using var badColor = _fixture.CreateContext();
-        badColor.CheckTypes.Add(CheckType.Create(NewName("Bad"), "pink", "#000000"));
+        badColor.CardThemes.Add(CardTheme.Create(CardThemeKind.Check, NewName("Bad"), "pink", "#000000"));
         await Assert.ThrowsAsync<DbUpdateException>(() => badColor.SaveChangesAsync());
 
         await using var blank = _fixture.CreateContext();
-        blank.CheckTypes.Add(CheckType.Create("   ", "#FFFFFF", "#000000"));
+        blank.CardThemes.Add(CardTheme.Create(CardThemeKind.Check, "   ", "#FFFFFF", "#000000"));
         await Assert.ThrowsAsync<DbUpdateException>(() => blank.SaveChangesAsync());
 
         var name = NewName("Same");
         await using var first = _fixture.CreateContext();
-        first.CheckTypes.Add(CheckType.Create(name, "#FFFFFF", "#000000"));
+        first.CardThemes.Add(CardTheme.Create(CardThemeKind.Check, name, "#FFFFFF", "#000000"));
         await first.SaveChangesAsync();
         await using var second = _fixture.CreateContext();
-        second.CheckTypes.Add(CheckType.Create(name, "#FFFFFF", "#000000"));
+        second.CardThemes.Add(CardTheme.Create(CardThemeKind.Check, name, "#FFFFFF", "#000000"));
         await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
     }
 }
@@ -301,7 +290,7 @@ public class DatabaseSchemaErrorTests
     [Fact]
     public void AMissingTableOrColumn_IsRecognized_EvenWhenWrapped()
     {
-        var missingTable = new Npgsql.PostgresException("relation \"check_types\" does not exist", "ERROR", "ERROR", "42P01");
+        var missingTable = new Npgsql.PostgresException("relation \"card_themes\" does not exist", "ERROR", "ERROR", "42P01");
         var missingColumn = new Npgsql.PostgresException("column does not exist", "ERROR", "ERROR", "42703");
 
         Assert.True(Yakku.API.Middleware.DatabaseSchemaErrors.IsSchemaMismatch(missingTable));

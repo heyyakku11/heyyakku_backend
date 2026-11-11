@@ -26,7 +26,7 @@ namespace Yakku.Application.Users.DTOs
         public int TotalWhyCount { get; set; }
         public List<UserPollOptionResponse> PollOptions { get; set; } = [];
 
-        /// <summary>Only for checks: the check's title, background colour and sticker.</summary>
+        /// <summary>Only for checks: the check's title and background colour.</summary>
         public UserCheckStyleResponse? Check { get; set; }
     }
 
@@ -36,7 +36,6 @@ namespace Yakku.Application.Users.DTOs
         public Yakku.Application.Checks.Themes.CheckThemeResponse? Theme { get; set; }
         public string Title { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
-        public string Sticker { get; set; } = string.Empty;
     }
 
     public class UserPollOptionResponse

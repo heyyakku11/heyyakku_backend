@@ -81,8 +81,7 @@ namespace Yakku.Application.Sharing
                     Theme = content.Check.Theme,
                     CheckId = content.Check.CheckId,
                     Title = content.Check.Title,
-                    BackgroundColor = content.Check.BackgroundColor,
-                    Sticker = content.Check.Sticker
+                    BackgroundColor = content.Check.BackgroundColor
                 };
             }
 

@@ -8,8 +8,8 @@ namespace Yakku.Application.Checks.Themes
         public string BackgroundColor { get; set; } = string.Empty;
         public string LabelColor { get; set; } = string.Empty;
 
-        /// <summary>Optional sticker text.</summary>
-        public string? Sticker { get; set; }
+        /// <summary>Optional short descriptor of the theme (for example "how people see you").</summary>
+        public string? Tag { get; set; }
     }
 
     /// <summary>A check theme as defined by an admin. The id is what admins pick when creating a check.</summary>
@@ -19,7 +19,7 @@ namespace Yakku.Application.Checks.Themes
         public string Name { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
         public string LabelColor { get; set; } = string.Empty;
-        public string? Sticker { get; set; }
+        public string? Tag { get; set; }
     }
 
     /// <summary>The theme a check renders with. IsLegacy means it was derived from a check made before types existed.</summary>

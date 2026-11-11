@@ -2,7 +2,7 @@ namespace Yakku.Application.Checks.Themes
 {
     /// <summary>
     /// What a check renders with, as sent to clients. The type name is the heading; admins only choose the
-    /// background color, the label color and an optional sticker. Clients fall back to their defaults for everything else.
+    /// background color and the label color. Clients fall back to their defaults for everything else.
     /// </summary>
     public class CheckThemeConfig
     {
@@ -12,7 +12,7 @@ namespace Yakku.Application.Checks.Themes
         /// <summary>Color of the check type label (the heading text).</summary>
         public string LabelColor { get; set; } = string.Empty;
 
-        /// <summary>Null when the type has no sticker.</summary>
-        public string? StickerLabel { get; set; }
+        /// <summary>Short descriptor of the theme; null when it has none.</summary>
+        public string? Tag { get; set; }
     }
 }

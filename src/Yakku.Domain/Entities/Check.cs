@@ -1,3 +1,5 @@
+using Yakku.Domain.Enums;
+
 namespace Yakku.Domain.Entities
 {
     /// <summary>
@@ -11,8 +13,10 @@ namespace Yakku.Domain.Entities
 
         public Guid Id { get; private set; }
 
-        /// <summary>The Monday (UTC) of the week the check goes live.</summary>
-        public DateOnly LiveWeekStart { get; private set; }
+        public CheckKind Kind { get; private set; }
+
+        /// <summary>The Monday (UTC) of the week a weekly check goes live. Null for just-for-fun cards, which have no live date.</summary>
+        public DateOnly? LiveWeekStart { get; private set; }
 
         public string Title { get; private set; } = string.Empty;
         public string Question { get; private set; } = string.Empty;
@@ -21,11 +25,11 @@ namespace Yakku.Domain.Entities
         public bool IsActive { get; private set; }
 
         /// <summary>
-        /// The check type, which owns the visual theme. Null only for legacy checks made before types existed;
-        /// those keep rendering from Title/BackgroundColor/Sticker.
+        /// The card theme (from the universal theme table), which owns the visual look. Null only for legacy
+        /// checks made before themes existed; those keep rendering from Title/BackgroundColor/Sticker.
         /// </summary>
-        public Guid? CheckTypeId { get; private set; }
-        public CheckType? CheckType { get; private set; }
+        public Guid? CardThemeId { get; private set; }
+        public CardTheme? CardTheme { get; private set; }
 
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
@@ -44,19 +48,47 @@ namespace Yakku.Domain.Entities
             string backgroundColor,
             string sticker,
             IEnumerable<string> options,
-            Guid? checkTypeId = null)
+            Guid? cardThemeId = null)
         {
             var now = DateTime.UtcNow;
             var check = new Check
             {
                 Id = Guid.NewGuid(),
+                Kind = CheckKind.Weekly,
                 LiveWeekStart = liveWeekStart,
                 Title = title,
                 Question = question,
                 BackgroundColor = backgroundColor,
                 Sticker = sticker,
                 IsActive = true,
-                CheckTypeId = checkTypeId,
+                CardThemeId = cardThemeId,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            check.ReplaceOptions(options);
+            return check;
+        }
+
+        /// <summary>A "just for fun" card: no live week, available while active.</summary>
+        public static Check CreateFun(
+            string title,
+            string question,
+            string backgroundColor,
+            IEnumerable<string> options,
+            Guid cardThemeId)
+        {
+            var now = DateTime.UtcNow;
+            var check = new Check
+            {
+                Id = Guid.NewGuid(),
+                Kind = CheckKind.Fun,
+                LiveWeekStart = null,
+                Title = title,
+                Question = question,
+                BackgroundColor = backgroundColor,
+                Sticker = string.Empty,
+                IsActive = true,
+                CardThemeId = cardThemeId,
                 CreatedAt = now,
                 UpdatedAt = now
             };
@@ -65,7 +97,7 @@ namespace Yakku.Domain.Entities
         }
 
         public void Update(
-            DateOnly liveWeekStart,
+            DateOnly? liveWeekStart,
             string title,
             string question,
             string backgroundColor,
@@ -81,10 +113,10 @@ namespace Yakku.Domain.Entities
             UpdatedAt = DateTime.UtcNow;
         }
 
-        /// <summary>Assigns the type plus the legacy snapshot fields (the type theme at that moment). Callers allow this only while nobody has used the check.</summary>
-        public void AssignType(Guid checkTypeId, string title, string backgroundColor, string sticker)
+        /// <summary>Assigns the theme plus the legacy snapshot fields (the theme at that moment). Callers allow this only while nobody has used the check.</summary>
+        public void AssignTheme(Guid cardThemeId, string title, string backgroundColor, string sticker)
         {
-            CheckTypeId = checkTypeId;
+            CardThemeId = cardThemeId;
             Title = title;
             BackgroundColor = backgroundColor;
             Sticker = sticker;

@@ -52,7 +52,7 @@ namespace Yakku.API.Controllers
             [FromBody] MakeCheckRequest request,
             CancellationToken cancellationToken)
         {
-            var result = await _checkService.MakeAsync(User.GetRequiredUserId(), request, cancellationToken);
+            var result = await _checkService.MakeAsync(User.GetRequiredUserId(), request, cancellationToken: cancellationToken);
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Check created successfully"));
         }
 

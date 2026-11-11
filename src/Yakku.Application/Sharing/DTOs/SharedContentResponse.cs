@@ -100,7 +100,6 @@ namespace Yakku.Application.Sharing.DTOs
         public Guid CheckId { get; set; }
         public string Title { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
-        public string Sticker { get; set; } = string.Empty;
     }
 
     /// <summary>Votes on the poll or made check that <see cref="ShareCode"/> resolves to.</summary>

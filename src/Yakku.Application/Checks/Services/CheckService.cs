@@ -10,6 +10,7 @@ using Yakku.Application.Streaks;
 using Yakku.Application.Streaks.Interfaces;
 using Yakku.Application.Votes;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Checks.Services
 {
@@ -63,6 +64,7 @@ namespace Yakku.Application.Checks.Services
         public async Task<UserCheckResponse> MakeAsync(
             Guid userId,
             MakeCheckRequest request,
+            CheckKind kind = CheckKind.Weekly,
             CancellationToken cancellationToken = default)
         {
             if (request.CheckId == Guid.Empty)
@@ -85,6 +87,10 @@ namespace Yakku.Application.Checks.Services
             // Only checks that are already live can be made; upcoming ones stay hidden until their week.
             var check = await _repository.GetLiveByIdAsync(request.CheckId, CheckWeek.Current(), cancellationToken)
                 ?? throw CheckExceptions.NotFound();
+            if (check.Kind != kind)
+            {
+                throw CheckExceptions.NotFound();
+            }
 
             var used = await _repository.GetUserChecksByCheckAsync(userId, cancellationToken);
             if (used.ContainsKey(check.Id))
@@ -251,11 +257,10 @@ namespace Yakku.Application.Checks.Services
                 CheckType = theme.CheckType,
                 Theme = theme,
                 Id = check.Id,
-                WeekStart = check.LiveWeekStart,
+                WeekStart = check.LiveWeekStart ?? default,
                 Title = check.Title,
                 Question = check.Question,
                 BackgroundColor = check.BackgroundColor,
-                Sticker = check.Sticker,
                 Options = check.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new CheckOptionResponse { Id = option.Id, Text = option.Text })
@@ -291,7 +296,6 @@ namespace Yakku.Application.Checks.Services
                 Title = item.Check.Title,
                 Question = item.Check.Question,
                 BackgroundColor = item.Check.BackgroundColor,
-                Sticker = item.Check.Sticker,
                 ShareCode = item.ShareCode,
                 IsOwner = isOwner,
                 MyVoteOptionId = myVote?.CheckOptionId,

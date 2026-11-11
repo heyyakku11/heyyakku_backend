@@ -1,4 +1,5 @@
 using Yakku.Application.Checks.DTOs;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Checks.Interfaces
 {
@@ -10,7 +11,12 @@ namespace Yakku.Application.Checks.Interfaces
         /// <summary>One live check; 404 when it does not exist, is inactive, or is not live yet.</summary>
         Task<CheckResponse> GetByIdAsync(Guid id, Guid? userId, CancellationToken cancellationToken = default);
 
-        Task<UserCheckResponse> MakeAsync(Guid userId, MakeCheckRequest request, CancellationToken cancellationToken = default);
+        /// <summary>Makes a live check the caller's own. <paramref name="kind"/> says which kind of card is being made (weekly check or just-for-fun card); a card of another kind is a 404.</summary>
+        Task<UserCheckResponse> MakeAsync(
+            Guid userId,
+            MakeCheckRequest request,
+            CheckKind kind = CheckKind.Weekly,
+            CancellationToken cancellationToken = default);
 
         Task<List<UserCheckResponse>> GetMineAsync(Guid userId, CancellationToken cancellationToken = default);
 

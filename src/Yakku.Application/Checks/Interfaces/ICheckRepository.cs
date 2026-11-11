@@ -1,4 +1,5 @@
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Checks.Interfaces
 {
@@ -10,7 +11,10 @@ namespace Yakku.Application.Checks.Interfaces
         /// </summary>
         Task<List<Check>> GetForWeekAsync(DateOnly weekStart, CancellationToken cancellationToken = default);
 
-        /// <summary>An active check that is live as of <paramref name="throughWeek"/>.</summary>
+        /// <summary>Just-for-fun cards (with options), oldest first. Only active ones when <paramref name="activeOnly"/>.</summary>
+        Task<List<Check>> GetFunCardsAsync(bool activeOnly, CancellationToken cancellationToken = default);
+
+        /// <summary>An active check that is live as of <paramref name="throughWeek"/>. Just-for-fun cards have no live date and are always live while active.</summary>
         Task<Check?> GetLiveByIdAsync(Guid id, DateOnly throughWeek, CancellationToken cancellationToken = default);
 
         /// <summary>The caller's used checks keyed by check id.</summary>
@@ -50,7 +54,7 @@ namespace Yakku.Application.Checks.Interfaces
 
         // Admin scheduling
 
-        /// <summary>All checks (any status), optionally only those scheduled for one week.</summary>
+        /// <summary>All weekly checks (any status), optionally only those scheduled for one week. Just-for-fun cards are not included.</summary>
         Task<List<Check>> GetAllAsync(DateOnly? weekStart, CancellationToken cancellationToken = default);
 
         /// <summary>A tracked check with its options, for editing.</summary>

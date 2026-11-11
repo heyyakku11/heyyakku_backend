@@ -3,6 +3,7 @@ using Yakku.Application.Checks.Themes;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Checks.Services
 {
@@ -29,12 +30,13 @@ namespace Yakku.Application.Checks.Services
         {
             await _validator.ValidateAndThrowAsync(request, cancellationToken);
 
-            var sticker = string.IsNullOrWhiteSpace(request.Sticker) ? null : request.Sticker.Trim();
-            var type = CheckType.Create(
+            var tag = string.IsNullOrWhiteSpace(request.Tag) ? null : request.Tag.Trim();
+            var type = CardTheme.Create(
+                CardThemeKind.Check,
                 request.Name.Trim(),
                 request.BackgroundColor.ToUpperInvariant(),
                 request.LabelColor.ToUpperInvariant(),
-                sticker);
+                tag);
 
             if (!await _repository.TryAddTypeAsync(type, cancellationToken))
             {
@@ -52,13 +54,13 @@ namespace Yakku.Application.Checks.Services
             return new ResolvedCheckTheme(type.Id, CheckThemeMapper.ConfigOf(type));
         }
 
-        private static CheckThemeDefinitionResponse ToResponse(CheckType type) => new()
+        private static CheckThemeDefinitionResponse ToResponse(CardTheme type) => new()
         {
             Id = type.Id,
             Name = type.Name,
             BackgroundColor = type.BackgroundColor,
             LabelColor = type.LabelColor,
-            Sticker = type.Sticker
+            Tag = type.Tag
         };
     }
 }
