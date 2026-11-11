@@ -122,7 +122,7 @@ public class CheckThemeUnitTests
     [Fact]
     public void LegacyChecks_RenderFromTheirOwnFields()
     {
-        var legacy = Check.Create(CheckWeek.Current(), "Loyalty Check", "Q?", "#FFEFC2", "Say it plain", ["A", "B"]);
+        var legacy = Check.Create(CheckWeek.Current(), "Loyalty Check", "Q?", "#FFEFC2", ["A", "B"]);
         var theme = CheckThemeMapper.ToResponse(legacy);
 
         Assert.True(theme.IsLegacy);

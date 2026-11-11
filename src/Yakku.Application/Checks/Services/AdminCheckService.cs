@@ -48,7 +48,7 @@ namespace Yakku.Application.Checks.Services
                 throw new AppException(400, ApiErrorCodes.ValidationError, "Check type is required.", "checkTypeId");
             }
 
-            // The type decides the look; the heading, color and sticker are also copied onto the check for older clients.
+            // The type decides the look; the heading and color are also copied onto the check for older clients.
             var theme = await _themes.ResolveForNewCheckAsync(request.CheckTypeId.Value, cancellationToken);
 
             var week = CheckWeek.StartOf(request.WeekStart);
@@ -57,12 +57,11 @@ namespace Yakku.Application.Checks.Services
                 theme.Config.Heading,
                 request.Question.Trim(),
                 theme.Config.BackgroundColor,
-                string.Empty, // stickers are no longer configured per type; clients show a fixed tag line
                 request.Options.Select(option => option.Trim()),
                 theme.CardThemeId);
             if (!request.IsActive)
             {
-                check.Update(week, check.Title, check.Question, check.BackgroundColor, check.Sticker, false);
+                check.Update(week, check.Title, check.Question, check.BackgroundColor, false);
             }
 
             // The check and its options are saved together in one SaveChanges (a single transaction).
@@ -121,8 +120,7 @@ namespace Yakku.Application.Checks.Services
                 check.AssignTheme(
                     newTheme.CardThemeId,
                     newTheme.Config.Heading,
-                    newTheme.Config.BackgroundColor,
-                    string.Empty);
+                    newTheme.Config.BackgroundColor);
             }
 
             check.Update(
@@ -130,7 +128,6 @@ namespace Yakku.Application.Checks.Services
                 check.Title,
                 used ? check.Question : request.Question.Trim(),
                 check.BackgroundColor,
-                check.Sticker,
                 request.IsActive);
 
             await _repository.SaveChecksAsync(cancellationToken);

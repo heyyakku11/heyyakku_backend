@@ -65,7 +65,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         DefaultTypeId = type.Id;
 
         context.Checks.Add(Yakku.Domain.Entities.Check.Create(
-            Yakku.Application.Checks.CheckWeek.Current(), "Fixture Check", "Fixture question?", "#FFFFFF", "Fixture", ["A", "B"]));
+            Yakku.Application.Checks.CheckWeek.Current(), "Fixture Check", "Fixture question?", "#FFFFFF", ["A", "B"]));
         await context.SaveChangesAsync();
     }
 

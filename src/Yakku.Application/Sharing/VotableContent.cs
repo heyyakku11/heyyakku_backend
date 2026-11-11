@@ -11,7 +11,6 @@ namespace Yakku.Application.Sharing
         Guid CheckId,
         string Title,
         string BackgroundColor,
-        string Sticker,
         Yakku.Application.Checks.Themes.CheckThemeResponse? Theme = null);
 
     /// <summary>

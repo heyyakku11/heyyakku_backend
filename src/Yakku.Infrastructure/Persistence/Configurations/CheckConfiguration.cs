@@ -33,7 +33,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Title).HasColumnName("title").HasMaxLength(100).IsRequired();
             builder.Property(x => x.Question).HasColumnName("question").HasMaxLength(500).IsRequired();
             builder.Property(x => x.BackgroundColor).HasColumnName("background_color").HasMaxLength(7).IsRequired();
-            builder.Property(x => x.Sticker).HasColumnName("sticker").HasMaxLength(100).IsRequired();
             builder.Property(x => x.IsActive).HasColumnName("is_active").IsRequired().HasDefaultValue(true);
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired().HasDefaultValueSql("now()");

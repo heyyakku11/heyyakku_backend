@@ -20,10 +20,10 @@ namespace Yakku.Application.Checks.Themes
                 return new CheckThemeResponse { CheckTypeId = type.Id, CheckType = type.Name, Config = ConfigOf(type) };
             }
 
-            return Legacy(check.Title, check.BackgroundColor, check.Sticker);
+            return Legacy(check.Title, check.BackgroundColor);
         }
 
-        public static CheckThemeResponse Legacy(string title, string backgroundColor, string sticker)
+        public static CheckThemeResponse Legacy(string title, string backgroundColor)
         {
             return new CheckThemeResponse
             {

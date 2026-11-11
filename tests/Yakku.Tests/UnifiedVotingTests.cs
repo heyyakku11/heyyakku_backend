@@ -511,7 +511,7 @@ public class UnifiedVotingTests
                     new VotableOption(Guid.NewGuid(), "B", 2)
                 ],
                 Poll = isPoll ? new VotablePollDetails("QUESTION", null) : null,
-                Check = isPoll ? null : new VotableCheckDetails(Guid.NewGuid(), "Trust", "#112233", "x")
+                Check = isPoll ? null : new VotableCheckDetails(Guid.NewGuid(), "Trust", "#112233")
             };
         }
     }

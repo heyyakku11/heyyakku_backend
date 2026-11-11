@@ -21,12 +21,11 @@ namespace Yakku.Domain.Entities
         public string Title { get; private set; } = string.Empty;
         public string Question { get; private set; } = string.Empty;
         public string BackgroundColor { get; private set; } = string.Empty;
-        public string Sticker { get; private set; } = string.Empty;
         public bool IsActive { get; private set; }
 
         /// <summary>
         /// The card theme (from the universal theme table), which owns the visual look. Null only for legacy
-        /// checks made before themes existed; those keep rendering from Title/BackgroundColor/Sticker.
+        /// checks made before themes existed; those keep rendering from Title/BackgroundColor.
         /// </summary>
         public Guid? CardThemeId { get; private set; }
         public CardTheme? CardTheme { get; private set; }
@@ -46,7 +45,6 @@ namespace Yakku.Domain.Entities
             string title,
             string question,
             string backgroundColor,
-            string sticker,
             IEnumerable<string> options,
             Guid? cardThemeId = null)
         {
@@ -59,7 +57,6 @@ namespace Yakku.Domain.Entities
                 Title = title,
                 Question = question,
                 BackgroundColor = backgroundColor,
-                Sticker = sticker,
                 IsActive = true,
                 CardThemeId = cardThemeId,
                 CreatedAt = now,
@@ -86,7 +83,6 @@ namespace Yakku.Domain.Entities
                 Title = title,
                 Question = question,
                 BackgroundColor = backgroundColor,
-                Sticker = string.Empty,
                 IsActive = true,
                 CardThemeId = cardThemeId,
                 CreatedAt = now,
@@ -101,25 +97,22 @@ namespace Yakku.Domain.Entities
             string title,
             string question,
             string backgroundColor,
-            string sticker,
             bool isActive)
         {
             LiveWeekStart = liveWeekStart;
             Title = title;
             Question = question;
             BackgroundColor = backgroundColor;
-            Sticker = sticker;
             IsActive = isActive;
             UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>Assigns the theme plus the legacy snapshot fields (the theme at that moment). Callers allow this only while nobody has used the check.</summary>
-        public void AssignTheme(Guid cardThemeId, string title, string backgroundColor, string sticker)
+        public void AssignTheme(Guid cardThemeId, string title, string backgroundColor)
         {
             CardThemeId = cardThemeId;
             Title = title;
             BackgroundColor = backgroundColor;
-            Sticker = sticker;
             UpdatedAt = DateTime.UtcNow;
         }
 

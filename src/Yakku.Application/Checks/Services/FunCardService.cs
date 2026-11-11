@@ -114,7 +114,7 @@ namespace Yakku.Application.Checks.Services
                 theme.Id);
             if (!request.IsActive)
             {
-                card.Update(null, card.Title, card.Question, card.BackgroundColor, card.Sticker, false);
+                card.Update(null, card.Title, card.Question, card.BackgroundColor, false);
             }
 
             await _repository.AddCheckAsync(card, cancellationToken);
@@ -162,7 +162,6 @@ namespace Yakku.Application.Checks.Services
                 card.Title,
                 used ? card.Question : request.Question.Trim(),
                 card.BackgroundColor,
-                card.Sticker,
                 request.IsActive);
 
             await _repository.SaveChecksAsync(cancellationToken);

@@ -175,7 +175,7 @@ public sealed class UnifiedVotingIntegrationTests
         await using (var admin = _fixture.CreateContext())
         {
             // A throwaway check so the seeded ones are never touched by this test.
-            var temp = Check.Create(CheckWeek.StartOf(DateTime.UtcNow.AddDays(-14)), "Temp", "Temp?", "#112233", "x", ["A", "B"]);
+            var temp = Check.Create(CheckWeek.StartOf(DateTime.UtcNow.AddDays(-14)), "Temp", "Temp?", "#112233", ["A", "B"]);
             admin.Checks.Add(temp);
             await admin.SaveChangesAsync();
             var tempMaker = await AddUserAsync(admin);
@@ -185,7 +185,7 @@ public sealed class UnifiedVotingIntegrationTests
             await admin.SaveChangesAsync();
 
             var content = (await new VotableContentRepository(admin).FindByShareCodeAsync(userCheck.ShareCode))!;
-            temp.Update(temp.LiveWeekStart, temp.Title, temp.Question, temp.BackgroundColor, temp.Sticker, isActive: false);
+            temp.Update(temp.LiveWeekStart, temp.Title, temp.Question, temp.BackgroundColor, isActive: false);
             await admin.SaveChangesAsync();
 
             var exception = await Assert.ThrowsAsync<AppException>(() => new VotableContentRepository(context).AddVoteAsync(

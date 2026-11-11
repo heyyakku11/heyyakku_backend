@@ -303,7 +303,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     item.Check.Id,
                     item.Check.Title,
                     item.Check.BackgroundColor,
-                    item.Check.Sticker,
                     Yakku.Application.Checks.Themes.CheckThemeMapper.ToResponse(item.Check))
             };
         }

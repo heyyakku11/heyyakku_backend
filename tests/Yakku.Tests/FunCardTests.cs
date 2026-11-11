@@ -32,7 +32,7 @@ public class FunCardTests
     [Fact]
     public void AWeeklyCheck_StillHasALiveWeek()
     {
-        var check = Check.Create(Yakku.Application.Checks.CheckWeek.Current(), "T", "Q?", "#FFFFFF", "", ["A", "B"]);
+        var check = Check.Create(Yakku.Application.Checks.CheckWeek.Current(), "T", "Q?", "#FFFFFF", ["A", "B"]);
 
         Assert.Equal(CheckKind.Weekly, check.Kind);
         Assert.NotNull(check.LiveWeekStart);

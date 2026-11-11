@@ -606,12 +606,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("question");
 
-                    b.Property<string>("Sticker")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("sticker");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(100)
