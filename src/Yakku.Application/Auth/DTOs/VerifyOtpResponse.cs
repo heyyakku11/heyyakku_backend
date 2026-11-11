@@ -33,6 +33,9 @@ namespace Yakku.Application.Auth.DTOs
 
         /// <summary>Permission state of the device that signed in.</summary>
         public VerifyOtpPermissions Permissions { get; set; } = new();
+
+        /// <summary>True when the user has asked to be notified when the community goes live. False until they do.</summary>
+        public bool CommunityNotifyRequested { get; set; }
     }
 
     public class VerifyOtpPersonalityCard
@@ -58,5 +61,6 @@ namespace Yakku.Application.Auth.DTOs
         string CardShareCode,
         string CardStatus,
         string NotificationPermission,
-        bool IsPushAllowed);
+        bool IsPushAllowed,
+        bool CommunityNotifyRequested = false);
 }

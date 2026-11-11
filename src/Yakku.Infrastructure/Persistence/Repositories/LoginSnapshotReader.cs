@@ -48,7 +48,16 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 }
             }
 
-            return new LoginSnapshot(card.ShareCode, card.Status.ToString(), permission.ToString(), pushAllowed);
+            var communityNotifyRequested = await _context.CommunityWaitlist
+                .AsNoTracking()
+                .AnyAsync(entry => entry.UserId == userId, cancellationToken);
+
+            return new LoginSnapshot(
+                card.ShareCode,
+                card.Status.ToString(),
+                permission.ToString(),
+                pushAllowed,
+                communityNotifyRequested);
         }
 
         private Task<CardRow?> ReadCardAsync(Guid userId, CancellationToken cancellationToken)

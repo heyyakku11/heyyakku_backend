@@ -386,7 +386,8 @@ namespace Yakku.Application.Auth.Services
                     {
                         Notification = snapshot.NotificationPermission,
                         IsPushAllowed = snapshot.IsPushAllowed
-                    }
+                    },
+                    CommunityNotifyRequested = snapshot.CommunityNotifyRequested
                 },
                 Auth = tokens
             };
