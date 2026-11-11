@@ -80,6 +80,19 @@ namespace Yakku.Application.Checks.Services
             _validator = validator;
         }
 
+        public async Task<CheckThemeDefinitionResponse> GetThemeAsync(CancellationToken cancellationToken = default)
+        {
+            var theme = await GetFunThemeAsync(cancellationToken);
+            return new CheckThemeDefinitionResponse
+            {
+                Id = theme.Id,
+                Name = theme.Name,
+                BackgroundColor = theme.BackgroundColor,
+                LabelColor = theme.LabelColor,
+                Tag = theme.Tag
+            };
+        }
+
         public async Task<List<AdminFunCardResponse>> ListAsync(CancellationToken cancellationToken = default)
         {
             var cards = await _repository.GetFunCardsAsync(activeOnly: false, cancellationToken);

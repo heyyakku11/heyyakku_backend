@@ -1,4 +1,5 @@
 using Yakku.Application.Checks.DTOs;
+using Yakku.Application.Checks.Themes;
 
 namespace Yakku.Application.Checks.Interfaces
 {
@@ -14,6 +15,9 @@ namespace Yakku.Application.Checks.Interfaces
 
     public interface IAdminFunCardService
     {
+        /// <summary>The just-for-fun theme every fun card is styled with (for previews).</summary>
+        Task<CheckThemeDefinitionResponse> GetThemeAsync(CancellationToken cancellationToken = default);
+
         Task<List<AdminFunCardResponse>> ListAsync(CancellationToken cancellationToken = default);
 
         Task<AdminFunCardResponse> CreateAsync(SaveFunCardRequest request, CancellationToken cancellationToken = default);

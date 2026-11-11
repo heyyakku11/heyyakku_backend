@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Interfaces;
+using Yakku.Application.Checks.Themes;
 using Yakku.Application.Common.Responses;
 
 namespace Yakku.API.Controllers
@@ -17,6 +18,16 @@ namespace Yakku.API.Controllers
         public AdminFunCardsController(IAdminFunCardService service)
         {
             _service = service;
+        }
+
+        [HttpGet("theme")]
+        [EndpointSummary("Get Fun Card Theme (Admin)")]
+        [EndpointDescription("Returns the just-for-fun theme (colors and tag) that every fun card uses, for previews. Admin only.")]
+        [ProducesResponseType(typeof(ApiResponse<CheckThemeDefinitionResponse>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetTheme(CancellationToken cancellationToken)
+        {
+            var result = await _service.GetThemeAsync(cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Theme retrieved successfully"));
         }
 
         [HttpGet]
