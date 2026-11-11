@@ -15,6 +15,7 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<PollVote> PollVotes => Set<PollVote>();
         public DbSet<MediaUploadSession> MediaUploadSessions => Set<MediaUploadSession>();
         public DbSet<SavedPoll> SavedPolls => Set<SavedPoll>();
+        public DbSet<CommunityWaitlistEntry> CommunityWaitlist => Set<CommunityWaitlistEntry>();
         public DbSet<User> Users => Set<User>();
         public DbSet<Plan> Plans => Set<Plan>();
         public DbSet<UserProfile> UserProfiles => Set<UserProfile>();

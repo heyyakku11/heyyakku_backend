@@ -71,6 +71,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<IGuestRepository, GuestRepository>();
             services.AddScoped<IVoteRepository, VoteRepository>();
             services.AddScoped<ICheckRepository, CheckRepository>();
+            services.AddScoped<Yakku.Application.Community.Interfaces.ICommunityWaitlistRepository, CommunityWaitlistRepository>();
             services.AddScoped<Yakku.Application.Checks.Themes.ICheckThemeRepository, CheckThemeRepository>();
             services.AddScoped<Yakku.Application.Personality.Interfaces.IPersonalityRepository, PersonalityRepository>();
             services.AddScoped<Yakku.Application.AdminUsers.Interfaces.IAdminUserRepository, AdminUserRepository>();

@@ -57,6 +57,7 @@ namespace Yakku.Application
             services.AddScoped<Yakku.Application.Personality.Interfaces.IPersonalityService, Yakku.Application.Personality.Services.PersonalityService>();
             services.AddScoped<Yakku.Application.Reasons.Interfaces.IReasonService, Yakku.Application.Reasons.Services.ReasonService>();
             services.AddScoped<IAdminCheckService, AdminCheckService>();
+            services.AddScoped<Yakku.Application.Community.Interfaces.ICommunityWaitlistService, Yakku.Application.Community.Services.CommunityWaitlistService>();
             services.AddScoped<IFunCardService, FunCardService>();
             services.AddScoped<IAdminFunCardService, AdminFunCardService>();
             services.AddScoped<Yakku.Application.Checks.Themes.ICheckThemeService, CheckThemeService>();

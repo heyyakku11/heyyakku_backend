@@ -670,6 +670,39 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("check_options", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.CommunityWaitlistEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("NotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("notified_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_community_waitlist_user_id");
+
+                    b.HasIndex("NotifiedAt", "CreatedAt")
+                        .HasDatabaseName("IX_community_waitlist_notified_at_created_at");
+
+                    b.ToTable("community_waitlist", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2617,6 +2650,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Check");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CommunityWaitlistEntry", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
