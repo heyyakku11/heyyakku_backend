@@ -35,6 +35,30 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Cards retrieved successfully"));
         }
 
+        [AllowAnonymous]
+        [HttpGet("types")]
+        [EndpointSummary("List Just For Fun Card Types")]
+        [EndpointDescription("Returns every fun card type with a preview of its cards the caller has not made yet (at most 4 each) and totalCount, the number of such cards in all. Use the type list endpoint for the full list of one type. Public.")]
+        [ProducesResponseType(typeof(ApiResponse<List<FunCardTypeResponse>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetTypes(CancellationToken cancellationToken)
+        {
+            Guid? userId = User.TryGetUserId(out var id) ? id : null;
+            var result = await _service.ListTypesAsync(userId, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Card types retrieved successfully"));
+        }
+
+        [AllowAnonymous]
+        [HttpGet("types/{typeId:guid}/cards")]
+        [EndpointSummary("List All Cards Of A Fun Card Type")]
+        [EndpointDescription("Returns every active card of one fun card type that the caller has not made yet (the see-all list). Public.")]
+        [ProducesResponseType(typeof(ApiResponse<List<FunCardResponse>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetTypeCards(Guid typeId, CancellationToken cancellationToken)
+        {
+            Guid? userId = User.TryGetUserId(out var id) ? id : null;
+            var result = await _service.ListByTypeAsync(userId, typeId, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Cards retrieved successfully"));
+        }
+
         [HttpGet("saved")]
         [EndpointSummary("List Saved Fun Cards")]
         [EndpointDescription("Lists the just-for-fun cards the signed-in user saved, most recently saved first. Cursor pagination: pass the cursor from the previous response's meta. Returns 400 for an invalid cursor.")]

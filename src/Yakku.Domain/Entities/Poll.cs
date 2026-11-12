@@ -204,6 +204,38 @@ namespace Yakku.Domain.Entities
             return true;
         }
 
+        /// <summary>How much longer a reshared poll stays open.</summary>
+        public static readonly TimeSpan ReshareExtension = TimeSpan.FromHours(24);
+
+        /// <summary>
+        /// True when the poll no longer takes votes because the owner closed it or its time ran out. A draft is not
+        /// closed, and a poll still open is not either.
+        /// </summary>
+        public bool IsClosed(DateTime utcNow)
+        {
+            return Status == PollStatus.Closed
+                || (Status == PollStatus.Active && ExpiresAt is not null && ExpiresAt <= utcNow);
+        }
+
+        /// <summary>
+        /// Opens a closed poll again for another <see cref="ReshareExtension"/>: its expiry moves 24 hours later
+        /// (counted from now when it has already passed or there was none) and it is active again. The share code
+        /// stays the same, so the same link works. False when the poll is not closed.
+        /// </summary>
+        public bool TryReshare(DateTime utcNow)
+        {
+            if (!IsClosed(utcNow))
+            {
+                return false;
+            }
+
+            var from = ExpiresAt is { } current && current > utcNow ? current : utcNow;
+            ExpiresAt = from + ReshareExtension;
+            Status = PollStatus.Active;
+            UpdatedAt = utcNow;
+            return true;
+        }
+
         public bool IsAcceptingVotes(DateTime utcNow)
         {
             if (Status != PollStatus.Active)

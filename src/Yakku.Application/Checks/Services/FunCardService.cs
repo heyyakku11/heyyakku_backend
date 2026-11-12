@@ -17,11 +17,13 @@ namespace Yakku.Application.Checks.Services
     {
         private readonly ICheckRepository _repository;
         private readonly ICheckService _checks;
+        private readonly ISavedFunCardRepository _saved;
 
-        public FunCardService(ICheckRepository repository, ICheckService checks)
+        public FunCardService(ICheckRepository repository, ICheckService checks, ISavedFunCardRepository saved)
         {
             _repository = repository;
             _checks = checks;
+            _saved = saved;
         }
 
         public async Task<List<FunCardResponse>> ListAsync(Guid? userId, CancellationToken cancellationToken = default)
@@ -30,9 +32,65 @@ namespace Yakku.Application.Checks.Services
             var used = userId is null
                 ? new Dictionary<Guid, UserCheck>()
                 : await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
+            var saved = await SavedIdsAsync(userId, cancellationToken);
 
-            return cards.Select(card => ToResponse(card, used.ContainsKey(card.Id))).ToList();
+            return cards.Select(card => ToResponse(card, used.ContainsKey(card.Id), saved.Contains(card.Id))).ToList();
         }
+
+        public async Task<List<FunCardTypeResponse>> ListTypesAsync(Guid? userId, CancellationToken cancellationToken = default)
+        {
+            var available = await AvailableAsync(userId, cancellationToken);
+
+            // One entry per type, in the order the types first appear (oldest card first).
+            return available
+                .GroupBy(entry => entry.Card.CardThemeId)
+                .Select(group =>
+                {
+                    var first = group.First().Card;
+                    var theme = CheckThemeMapper.ToResponse(first);
+                    return new FunCardTypeResponse
+                    {
+                        TypeId = theme.CheckTypeId,
+                        Name = theme.CheckType ?? first.Title,
+                        TotalCount = group.Count(),
+                        Cards = group.Take(FunCardLimits.PreviewPerType)
+                            .Select(entry => ToResponse(entry.Card, entry.Used, entry.Saved))
+                            .ToList()
+                    };
+                })
+                .ToList();
+        }
+
+        public async Task<List<FunCardResponse>> ListByTypeAsync(
+            Guid? userId,
+            Guid typeId,
+            CancellationToken cancellationToken = default)
+        {
+            var available = await AvailableAsync(userId, cancellationToken);
+            return available
+                .Where(entry => entry.Card.CardThemeId == typeId)
+                .Select(entry => ToResponse(entry.Card, entry.Used, entry.Saved))
+                .ToList();
+        }
+
+        // Active cards the caller can still make, oldest first (signed-out callers have made none).
+        private async Task<List<(Check Card, bool Used, bool Saved)>> AvailableAsync(Guid? userId, CancellationToken cancellationToken)
+        {
+            var cards = await _repository.GetFunCardsAsync(activeOnly: true, cancellationToken);
+            var used = userId is null
+                ? new Dictionary<Guid, UserCheck>()
+                : await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
+
+            var saved = await SavedIdsAsync(userId, cancellationToken);
+
+            return cards
+                .Where(card => !used.ContainsKey(card.Id))
+                .Select(card => (card, false, saved.Contains(card.Id)))
+                .ToList();
+        }
+
+        private async Task<HashSet<Guid>> SavedIdsAsync(Guid? userId, CancellationToken cancellationToken) =>
+            userId is null ? [] : await _saved.GetSavedIdsAsync(userId.Value, cancellationToken);
 
         public Task<UserCheckResponse> MakeAsync(
             Guid userId,
@@ -42,7 +100,7 @@ namespace Yakku.Application.Checks.Services
             return _checks.MakeAsync(userId, request, CheckKind.Fun, cancellationToken);
         }
 
-        internal static FunCardResponse ToResponse(Check card, bool used)
+        internal static FunCardResponse ToResponse(Check card, bool used, bool saved = false)
         {
             var theme = CheckThemeMapper.ToResponse(card);
             return new FunCardResponse
@@ -53,6 +111,7 @@ namespace Yakku.Application.Checks.Services
                 BackgroundColor = card.BackgroundColor,
                 Options = ToOptions(card),
                 Used = used,
+                IsSaved = saved,
                 CheckType = theme.CheckType,
                 Theme = theme
             };
@@ -118,7 +177,8 @@ namespace Yakku.Application.Checks.Services
             var themes = await _themes.GetByKindAsync(CardThemeKind.Fun, cancellationToken);
             var cards = await _repository.GetFunCardsAsync(activeOnly: false, cancellationToken);
 
-            return themes.Select(theme => ToGroup(theme, cards)).ToList();
+            // A preview per type; the full list of one type is GetByTypeAsync ("see all").
+            return themes.Select(theme => ToGroup(theme, cards, FunCardLimits.PreviewPerType)).ToList();
         }
 
         public async Task<AdminFunCardGroupResponse> GetByTypeAsync(
@@ -133,19 +193,23 @@ namespace Yakku.Application.Checks.Services
             return ToGroup(theme, cards);
         }
 
-        private static AdminFunCardGroupResponse ToGroup(CardTheme theme, IEnumerable<Check> allCards) => new()
+        private static AdminFunCardGroupResponse ToGroup(CardTheme theme, IEnumerable<Check> allCards, int? limit = null)
         {
-            Theme = new AdminFunCardGroupTheme
+            var cards = allCards.Where(card => card.CardThemeId == theme.Id).ToList();
+            var shown = limit is null ? cards : cards.Take(limit.Value).ToList();
+
+            return new AdminFunCardGroupResponse
             {
-                FunCardTypeId = theme.Id,
-                Heading = theme.Name,
-                BackgroundColor = theme.BackgroundColor,
-                LabelColor = theme.LabelColor,
-                Tag = theme.Tag
-            },
-            Cards = allCards
-                .Where(card => card.CardThemeId == theme.Id)
-                .Select(card => new AdminFunCardItemResponse
+                TotalCount = cards.Count,
+                Theme = new AdminFunCardGroupTheme
+                {
+                    FunCardTypeId = theme.Id,
+                    Heading = theme.Name,
+                    BackgroundColor = theme.BackgroundColor,
+                    LabelColor = theme.LabelColor,
+                    Tag = theme.Tag
+                },
+                Cards = shown.Select(card => new AdminFunCardItemResponse
                 {
                     Id = card.Id,
                     Question = card.Question,
@@ -153,7 +217,8 @@ namespace Yakku.Application.Checks.Services
                     IsActive = card.IsActive,
                     CreatedAt = card.CreatedAt
                 }).ToList()
-        };
+            };
+        }
 
         public async Task<AdminFunCardCreatedResponse> CreateAsync(
             SaveFunCardRequest request,

@@ -30,6 +30,16 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(saved => saved.UserId == userId && saved.CheckId == checkId, cancellationToken);
         }
 
+        public async Task<HashSet<Guid>> GetSavedIdsAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            var ids = await _context.SavedFunCards
+                .AsNoTracking()
+                .Where(saved => saved.UserId == userId)
+                .Select(saved => saved.CheckId)
+                .ToListAsync(cancellationToken);
+            return ids.ToHashSet();
+        }
+
         public async Task AddAsync(SavedFunCard saved, CancellationToken cancellationToken = default)
         {
             await _context.SavedFunCards.AddAsync(saved, cancellationToken);

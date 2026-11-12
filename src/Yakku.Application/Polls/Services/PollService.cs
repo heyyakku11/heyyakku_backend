@@ -396,6 +396,38 @@ namespace Yakku.Application.Polls.Services
             return await ToResponseAsync(poll, creatorId, cancellationToken);
         }
 
+        public Task<PollResponse> ResharePollAsync(
+            Guid pollId,
+            Guid creatorId,
+            CancellationToken cancellationToken = default)
+        {
+            return AuditedAsync(
+                AuditEvents.Poll.Reshared,
+                pollId,
+                creatorId,
+                PollStatus.Closed,
+                PollStatus.Active,
+                () => ReshareCoreAsync(pollId, creatorId, cancellationToken),
+                response => response.Id);
+        }
+
+        private async Task<PollResponse> ReshareCoreAsync(
+            Guid pollId,
+            Guid creatorId,
+            CancellationToken cancellationToken)
+        {
+            // Only the owner can reshare: any other caller gets the same 404 as for a poll that does not exist.
+            var poll = await GetOwnedPollAsync(pollId, creatorId, cancellationToken);
+
+            if (!poll.TryReshare(DateTime.UtcNow))
+            {
+                throw Conflict("Only a closed poll can be reshared.");
+            }
+
+            await _pollRepository.SaveChangesAsync(cancellationToken);
+            return await ToResponseAsync(poll, creatorId, cancellationToken);
+        }
+
         public async Task DeletePollAsync(
             Guid pollId,
             Guid creatorId,

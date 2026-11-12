@@ -60,6 +60,7 @@ namespace Yakku.Application.Audit
             public const string Updated = "poll.updated";
             public const string Published = "poll.published";
             public const string Closed = "poll.closed";
+            public const string Reshared = "poll.reshared";
             public const string Deleted = "poll.deleted";
             public const string PermissionDenied = "poll.permission_denied";
             public const string OperationFailed = "poll.operation_failed";

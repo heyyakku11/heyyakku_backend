@@ -70,7 +70,7 @@ namespace Yakku.Application.Checks.Services
 
             return new SavedFunCardsPage
             {
-                Items = page.Select(s => FunCardService.ToResponse(s.Check, used.ContainsKey(s.CheckId))).ToList(),
+                Items = page.Select(s => FunCardService.ToResponse(s.Check, used.ContainsKey(s.CheckId), saved: true)).ToList(),
                 Meta = PaginationMeta.ForCursor(PollCursor.PageSize, nextCursor, hasMore)
             };
         }

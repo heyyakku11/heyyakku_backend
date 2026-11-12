@@ -8,6 +8,9 @@ namespace Yakku.Application.Checks.Interfaces
         /// <summary>An active just-for-fun card by id; null for anything else (weekly checks included).</summary>
         Task<Check?> GetActiveFunCardAsync(Guid checkId, CancellationToken cancellationToken = default);
 
+        /// <summary>The ids of the fun cards the user has saved.</summary>
+        Task<HashSet<Guid>> GetSavedIdsAsync(Guid userId, CancellationToken cancellationToken = default);
+
         Task<SavedFunCard?> GetAsync(Guid userId, Guid checkId, CancellationToken cancellationToken = default);
 
         Task AddAsync(SavedFunCard saved, CancellationToken cancellationToken = default);

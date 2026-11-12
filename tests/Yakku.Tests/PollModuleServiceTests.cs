@@ -214,6 +214,51 @@ public class PollModuleServiceTests
     }
 
     [Fact]
+    public async Task Reshare_OpensTheOwnersClosedPollAgain_For24Hours_AndIsAudited()
+    {
+        var harness = new PollHarness();
+        var created = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+        await harness.Polls.ClosePollAsync(created.Id, harness.UserId);
+
+        var before = DateTime.UtcNow;
+        var reshared = await harness.Polls.ResharePollAsync(created.Id, harness.UserId);
+
+        Assert.Equal("active", reshared.Status);
+        Assert.InRange(reshared.ExpiresAt!.Value, before.AddHours(24), DateTime.UtcNow.AddHours(24));
+        Assert.Equal(created.ShareCode, reshared.ShareCode);
+        Assert.Contains(harness.Audit.Polls, e => e.EventType == AuditEvents.Poll.Reshared && e.ActorUserId == harness.UserId);
+    }
+
+    [Fact]
+    public async Task Reshare_IsRefusedForAPollThatIsStillOpen()
+    {
+        var harness = new PollHarness();
+        var created = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            harness.Polls.ResharePollAsync(created.Id, harness.UserId));
+
+        Assert.Equal(409, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reshare_OnlyTheOwnerCan_AnyoneElseSeesNotFound_AndTheClosedPollStaysClosed()
+    {
+        var owner = new PollHarness();
+        var created = await owner.Polls.CreateAsync(QuestionRequest(), owner.UserId);
+        await owner.Polls.ClosePollAsync(created.Id, owner.UserId);
+
+        var stranger = await Assert.ThrowsAsync<AppException>(() =>
+            owner.Polls.ResharePollAsync(created.Id, Guid.NewGuid()));
+        var missing = await Assert.ThrowsAsync<AppException>(() =>
+            owner.Polls.ResharePollAsync(Guid.NewGuid(), owner.UserId));
+
+        Assert.Equal(404, stranger.StatusCode);
+        Assert.Equal(404, missing.StatusCode);
+        Assert.Equal(PollStatus.Closed, (await owner.PollStore.GetByIdAsync(created.Id))!.Status);
+    }
+
+    [Fact]
     public async Task Publish_RejectsAlreadyActivePoll()
     {
         var harness = new PollHarness();

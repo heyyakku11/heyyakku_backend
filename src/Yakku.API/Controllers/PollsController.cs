@@ -156,6 +156,23 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(poll, "Poll closed successfully"));
         }
 
+        [HttpPost("{id:guid}/reshare")]
+        [EndpointSummary("Reshare Closed Poll")]
+        [EndpointDescription("Opens a closed poll the signed-in user owns again: its expiry moves 24 hours later (from now when it has already passed or there was none), it takes votes again, and the same share link works. Only the owner can do this, and only for a closed poll. Returns 404 when the poll does not exist or is not yours, and 409 when it is not closed.")]
+        [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> Reshare(Guid id, CancellationToken cancellationToken)
+        {
+            var poll = await _pollService.ResharePollAsync(
+                id,
+                User.GetRequiredUserId(),
+                cancellationToken);
+
+            return Ok(ApiResponse.Ok(poll, "Poll reshared successfully"));
+        }
+
         [HttpDelete("{id:guid}")]
         [EndpointSummary("Delete Poll")]
         [EndpointDescription("Permanently deletes a poll the signed-in user owns, together with its options, votes and uploaded media. Returns 404 when the poll does not exist or is not yours, and 409 when its status does not allow deletion.")]
