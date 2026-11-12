@@ -95,7 +95,7 @@ The admin app (Vercel) and API (Render) are different sites, so a `SameSite=Stri
 admin app therefore calls `/api/...` **on its own origin** and `vercel.json` rewrites that to the backend, which makes
 the cookie first-party. Requirements:
 
-1. `heyyakku_admin/api/[...path].ts` (a Vercel edge function, included) forwards `/api/*` to the address in the
+1. `heyyakku_admin/api/proxy.ts` (a Vercel edge function, wired by the rewrite in `vercel.json`) forwards `/api/*` to the address in the
    `VITE_API_BASE_URL` environment variable. Nothing is hardcoded: set that variable in the Vercel project (Production and
    Preview) to the deployed API address, for example the Render URL, and redeploy.
 2. The admin app itself never reads `VITE_API_BASE_URL`; it always calls `/api` on its own origin. The variable is only
