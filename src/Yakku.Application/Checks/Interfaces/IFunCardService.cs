@@ -21,10 +21,13 @@ namespace Yakku.Application.Checks.Interfaces
         /// <summary>Defines a new fun card type. 409 when the name exists.</summary>
         Task<CheckThemeDefinitionResponse> CreateThemeAsync(CreateCheckThemeRequest request, CancellationToken cancellationToken = default);
 
-        Task<List<AdminFunCardResponse>> ListAsync(CancellationToken cancellationToken = default);
+        /// <summary>Every fun card type with its cards (active or not), grouped by type.</summary>
+        Task<List<AdminFunCardGroupResponse>> ListAsync(CancellationToken cancellationToken = default);
 
-        Task<AdminFunCardResponse> CreateAsync(SaveFunCardRequest request, CancellationToken cancellationToken = default);
+        /// <summary>One fun card type with all its cards (active or not). 404 when the type does not exist.</summary>
+        Task<AdminFunCardGroupResponse> GetByTypeAsync(Guid funCardTypeId, CancellationToken cancellationToken = default);
 
-        Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<AdminFunCardCreatedResponse> CreateAsync(SaveFunCardRequest request, CancellationToken cancellationToken = default);
+
     }
 }

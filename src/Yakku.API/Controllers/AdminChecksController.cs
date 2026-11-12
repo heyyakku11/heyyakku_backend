@@ -42,17 +42,5 @@ namespace Yakku.API.Controllers
             var result = await _service.CreateAsync(request, cancellationToken);
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Check scheduled successfully"));
         }
-
-        [HttpDelete("{id:guid}")]
-        [EndpointSummary("Delete Check (Admin)")]
-        [EndpointDescription("Deletes a check by id. Admin only.")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
-        {
-            await _service.DeleteAsync(id, cancellationToken);
-            return NoContent();
-        }
     }
 }

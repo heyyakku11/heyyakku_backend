@@ -30,6 +30,38 @@ namespace Yakku.Application.Checks.DTOs
         public bool IsActive { get; set; } = true;
     }
 
+    /// <summary>One fun card type (theme) with its cards, as listed by GET fun-cards.</summary>
+    public class AdminFunCardGroupResponse
+    {
+        public AdminFunCardGroupTheme Theme { get; set; } = new();
+        public List<AdminFunCardItemResponse> Cards { get; set; } = new();
+    }
+
+    public class AdminFunCardGroupTheme
+    {
+        public Guid FunCardTypeId { get; set; }
+        public string Heading { get; set; } = string.Empty;
+        public string BackgroundColor { get; set; } = string.Empty;
+        public string LabelColor { get; set; } = string.Empty;
+        public string? Tag { get; set; }
+    }
+
+    public class AdminFunCardCreatedResponse
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Question { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    public class AdminFunCardItemResponse
+    {
+        public Guid Id { get; set; }
+        public string Question { get; set; } = string.Empty;
+        public List<CheckOptionResponse> Options { get; set; } = new();
+        public bool IsActive { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
     public class AdminFunCardResponse
     {
         public Guid Id { get; set; }

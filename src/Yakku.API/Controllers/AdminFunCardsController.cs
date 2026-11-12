@@ -44,35 +44,34 @@ namespace Yakku.API.Controllers
 
         [HttpGet]
         [EndpointSummary("List Fun Cards (Admin)")]
-        [EndpointDescription("Lists every just-for-fun card, active or not. Admin only.")]
-        [ProducesResponseType(typeof(ApiResponse<List<AdminFunCardResponse>>), StatusCodes.Status200OK)]
+        [EndpointDescription("Lists every fun card type with its cards (active or not), grouped by type. Admin only.")]
+        [ProducesResponseType(typeof(ApiResponse<List<AdminFunCardGroupResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> List(CancellationToken cancellationToken)
         {
             var result = await _service.ListAsync(cancellationToken);
             return Ok(ApiResponse.Ok(result, "Cards retrieved successfully"));
         }
 
+        [HttpGet("themes/{funCardTypeId:guid}/cards")]
+        [EndpointSummary("Get Fun Card Type With Cards (Admin)")]
+        [EndpointDescription("Returns one fun card type (theme) with all its cards, active or not. Admin only.")]
+        [ProducesResponseType(typeof(ApiResponse<AdminFunCardGroupResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetByType(Guid funCardTypeId, CancellationToken cancellationToken)
+        {
+            var result = await _service.GetByTypeAsync(funCardTypeId, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Cards retrieved successfully"));
+        }
+
         [HttpPost]
         [EndpointSummary("Create Fun Card (Admin)")]
         [EndpointDescription("Creates a just-for-fun card with 2 or 3 options. funCardTypeId (from the fun card types list) picks which theme the card uses. Admin only.")]
-        [ProducesResponseType(typeof(ApiResponse<AdminFunCardResponse>), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ApiResponse<AdminFunCardCreatedResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Create([FromBody] SaveFunCardRequest request, CancellationToken cancellationToken)
         {
             var result = await _service.CreateAsync(request, cancellationToken);
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Card created successfully"));
-        }
-
-        [HttpDelete("{id:guid}")]
-        [EndpointSummary("Delete Fun Card (Admin)")]
-        [EndpointDescription("Deletes a just-for-fun card that nobody has made. Admin only.")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
-        {
-            await _service.DeleteAsync(id, cancellationToken);
-            return NoContent();
         }
     }
 }

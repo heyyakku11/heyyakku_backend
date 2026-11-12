@@ -111,13 +111,49 @@ namespace Yakku.Application.Checks.Services
             return ToThemeResponse(theme);
         }
 
-        public async Task<List<AdminFunCardResponse>> ListAsync(CancellationToken cancellationToken = default)
+        public async Task<List<AdminFunCardGroupResponse>> ListAsync(CancellationToken cancellationToken = default)
         {
+            var themes = await _themes.GetByKindAsync(CardThemeKind.Fun, cancellationToken);
             var cards = await _repository.GetFunCardsAsync(activeOnly: false, cancellationToken);
-            return cards.Select(ToResponse).ToList();
+
+            return themes.Select(theme => ToGroup(theme, cards)).ToList();
         }
 
-        public async Task<AdminFunCardResponse> CreateAsync(
+        public async Task<AdminFunCardGroupResponse> GetByTypeAsync(
+            Guid funCardTypeId,
+            CancellationToken cancellationToken = default)
+        {
+            var themes = await _themes.GetByKindAsync(CardThemeKind.Fun, cancellationToken);
+            var theme = themes.FirstOrDefault(t => t.Id == funCardTypeId)
+                ?? throw new AppException(404, ApiErrorCodes.NotFound, "Fun card type not found.");
+
+            var cards = await _repository.GetFunCardsAsync(activeOnly: false, cancellationToken);
+            return ToGroup(theme, cards);
+        }
+
+        private static AdminFunCardGroupResponse ToGroup(CardTheme theme, IEnumerable<Check> allCards) => new()
+        {
+            Theme = new AdminFunCardGroupTheme
+            {
+                FunCardTypeId = theme.Id,
+                Heading = theme.Name,
+                BackgroundColor = theme.BackgroundColor,
+                LabelColor = theme.LabelColor,
+                Tag = theme.Tag
+            },
+            Cards = allCards
+                .Where(card => card.CardThemeId == theme.Id)
+                .Select(card => new AdminFunCardItemResponse
+                {
+                    Id = card.Id,
+                    Question = card.Question,
+                    Options = FunCardService.ToOptions(card),
+                    IsActive = card.IsActive,
+                    CreatedAt = card.CreatedAt
+                }).ToList()
+        };
+
+        public async Task<AdminFunCardCreatedResponse> CreateAsync(
             SaveFunCardRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -140,27 +176,12 @@ namespace Yakku.Application.Checks.Services
             await _repository.AddCheckAsync(card, cancellationToken);
             await _repository.SaveChecksAsync(cancellationToken);
 
-            return ToResponse(await _repository.GetForUpdateAsync(card.Id, cancellationToken) ?? card);
-        }
-
-        public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
-        {
-            var card = await _repository.GetForUpdateAsync(id, cancellationToken);
-            if (card is null || card.Kind != CheckKind.Fun)
+            return new AdminFunCardCreatedResponse
             {
-                throw CheckExceptions.NotFound();
-            }
-
-            if (await _repository.HasUserChecksAsync(id, cancellationToken))
-            {
-                throw new AppException(
-                    409,
-                    ApiErrorCodes.Conflict,
-                    "This card has already been used and cannot be deleted. Deactivate it instead.");
-            }
-
-            await _repository.RemoveCheckAsync(card, cancellationToken);
-            await _repository.SaveChecksAsync(cancellationToken);
+                Title = card.Title,
+                Question = card.Question,
+                IsActive = card.IsActive
+            };
         }
 
         private static CheckThemeDefinitionResponse ToThemeResponse(CardTheme theme) => new()
