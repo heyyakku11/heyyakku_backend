@@ -197,11 +197,8 @@ public class CheckThemeIntegrationTests
             CheckWeekTests.NewRequest(CheckWeek.Current().AddDays(28), "mine", theme.Id));
 
         Assert.Contains(await NewThemes(context).ListAsync(), t => t.Id == theme.Id && t.Name == name);
-        Assert.Equal(theme.Id, check.CheckTypeId);
         Assert.Equal(name, check.Title);
-        Assert.Equal(name, check.Theme.Config.Heading);
         Assert.Equal("#ECE3FF", check.BackgroundColor);
-        Assert.False(check.Theme.IsLegacy);
         var stored = await context.Checks.AsNoTracking().SingleAsync(c => c.Id == check.Id);
         Assert.Equal(theme.Id, stored.CardThemeId);
     }
@@ -258,8 +255,8 @@ public class CheckThemeIntegrationTests
 
         await using var fresh = _fixture.CreateContext();
         var listed = (await NewAdmin(fresh).ListAsync(week)).Single(c => c.Id == created.Id);
-        Assert.Equal("Renamed", listed.Theme.Config.Heading);
-        Assert.Equal("#112233", listed.Theme.Config.BackgroundColor);
+        Assert.Equal("Renamed", listed.Title);
+        Assert.Equal("#112233", listed.BackgroundColor);
     }
 
     [SkippableFact]

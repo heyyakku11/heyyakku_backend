@@ -168,15 +168,13 @@ namespace Yakku.Application.Checks.Services
                 Title = check.Title,
                 Question = check.Question,
                 BackgroundColor = check.BackgroundColor,
+                LabelColor = theme.Config.LabelColor,
                 IsActive = check.IsActive,
                 Status = check.LiveWeekStart is { } live && live <= CheckWeek.Current() ? "live" : "upcoming",
                 Options = check.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new CheckOptionResponse { Id = option.Id, Text = option.Text })
-                    .ToList(),
-                CheckType = theme.CheckType,
-                CheckTypeId = theme.CheckTypeId,
-                Theme = theme
+                    .ToList()
             };
         }
     }

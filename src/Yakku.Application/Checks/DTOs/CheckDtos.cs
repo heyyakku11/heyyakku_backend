@@ -91,14 +91,12 @@ namespace Yakku.Application.Checks.DTOs
         public string Title { get; set; } = string.Empty;
         public string Question { get; set; } = string.Empty;
         public string BackgroundColor { get; set; } = string.Empty;
+        public string LabelColor { get; set; } = string.Empty;
         public bool IsActive { get; set; }
 
         /// <summary>live = this week or earlier, upcoming = a later week.</summary>
         public string Status { get; set; } = string.Empty;
         public List<CheckOptionResponse> Options { get; set; } = new();
-        public string? CheckType { get; set; }
-        public Guid? CheckTypeId { get; set; }
-        public CheckThemeResponse Theme { get; set; } = new();
     }
 
     /// <summary>An answer to a check: exactly one of checkOptionId or customAnswer, plus an optional reason.</summary>
