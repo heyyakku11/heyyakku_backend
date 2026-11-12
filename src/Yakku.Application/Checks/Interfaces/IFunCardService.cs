@@ -15,14 +15,15 @@ namespace Yakku.Application.Checks.Interfaces
 
     public interface IAdminFunCardService
     {
-        /// <summary>The just-for-fun theme every fun card is styled with (for previews).</summary>
-        Task<CheckThemeDefinitionResponse> GetThemeAsync(CancellationToken cancellationToken = default);
+        /// <summary>All fun card types (themes).</summary>
+        Task<List<CheckThemeDefinitionResponse>> ListThemesAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>Defines a new fun card type. 409 when the name exists.</summary>
+        Task<CheckThemeDefinitionResponse> CreateThemeAsync(CreateCheckThemeRequest request, CancellationToken cancellationToken = default);
 
         Task<List<AdminFunCardResponse>> ListAsync(CancellationToken cancellationToken = default);
 
         Task<AdminFunCardResponse> CreateAsync(SaveFunCardRequest request, CancellationToken cancellationToken = default);
-
-        Task<AdminFunCardResponse> UpdateAsync(Guid id, SaveFunCardRequest request, CancellationToken cancellationToken = default);
 
         Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     }

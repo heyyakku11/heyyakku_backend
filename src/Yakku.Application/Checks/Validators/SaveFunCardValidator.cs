@@ -8,6 +8,7 @@ namespace Yakku.Application.Checks.Validators
     {
         public SaveFunCardValidator()
         {
+            RuleFor(x => x.FunCardTypeId).NotEmpty();
             RuleFor(x => x.Question).NotEmpty().MaximumLength(500);
 
             RuleFor(x => x.Options)

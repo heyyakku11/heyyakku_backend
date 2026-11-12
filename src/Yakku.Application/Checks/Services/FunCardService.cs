@@ -69,28 +69,46 @@ namespace Yakku.Application.Checks.Services
         private readonly ICheckRepository _repository;
         private readonly ICheckThemeRepository _themes;
         private readonly IValidator<SaveFunCardRequest> _validator;
+        private readonly IValidator<CreateCheckThemeRequest> _themeValidator;
 
         public AdminFunCardService(
             ICheckRepository repository,
             ICheckThemeRepository themes,
-            IValidator<SaveFunCardRequest> validator)
+            IValidator<SaveFunCardRequest> validator,
+            IValidator<CreateCheckThemeRequest> themeValidator)
         {
             _repository = repository;
             _themes = themes;
             _validator = validator;
+            _themeValidator = themeValidator;
         }
 
-        public async Task<CheckThemeDefinitionResponse> GetThemeAsync(CancellationToken cancellationToken = default)
+        public async Task<List<CheckThemeDefinitionResponse>> ListThemesAsync(CancellationToken cancellationToken = default)
         {
-            var theme = await GetFunThemeAsync(cancellationToken);
-            return new CheckThemeDefinitionResponse
+            var themes = await _themes.GetByKindAsync(CardThemeKind.Fun, cancellationToken);
+            return themes.Select(ToThemeResponse).ToList();
+        }
+
+        public async Task<CheckThemeDefinitionResponse> CreateThemeAsync(
+            CreateCheckThemeRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            await _themeValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var tag = string.IsNullOrWhiteSpace(request.Tag) ? null : request.Tag.Trim();
+            var theme = CardTheme.Create(
+                CardThemeKind.Fun,
+                request.Name.Trim(),
+                request.BackgroundColor.ToUpperInvariant(),
+                request.LabelColor.ToUpperInvariant(),
+                tag);
+
+            if (!await _themes.TryAddTypeAsync(theme, cancellationToken))
             {
-                Id = theme.Id,
-                Name = theme.Name,
-                BackgroundColor = theme.BackgroundColor,
-                LabelColor = theme.LabelColor,
-                Tag = theme.Tag
-            };
+                throw new AppException(409, ApiErrorCodes.Conflict, $"A fun card type named \"{theme.Name}\" already exists.", "name");
+            }
+
+            return ToThemeResponse(theme);
         }
 
         public async Task<List<AdminFunCardResponse>> ListAsync(CancellationToken cancellationToken = default)
@@ -104,7 +122,9 @@ namespace Yakku.Application.Checks.Services
             CancellationToken cancellationToken = default)
         {
             await _validator.ValidateAndThrowAsync(request, cancellationToken);
-            var theme = await GetFunThemeAsync(cancellationToken);
+            var themes = await _themes.GetByKindAsync(CardThemeKind.Fun, cancellationToken);
+            var theme = themes.FirstOrDefault(t => t.Id == request.FunCardTypeId)
+                ?? throw new AppException(400, ApiErrorCodes.ValidationError, "Unknown fun card type.", "funCardTypeId");
 
             var card = Check.CreateFun(
                 theme.Name,
@@ -121,51 +141,6 @@ namespace Yakku.Application.Checks.Services
             await _repository.SaveChecksAsync(cancellationToken);
 
             return ToResponse(await _repository.GetForUpdateAsync(card.Id, cancellationToken) ?? card);
-        }
-
-        public async Task<AdminFunCardResponse> UpdateAsync(
-            Guid id,
-            SaveFunCardRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            await _validator.ValidateAndThrowAsync(request, cancellationToken);
-
-            var card = await _repository.GetForUpdateAsync(id, cancellationToken);
-            if (card is null || card.Kind != CheckKind.Fun)
-            {
-                throw CheckExceptions.NotFound();
-            }
-
-            var options = request.Options.Select(option => option.Trim()).ToList();
-            var optionsChanged = !card.Options
-                .OrderBy(option => option.SortOrder)
-                .Select(option => option.Text)
-                .SequenceEqual(options);
-
-            // Answers point at options, so the wording can only change while nobody has made the card.
-            var used = await _repository.HasUserChecksAsync(id, cancellationToken);
-            if (used && (optionsChanged || card.Question != request.Question.Trim()))
-            {
-                throw new AppException(
-                    409,
-                    ApiErrorCodes.Conflict,
-                    "This card has already been used. Only its active state can change.");
-            }
-
-            if (!used && optionsChanged)
-            {
-                card.ReplaceOptions(options);
-            }
-
-            card.Update(
-                null,
-                card.Title,
-                used ? card.Question : request.Question.Trim(),
-                card.BackgroundColor,
-                request.IsActive);
-
-            await _repository.SaveChecksAsync(cancellationToken);
-            return ToResponse(card);
         }
 
         public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -188,15 +163,15 @@ namespace Yakku.Application.Checks.Services
             await _repository.SaveChecksAsync(cancellationToken);
         }
 
-        private async Task<CardTheme> GetFunThemeAsync(CancellationToken cancellationToken)
+        private static CheckThemeDefinitionResponse ToThemeResponse(CardTheme theme) => new()
         {
-            var themes = await _themes.GetByKindAsync(CardThemeKind.Fun, cancellationToken);
-            return themes.FirstOrDefault()
-                ?? throw new AppException(
-                    500,
-                    ApiErrorCodes.InternalServerError,
-                    "The just-for-fun card theme is not set up.");
-        }
+            Id = theme.Id,
+            Name = theme.Name,
+            BackgroundColor = theme.BackgroundColor,
+            LabelColor = theme.LabelColor,
+            Tag = theme.Tag
+        };
+
 
         private static AdminFunCardResponse ToResponse(Check card) => new()
         {

@@ -20,9 +20,11 @@ namespace Yakku.Application.Checks.DTOs
         public CheckThemeResponse Theme { get; set; } = new();
     }
 
-    /// <summary>Admin create/update body. Visuals always come from the just-for-fun theme, never from the request.</summary>
+    /// <summary>Admin create body. Visuals come from the fun card type (theme), never from the request.</summary>
     public class SaveFunCardRequest
     {
+        /// <summary>Id of the fun card type (theme) this card uses.</summary>
+        public Guid FunCardTypeId { get; set; }
         public string Question { get; set; } = string.Empty;
         public List<string> Options { get; set; } = new();
         public bool IsActive { get; set; } = true;

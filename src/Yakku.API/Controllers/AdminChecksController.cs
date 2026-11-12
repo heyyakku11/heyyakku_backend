@@ -43,18 +43,6 @@ namespace Yakku.API.Controllers
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Check scheduled successfully"));
         }
 
-        [HttpPut("{id:guid}")]
-        [EndpointSummary("Update Check (Admin)")]
-        [EndpointDescription("Updates a check by id. Wording can only change while nobody has used the check. Admin only.")]
-        [ProducesResponseType(typeof(ApiResponse<AdminCheckResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Update(Guid id, [FromBody] SaveCheckRequest request, CancellationToken cancellationToken)
-        {
-            var result = await _service.UpdateAsync(id, request, cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Check updated successfully"));
-        }
-
         [HttpDelete("{id:guid}")]
         [EndpointSummary("Delete Check (Admin)")]
         [EndpointDescription("Deletes a check by id. Admin only.")]

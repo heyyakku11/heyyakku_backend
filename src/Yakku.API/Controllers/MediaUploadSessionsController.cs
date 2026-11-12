@@ -11,11 +11,32 @@ using Yakku.Application.Polls.Interfaces;
 
 namespace Yakku.API.Controllers
 {
+    /// <summary>
+    /// DEPRECATED and disabled: every endpoint answers 410 Gone and is hidden from the API docs.
+    /// The code is kept so the controller can be re-enabled by removing <see cref="DisabledMessage"/>'s filter below.
+    /// </summary>
+    [Obsolete("Media upload sessions are deprecated and disabled.")]
     [ApiController]
     [AllowAnonymous]
+    [ApiExplorerSettings(IgnoreApi = true)]
     [Route("api/v1/media-upload-sessions")]
-    public class MediaUploadSessionsController : ControllerBase
+    public class MediaUploadSessionsController : ControllerBase, Microsoft.AspNetCore.Mvc.Filters.IActionFilter
     {
+        private const string DisabledMessage = "Media upload sessions are deprecated and no longer available.";
+
+        [NonAction]
+        public void OnActionExecuting(Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext context)
+        {
+            context.Result = StatusCode(
+                StatusCodes.Status410Gone,
+                ApiResponse.Fail(DisabledMessage, Array.Empty<ApiError>()));
+        }
+
+        [NonAction]
+        public void OnActionExecuted(Microsoft.AspNetCore.Mvc.Filters.ActionExecutedContext context)
+        {
+        }
+
         private readonly IMediaUploadSessionService _sessions;
         private readonly MediaCallerResolver _callerResolver;
 

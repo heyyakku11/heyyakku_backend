@@ -11,6 +11,7 @@ public class FunCardTests
 {
     private static SaveFunCardRequest Valid() => new()
     {
+        FunCardTypeId = Guid.NewGuid(),
         Question = "Which silly superpower would you pick?",
         Options = ["Talking to pigeons", "Perfect snacks"]
     };

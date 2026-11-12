@@ -20,14 +20,26 @@ namespace Yakku.API.Controllers
             _service = service;
         }
 
-        [HttpGet("theme")]
-        [EndpointSummary("Get Fun Card Theme (Admin)")]
-        [EndpointDescription("Returns the just-for-fun theme (colors and tag) that every fun card uses, for previews. Admin only.")]
-        [ProducesResponseType(typeof(ApiResponse<CheckThemeDefinitionResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetTheme(CancellationToken cancellationToken)
+        [HttpGet("themes")]
+        [EndpointSummary("List Fun Card Types (Admin)")]
+        [EndpointDescription("Lists every fun card type (theme: name, colors, tag). The id is the funCardTypeId used when creating a fun card. Admin only.")]
+        [ProducesResponseType(typeof(ApiResponse<List<CheckThemeDefinitionResponse>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> ListThemes(CancellationToken cancellationToken)
         {
-            var result = await _service.GetThemeAsync(cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Theme retrieved successfully"));
+            var result = await _service.ListThemesAsync(cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Themes retrieved successfully"));
+        }
+
+        [HttpPost("themes")]
+        [EndpointSummary("Create Fun Card Type (Admin)")]
+        [EndpointDescription("Defines a new fun card type (theme) with its name, colors and optional tag. Admin only.")]
+        [ProducesResponseType(typeof(ApiResponse<CheckThemeDefinitionResponse>), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> CreateTheme([FromBody] CreateCheckThemeRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _service.CreateThemeAsync(request, cancellationToken);
+            return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Theme created successfully"));
         }
 
         [HttpGet]
@@ -42,25 +54,13 @@ namespace Yakku.API.Controllers
 
         [HttpPost]
         [EndpointSummary("Create Fun Card (Admin)")]
-        [EndpointDescription("Creates a just-for-fun card with 2 or 3 options. The look comes from the just-for-fun theme. Admin only.")]
+        [EndpointDescription("Creates a just-for-fun card with 2 or 3 options. funCardTypeId (from the fun card types list) picks which theme the card uses. Admin only.")]
         [ProducesResponseType(typeof(ApiResponse<AdminFunCardResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Create([FromBody] SaveFunCardRequest request, CancellationToken cancellationToken)
         {
             var result = await _service.CreateAsync(request, cancellationToken);
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Card created successfully"));
-        }
-
-        [HttpPut("{id:guid}")]
-        [EndpointSummary("Update Fun Card (Admin)")]
-        [EndpointDescription("Updates a just-for-fun card. The wording can only change while nobody has made the card. Admin only.")]
-        [ProducesResponseType(typeof(ApiResponse<AdminFunCardResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Update(Guid id, [FromBody] SaveFunCardRequest request, CancellationToken cancellationToken)
-        {
-            var result = await _service.UpdateAsync(id, request, cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Card updated successfully"));
         }
 
         [HttpDelete("{id:guid}")]
