@@ -31,6 +31,16 @@ namespace Yakku.Application.Polls.Services
                 throw NotFound();
             }
 
+            // Users save other people's polls only, never their own.
+            if (poll.CreatorId == userId)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "You can't save your own poll.",
+                    "pollId");
+            }
+
             var existing = await _savedPolls.GetByUserAndPollAsync(userId, pollId, cancellationToken);
             if (existing is null)
             {

@@ -1864,6 +1864,33 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.SavedFunCard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CheckId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CheckId")
+                        .HasDatabaseName("IX_SavedFunCards_CheckId");
+
+                    b.HasIndex("UserId", "CheckId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SavedFunCards_UserId_CheckId");
+
+                    b.ToTable("saved_fun_cards", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2843,6 +2870,25 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ReporterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.SavedFunCard", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Check", "Check")
+                        .WithMany()
+                        .HasForeignKey("CheckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Check");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>

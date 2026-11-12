@@ -35,6 +35,7 @@ namespace Yakku.Application
             services.AddScoped<IMediaUploadSessionService, MediaUploadSessionService>();
             services.AddScoped<IMediaUploadCleanupService, MediaUploadCleanupService>();
             services.AddScoped<ISavedPollService, SavedPollService>();
+            services.AddScoped<Yakku.Application.Checks.Interfaces.ISavedFunCardService, Yakku.Application.Checks.Services.SavedFunCardService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ISessionService, SessionService>();
             services.AddScoped<ISessionCleanupService, SessionCleanupService>();

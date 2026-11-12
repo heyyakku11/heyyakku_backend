@@ -31,21 +31,7 @@ namespace Yakku.Application.Checks.Services
                 ? new Dictionary<Guid, UserCheck>()
                 : await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
 
-            return cards.Select(card =>
-            {
-                var theme = CheckThemeMapper.ToResponse(card);
-                return new FunCardResponse
-                {
-                    Id = card.Id,
-                    Title = card.Title,
-                    Question = card.Question,
-                    BackgroundColor = card.BackgroundColor,
-                    Options = ToOptions(card),
-                    Used = used.ContainsKey(card.Id),
-                    CheckType = theme.CheckType,
-                    Theme = theme
-                };
-            }).ToList();
+            return cards.Select(card => ToResponse(card, used.ContainsKey(card.Id))).ToList();
         }
 
         public Task<UserCheckResponse> MakeAsync(
@@ -54,6 +40,22 @@ namespace Yakku.Application.Checks.Services
             CancellationToken cancellationToken = default)
         {
             return _checks.MakeAsync(userId, request, CheckKind.Fun, cancellationToken);
+        }
+
+        internal static FunCardResponse ToResponse(Check card, bool used)
+        {
+            var theme = CheckThemeMapper.ToResponse(card);
+            return new FunCardResponse
+            {
+                Id = card.Id,
+                Title = card.Title,
+                Question = card.Question,
+                BackgroundColor = card.BackgroundColor,
+                Options = ToOptions(card),
+                Used = used,
+                CheckType = theme.CheckType,
+                Theme = theme
+            };
         }
 
         internal static List<CheckOptionResponse> ToOptions(Check card) =>

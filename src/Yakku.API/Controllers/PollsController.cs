@@ -213,8 +213,9 @@ namespace Yakku.API.Controllers
 
         [HttpPut("{id:guid}/save")]
         [EndpointSummary("Save Poll")]
-        [EndpointDescription("Adds a poll to the signed-in user's saved polls. Idempotent: saving an already saved poll succeeds and changes nothing. Returns 404 when the poll does not exist.")]
+        [EndpointDescription("Adds a poll to the signed-in user's saved polls. Idempotent: saving an already saved poll succeeds and changes nothing. Only other users' polls can be saved: returns 400 for your own poll and 404 when the poll does not exist.")]
         [ProducesResponseType(typeof(ApiResponse<SavedPollStateResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Save(Guid id, CancellationToken cancellationToken)

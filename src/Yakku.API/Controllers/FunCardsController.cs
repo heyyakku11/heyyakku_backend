@@ -15,9 +15,12 @@ namespace Yakku.API.Controllers
     {
         private readonly IFunCardService _service;
 
-        public FunCardsController(IFunCardService service)
+        private readonly ISavedFunCardService _saved;
+
+        public FunCardsController(IFunCardService service, ISavedFunCardService saved)
         {
             _service = service;
+            _saved = saved;
         }
 
         [AllowAnonymous]
@@ -30,6 +33,41 @@ namespace Yakku.API.Controllers
             Guid? userId = User.TryGetUserId(out var id) ? id : null;
             var result = await _service.ListAsync(userId, cancellationToken);
             return Ok(ApiResponse.Ok(result, "Cards retrieved successfully"));
+        }
+
+        [HttpGet("saved")]
+        [EndpointSummary("List Saved Fun Cards")]
+        [EndpointDescription("Lists the just-for-fun cards the signed-in user saved, most recently saved first. Cursor pagination: pass the cursor from the previous response's meta. Returns 400 for an invalid cursor.")]
+        [ProducesResponseType(typeof(ApiResponse<List<FunCardResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetSaved([FromQuery] string? cursor, CancellationToken cancellationToken)
+        {
+            var result = await _saved.ListAsync(User.GetRequiredUserId(), cursor, cancellationToken);
+            return Ok(ApiResponse.Ok(result.Items, "Saved cards retrieved successfully", result.Meta));
+        }
+
+        [HttpPut("{id:guid}/save")]
+        [EndpointSummary("Save Fun Card")]
+        [EndpointDescription("Adds a just-for-fun card to the signed-in user's saved list. Idempotent. Only active fun cards can be saved: weekly checks and personality cards cannot, and return 404.")]
+        [ProducesResponseType(typeof(ApiResponse<SavedFunCardStateResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Save(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await _saved.SaveAsync(User.GetRequiredUserId(), id, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Card saved successfully"));
+        }
+
+        [HttpDelete("{id:guid}/save")]
+        [EndpointSummary("Unsave Fun Card")]
+        [EndpointDescription("Removes a just-for-fun card from the signed-in user's saved list. Idempotent.")]
+        [ProducesResponseType(typeof(ApiResponse<SavedFunCardStateResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> Unsave(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await _saved.UnsaveAsync(User.GetRequiredUserId(), id, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Card unsaved successfully"));
         }
 
         [HttpPost("make")]

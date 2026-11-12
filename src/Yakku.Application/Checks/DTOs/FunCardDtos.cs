@@ -74,3 +74,18 @@ namespace Yakku.Application.Checks.DTOs
         public DateTime CreatedAt { get; set; }
     }
 }
+
+namespace Yakku.Application.Checks.DTOs
+{
+    public class SavedFunCardStateResponse
+    {
+        public Guid FunCardId { get; set; }
+        public bool Saved { get; set; }
+    }
+
+    public class SavedFunCardsPage
+    {
+        public List<FunCardResponse> Items { get; set; } = new();
+        public Yakku.Application.Common.Responses.PaginationMeta Meta { get; set; } = new();
+    }
+}
