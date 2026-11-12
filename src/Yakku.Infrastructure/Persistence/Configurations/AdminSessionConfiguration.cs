@@ -11,30 +11,32 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("admin_sessions");
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.AdminId)
-                .IsRequired();
+            builder.Property(x => x.AdminId).IsRequired();
 
-            builder.Property(x => x.RefreshTokenHash)
-                .IsRequired()
-                .HasMaxLength(255);
+            builder.Property(x => x.SessionHash).IsRequired().HasMaxLength(64);
+            builder.Property(x => x.PreviousSessionHash).HasMaxLength(64);
+            builder.Property(x => x.RevocationReason).HasMaxLength(64);
 
-            builder.Property(x => x.IpAddress)
-                .HasColumnType("inet");
+            builder.Property(x => x.IpAddress).HasColumnType("inet");
+            builder.Property(x => x.UserAgent).HasMaxLength(512);
 
-            builder.Property(x => x.UserAgent)
-                .HasColumnType("text");
-
-            builder.HasIndex(x => x.RefreshTokenHash)
+            builder.HasIndex(x => x.SessionHash)
                 .IsUnique()
-                .HasDatabaseName("IX_AdminSessions_RefreshTokenHash");
+                .HasDatabaseName("IX_AdminSessions_SessionHash");
 
-            builder.HasIndex(x => x.AdminId)
-                .IsUnique()
-                .HasDatabaseName("IX_AdminSessions_AdminId");
+            builder.HasIndex(x => x.PreviousSessionHash)
+                .HasDatabaseName("IX_AdminSessions_PreviousSessionHash");
+
+            // "All live sessions of this admin" (logout everywhere, suspension) and expiry cleanup.
+            builder.HasIndex(x => new { x.AdminId, x.RevokedAt })
+                .HasDatabaseName("IX_AdminSessions_AdminId_RevokedAt");
+
+            builder.HasIndex(x => x.AbsoluteExpiresAt)
+                .HasDatabaseName("IX_AdminSessions_AbsoluteExpiresAt");
 
             builder.HasOne(x => x.Admin)
-                .WithOne(x => x.Session)
-                .HasForeignKey<AdminSession>(x => x.AdminId)
+                .WithMany(x => x.Sessions)
+                .HasForeignKey(x => x.AdminId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

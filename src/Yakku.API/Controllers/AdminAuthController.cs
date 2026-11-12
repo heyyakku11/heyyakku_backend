@@ -2,10 +2,13 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Security.Claims;
+using Yakku.API.AdminSecurity;
 using Yakku.API.Auth;
 using Yakku.API.Middleware;
 using Yakku.Application.AdminAuth.DTOs;
 using Yakku.Application.AdminAuth.Interfaces;
+using Yakku.Application.AdminAuth.Security;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
@@ -18,31 +21,47 @@ namespace Yakku.API.Controllers
     {
         private readonly IAdminAuthService _adminAuthService;
         private readonly IAdminSessionService _adminSessionService;
+        private readonly AdminCookieService _cookies;
+        private readonly AdminCsrfTokens _csrf;
 
         public AdminAuthController(
             IAdminAuthService adminAuthService,
-            IAdminSessionService adminSessionService)
+            IAdminSessionService adminSessionService,
+            AdminCookieService cookies,
+            AdminCsrfTokens csrf)
         {
             _adminAuthService = adminAuthService;
             _adminSessionService = adminSessionService;
+            _cookies = cookies;
+            _csrf = csrf;
         }
 
         [EnableRateLimiting("admin-auth")]
         [HttpPost("login")]
         [EndpointSummary("Admin Login")]
-        [EndpointDescription("Logs an admin in with email and password and returns access/refresh tokens.")]
+        [EndpointDescription("Logs an admin in with email and password. The session is set as an HttpOnly cookie and is never returned in the body; the body carries only the CSRF token to send back in the X-CSRF-Token header on state-changing requests. Returns 429 after repeated failures.")]
         [ProducesResponseType(typeof(ApiResponse<AdminAuthResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]
         public async Task<IActionResult> Login(
             [FromBody] AdminLoginRequest request,
             CancellationToken cancellationToken)
         {
             try
             {
-                var result = await _adminAuthService.LoginAsync(request, cancellationToken);
-                return Ok(ApiResponse.Ok(result, "Login successful"));
+                var session = await _adminAuthService.LoginAsync(
+                    request,
+                    new AdminClientInfo(
+                        HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        Request.Headers.UserAgent.ToString()),
+                    cancellationToken);
+
+                _cookies.Write(Response, session.Token, session.AbsoluteExpiresAt);
+                return Ok(ApiResponse.Ok(
+                    new AdminAuthResponse { CsrfToken = _csrf.Create(session.SessionId) },
+                    "Login successful"));
             }
             catch (ValidationException ex)
             {
@@ -139,67 +158,62 @@ namespace Yakku.API.Controllers
             return RunAsync(async () =>
             {
                 await _adminAuthService.ChangePasswordAsync(User.GetRequiredUserId(), request, cancellationToken);
+
+                // Every session, this one included, was revoked on the server; drop the dead cookie too.
+                _cookies.Clear(Response);
                 return Ok(ApiResponse.Ok<object?>(null, "Password changed successfully. Please log in again."));
             });
         }
 
-        [HttpPost("refresh")]
-        [EndpointSummary("Refresh Admin Access Token")]
-        [EndpointDescription("Exchanges a valid admin refresh token for a new access/refresh pair.")]
-        [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
+        [Authorize(Policy = "Admin")]
+        [HttpGet("session")]
+        [EndpointSummary("Get Admin Session")]
+        [EndpointDescription("Returns the signed-in admin (email, role) and the CSRF token for this session. The frontend calls this on load to restore its state: the server cookie, not browser storage, is the source of truth. 401 when there is no valid session.")]
+        [ProducesResponseType(typeof(ApiResponse<AdminSessionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Refresh(
-            [FromBody] RefreshTokenRequest request,
-            CancellationToken cancellationToken)
+        public IActionResult GetSession()
         {
-            try
-            {
-                var result = await _adminSessionService.RefreshAsync(request.RefreshToken, cancellationToken);
-                return Ok(ApiResponse.Ok(result, "Token refreshed successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ToErrorResult(ex);
-            }
+            return Ok(ApiResponse.Ok(
+                new AdminSessionResponse
+                {
+                    Email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email") ?? string.Empty,
+                    Role = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty,
+                    CsrfToken = _csrf.Create(User.GetRequiredSessionId())
+                },
+                "Session retrieved successfully"));
         }
 
+        [Authorize(Policy = "Admin")]
         [HttpPost("logout")]
         [EndpointSummary("Admin Logout")]
-        [EndpointDescription("Revokes the given admin refresh token and ends that session.")]
+        [EndpointDescription("Revokes this session on the server and clears the cookie. A stolen copy of the cookie stops working immediately.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Logout(
-            [FromBody] RefreshTokenRequest request,
-            CancellationToken cancellationToken)
+        public async Task<IActionResult> Logout(CancellationToken cancellationToken)
         {
-            try
-            {
-                await _adminSessionService.RevokeAsync(request.RefreshToken, cancellationToken);
-                return Ok(ApiResponse.Ok<object?>(null, "Logged out successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ToErrorResult(ex);
-            }
+            await _adminSessionService.RevokeAsync(
+                User.GetRequiredUserId(),
+                User.GetRequiredSessionId(),
+                AdminSessionRevocationReasons.Logout,
+                cancellationToken);
+            _cookies.Clear(Response);
+            return Ok(ApiResponse.Ok<object?>(null, "Logged out successfully"));
         }
 
         [Authorize(Policy = "Admin")]
         [HttpPost("logout-all")]
         [EndpointSummary("Admin Logout From All Sessions")]
-        [EndpointDescription("Requires an admin token. Revokes every active session for the signed-in admin.")]
+        [EndpointDescription("Revokes every active session of the signed-in admin, on every device, and clears the cookie.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> LogoutAll(CancellationToken cancellationToken)
         {
-            try
-            {
-                await _adminSessionService.RevokeAllAsync(User.GetRequiredUserId(), cancellationToken);
-                return Ok(ApiResponse.Ok<object?>(null, "Logged out from all sessions successfully"));
-            }
-            catch (AppException ex)
-            {
-                return ToErrorResult(ex);
-            }
+            await _adminSessionService.RevokeAllAsync(
+                User.GetRequiredUserId(),
+                AdminSessionRevocationReasons.LogoutAll,
+                cancellationToken);
+            _cookies.Clear(Response);
+            return Ok(ApiResponse.Ok<object?>(null, "Logged out from all sessions successfully"));
         }
 
         private static async Task<IActionResult> RunAsync(Func<Task<IActionResult>> action)

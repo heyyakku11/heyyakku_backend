@@ -1,6 +1,7 @@
 using FluentValidation;
 using Yakku.Application.AdminAuth.DTOs;
 using Yakku.Application.AdminAuth.Interfaces;
+using Yakku.Application.AdminAuth.Security;
 using Yakku.Application.AdminAuth.Services;
 using Yakku.Application.AdminAuth.Validators;
 using Yakku.Application.Audit;
@@ -18,6 +19,7 @@ public class AdminAuthFlowTests
 {
     private const string Secret = "correct-horse-battery";
     private const string Password = "S3cure-Passw0rd";
+    internal static readonly AdminClientInfo Client = new("203.0.113.7", "xunit");
 
     [Fact]
     public async Task Register_WithTheRightSecret_AcceptsAnyEmailDomain_KeepsATemporaryRecord_AndSendsOneEmail()
@@ -134,8 +136,8 @@ public class AdminAuthFlowTests
             h.Service.VerifyEmailAsync(new AdminVerifyEmailRequest { Token = token }));
         Assert.Equal(ApiErrorCodes.InvalidToken, reuse.ErrorCode);
 
-        var login = await h.Service.LoginAsync(new AdminLoginRequest { Email = "A@example.com", Password = Password });
-        Assert.False(string.IsNullOrEmpty(login.AccessToken));
+        var login = await h.Service.LoginAsync(new AdminLoginRequest { Email = "A@example.com", Password = Password }, Client);
+        Assert.False(string.IsNullOrEmpty(login.Token));
     }
 
     [Fact]
@@ -214,8 +216,8 @@ public class AdminAuthFlowTests
 
         Assert.Contains(admin.Id, h.Sessions.RevokedAdmins);
         await Assert.ThrowsAsync<AppException>(() =>
-            h.Service.LoginAsync(new AdminLoginRequest { Email = "a@example.com", Password = Password }));
-        await h.Service.LoginAsync(new AdminLoginRequest { Email = "a@example.com", Password = "Brand-New-Passw0rd" });
+            h.Service.LoginAsync(new AdminLoginRequest { Email = "a@example.com", Password = Password }, Client));
+        await h.Service.LoginAsync(new AdminLoginRequest { Email = "a@example.com", Password = "Brand-New-Passw0rd" }, Client);
 
         var reuse = await Assert.ThrowsAsync<AppException>(() => h.Service.ResetPasswordAsync(new AdminResetPasswordRequest
         {
@@ -321,7 +323,7 @@ public class AdminAuthFlowTests
 
         Assert.Contains(admin.Id, h.Sessions.RevokedAdmins);
         Assert.Empty(h.Emails.Jobs);
-        await h.Service.LoginAsync(new AdminLoginRequest { Email = "a@example.com", Password = "Brand-New-Passw0rd" });
+        await h.Service.LoginAsync(new AdminLoginRequest { Email = "a@example.com", Password = "Brand-New-Passw0rd" }, Client);
     }
 
     [Fact]
@@ -340,6 +342,130 @@ public class AdminAuthFlowTests
         Assert.DoesNotContain(h.Emails.LastToken(), text);
     }
 
+
+    private static AdminLoginRequest Login(string email, string password) =>
+        new() { Email = email, Password = password };
+
+    [Fact]
+    public async Task Login_WrongPassword_AndUnknownEmail_LookExactlyTheSame()
+    {
+        var h = new Harness();
+        await h.RegisterAndVerifyAsync("a@example.com");
+
+        var wrong = await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("a@example.com", "Wrong-Passw0rd!"), Client));
+        var unknown = await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("ghost@example.com", "Wrong-Passw0rd!"), Client));
+
+        Assert.Equal(401, wrong.StatusCode);
+        Assert.Equal(wrong.StatusCode, unknown.StatusCode);
+        Assert.Equal(wrong.Message, unknown.Message);
+        Assert.Equal(wrong.ErrorCode, unknown.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Login_RepeatedFailures_BlockThatPair_EvenForTheCorrectPassword()
+    {
+        var h = new Harness();
+        await h.RegisterAndVerifyAsync("a@example.com");
+        var limit = new AdminSessionOptions().LoginPairFailureLimit;
+
+        for (var i = 0; i < limit; i++)
+        {
+            await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("a@example.com", "Wrong-Passw0rd!"), Client));
+        }
+
+        var blocked = await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("a@example.com", Password), Client));
+
+        Assert.Equal(429, blocked.StatusCode);
+        Assert.Equal(ApiErrorCodes.TooManyAttempts, blocked.ErrorCode);
+        Assert.Contains(h.Audit.Authentication, e => e.EventType == AuditEvents.Auth.LoginThrottled);
+    }
+
+    [Fact]
+    public async Task Login_ABlockedPair_DoesNotLockTheRealAdminOutFromAnotherAddress()
+    {
+        var h = new Harness();
+        await h.RegisterAndVerifyAsync("a@example.com");
+        var attacker = new AdminClientInfo("198.51.100.66", "bot");
+        for (var i = 0; i < new AdminSessionOptions().LoginPairFailureLimit; i++)
+        {
+            await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("a@example.com", "Wrong-Passw0rd!"), attacker));
+        }
+
+        // The attacker is blocked, but the owner, from their own address, still gets in.
+        var owner = await h.Service.LoginAsync(Login("a@example.com", Password), Client);
+
+        Assert.False(string.IsNullOrEmpty(owner.Token));
+    }
+
+    [Fact]
+    public async Task Login_UnknownEmails_AreThrottledToo_SoBlocksRevealNothing()
+    {
+        var h = new Harness();
+        for (var i = 0; i < new AdminSessionOptions().LoginPairFailureLimit; i++)
+        {
+            await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("ghost@example.com", "Wrong-Passw0rd!"), Client));
+        }
+
+        var blocked = await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("ghost@example.com", "Wrong-Passw0rd!"), Client));
+
+        Assert.Equal(429, blocked.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_CredentialStuffing_OneAddressTryingManyEmails_GetsBlockedByAddress()
+    {
+        var h = new Harness();
+        var limit = new AdminSessionOptions().LoginIpFailureLimit;
+        for (var i = 0; i < limit; i++)
+        {
+            await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login($"user{i}@example.com", "Wrong-Passw0rd!"), Client));
+        }
+
+        var next = await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("fresh@example.com", "Wrong-Passw0rd!"), Client));
+
+        Assert.Equal(429, next.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_ABlockLiftsByItself_SoItIsNeverPermanent()
+    {
+        var h = new Harness();
+        await h.RegisterAndVerifyAsync("a@example.com");
+        for (var i = 0; i < new AdminSessionOptions().LoginPairFailureLimit; i++)
+        {
+            await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("a@example.com", "Wrong-Passw0rd!"), Client));
+        }
+
+        h.Store.LiftLoginBlocks();
+        h.Store.ClearLoginFailuresAsync("pair:a@example.com|203.0.113.7").Wait();
+
+        var session = await h.Service.LoginAsync(Login("a@example.com", Password), Client);
+        Assert.False(string.IsNullOrEmpty(session.Token));
+    }
+
+    [Fact]
+    public async Task Login_FailuresAreAudited_WithoutThePassword()
+    {
+        var h = new Harness();
+        await h.RegisterAndVerifyAsync("a@example.com");
+
+        await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("a@example.com", "Wrong-Passw0rd!"), Client));
+
+        var entry = Assert.Single(h.Audit.Authentication, e => e.EventType == AuditEvents.Auth.LoginFailed);
+        Assert.DoesNotContain("Wrong-Passw0rd!", entry.ToString());
+    }
+
+    [Fact]
+    public async Task Login_ADisabledAdmin_CannotSignIn()
+    {
+        var h = new Harness();
+        var admin = await h.RegisterAndVerifyAsync("a@example.com");
+        typeof(Admin).GetProperty(nameof(Admin.Status))!.SetValue(admin, AdminStatus.Disabled);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() => h.Service.LoginAsync(Login("a@example.com", Password), Client));
+
+        Assert.Equal(403, exception.StatusCode);
+    }
 
     private static AdminRegisterRequest Register(string email, string secret) => new()
     {
@@ -364,7 +490,8 @@ public class AdminAuthFlowTests
                 new AdminForgotPasswordValidator(),
                 new AdminResetPasswordValidator(),
                 new AdminChangePasswordValidator(),
-                Audit);
+                Audit,
+                new AdminLoginThrottle(Store, new AdminSessionOptions()));
         }
 
         public InMemoryAdminRepository Admins { get; } = new();
@@ -411,16 +538,16 @@ public class AdminAuthFlowTests
     {
         public List<Guid> RevokedAdmins { get; } = [];
 
-        public Task<TokenResponse> CreateAsync(Guid adminId, string email, CancellationToken cancellationToken = default)
-            => Task.FromResult(new TokenResponse { AccessToken = "access", RefreshToken = "refresh" });
+        public Task<AdminSessionIssue> CreateAsync(Guid adminId, AdminClientInfo client, CancellationToken cancellationToken = default)
+            => Task.FromResult(new AdminSessionIssue(Guid.NewGuid(), "token", DateTime.UtcNow.AddHours(1)));
 
-        public Task<TokenResponse> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default)
+        public Task<AdminSessionAuthResult> AuthenticateAsync(string? token, AdminClientInfo client, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task RevokeAsync(string refreshToken, CancellationToken cancellationToken = default)
+        public Task RevokeAsync(Guid adminId, Guid sessionId, string reason, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task RevokeAllAsync(Guid adminId, CancellationToken cancellationToken = default)
+        public Task RevokeAllAsync(Guid adminId, string reason, CancellationToken cancellationToken = default)
         {
             RevokedAdmins.Add(adminId);
             return Task.CompletedTask;
@@ -490,6 +617,35 @@ public class AdminAuthFlowTests
             _failures.Remove(email);
             return Task.CompletedTask;
         }
+
+        private readonly Dictionary<string, int> _loginFailures = [];
+        private readonly HashSet<string> _loginBlocks = [];
+
+        public Task<int> GetLoginFailuresAsync(string key, CancellationToken cancellationToken = default)
+            => Task.FromResult(_loginFailures.GetValueOrDefault(key));
+
+        public Task RecordLoginFailureAsync(string key, TimeSpan window, CancellationToken cancellationToken = default)
+        {
+            _loginFailures[key] = _loginFailures.GetValueOrDefault(key) + 1;
+            return Task.CompletedTask;
+        }
+
+        public Task ClearLoginFailuresAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _loginFailures.Remove(key);
+            return Task.CompletedTask;
+        }
+
+        public Task SetLoginBlockAsync(string key, TimeSpan ttl, CancellationToken cancellationToken = default)
+        {
+            _loginBlocks.Add(key);
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> IsLoginBlockedAsync(string key, CancellationToken cancellationToken = default)
+            => Task.FromResult(_loginBlocks.Contains(key));
+
+        public void LiftLoginBlocks() => _loginBlocks.Clear();
 
         public Task SetVerificationTokenAsync(string tokenHash, string email, TimeSpan ttl, CancellationToken cancellationToken = default)
         {

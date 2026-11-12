@@ -41,6 +41,9 @@ namespace Yakku.Application
             services.AddScoped<ISessionCleanupService, SessionCleanupService>();
             services.AddScoped<IAdminAuthService, AdminAuthService>();
             services.AddScoped<IAdminSessionService, AdminSessionService>();
+            services.AddScoped<Yakku.Application.AdminAuth.Security.AdminLoginThrottle>();
+            services.AddSingleton<Yakku.Application.AdminAuth.Security.AdminCsrfTokens>();
+            services.AddSingleton(TimeProvider.System);
             services.AddSingleton<IAdminAuthSettings, EnvAdminAuthSettings>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IAccountDeletionService, AccountDeletionService>();

@@ -22,6 +22,9 @@ namespace Yakku.Application.AdminAuth
             return $"{Algorithm}${Iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
         }
 
+        /// <summary>A real hash of a throwaway password, verified against when the email is unknown so timing stays equal.</summary>
+        public static readonly string DummyHash = Hash("timing-equalisation-only-not-a-real-password");
+
         public static bool Verify(string password, string stored)
         {
             var parts = stored.Split('$');

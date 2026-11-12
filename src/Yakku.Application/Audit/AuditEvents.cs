@@ -29,6 +29,13 @@ namespace Yakku.Application.Audit
             public const string PasswordResetFailed = "admin.password_reset_failed";
             public const string PasswordChanged = "admin.password_changed";
             public const string PasswordChangeFailed = "admin.password_change_failed";
+            public const string SessionRotated = "admin.session_rotated";
+            public const string SessionExpired = "admin.session_expired";
+            public const string SessionRejected = "admin.session_rejected";
+            public const string LoginThrottled = "admin.login_throttled";
+            public const string CsrfRejected = "admin.csrf_rejected";
+            public const string OriginRejected = "admin.origin_rejected";
+            public const string AccessDenied = "admin.access_denied";
             public const string AccountDeletionRequested = "account.deletion_requested";
             public const string AccountDeletionCancelled = "account.deletion_cancelled";
             public const string AccountDeleted = "account.deleted";

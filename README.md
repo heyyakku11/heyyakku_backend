@@ -45,6 +45,7 @@ Fill in `.env`. Never commit that file; `.env.example` is the template that stay
 | `UPSTASH_REDIS_REST_URL` | Yes | Redis REST base URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes | Redis REST token |
 | `JWT_SECRET` | Yes | Access-token signing key (at least 32 characters) |
+| `ADMIN_*`, `TRUSTED_PROXY_HOPS` | No | Admin cookie-session, CSRF and login-throttle settings with secure defaults; see [docs/admin-auth.md](docs/admin-auth.md). |
 | `CORS_ORIGINS` | No | Comma-separated browser origins allowed to send credentials (`yakku_guest` cookie). Leave empty when the API and web app share the same origin. |
 | `AWS_ENDPOINT_URL_S3` | Yes | Neon Object Storage S3 endpoint (path-style) |
 | `AWS_REGION` | Yes | Storage region |

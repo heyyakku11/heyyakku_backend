@@ -1,11 +1,7 @@
-using FluentValidation;
+using System.Net;
 using Yakku.Application.AdminAuth.Interfaces;
+using Yakku.Application.AdminAuth.Security;
 using Yakku.Application.Audit;
-using Yakku.Application.Auth;
-using Yakku.Application.Auth.DTOs;
-using Yakku.Application.Auth.Interfaces;
-using Yakku.Application.Common.Exceptions;
-using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -14,179 +10,170 @@ namespace Yakku.Application.AdminAuth.Services
     public class AdminSessionService : IAdminSessionService
     {
         private readonly IAdminSessionRepository _sessions;
-        private readonly IAdminRepository _admins;
-        private readonly ITokenService _tokenService;
-        private readonly IValidator<RefreshTokenRequest> _refreshTokenValidator;
+        private readonly AdminSessionOptions _options;
         private readonly IAuditLogWriter _audit;
+        private readonly TimeProvider _time;
 
         public AdminSessionService(
             IAdminSessionRepository sessions,
-            IAdminRepository admins,
-            ITokenService tokenService,
-            IValidator<RefreshTokenRequest> refreshTokenValidator,
-            IAuditLogWriter audit)
+            AdminSessionOptions options,
+            IAuditLogWriter audit,
+            TimeProvider time)
         {
             _sessions = sessions;
-            _admins = admins;
-            _tokenService = tokenService;
-            _refreshTokenValidator = refreshTokenValidator;
+            _options = options;
             _audit = audit;
+            _time = time;
         }
 
-        public async Task<TokenResponse> CreateAsync(
+        public async Task<AdminSessionIssue> CreateAsync(
             Guid adminId,
-            string email,
+            AdminClientInfo client,
             CancellationToken cancellationToken = default)
         {
-            var existing = await _sessions.GetByAdminIdAsync(adminId, cancellationToken);
-            if (existing is not null)
-            {
-                await _sessions.DeleteAsync(existing, cancellationToken);
-                await _sessions.SaveChangesAsync(cancellationToken);
-                await AuditAsync(AuditEvents.Auth.SessionEvicted, AuditOutcome.Success, adminId, existing.Id);
-            }
-
-            var secret = RefreshTokenHasher.GenerateSecret();
+            var now = _time.GetUtcNow().UtcDateTime;
+            var token = AdminSessionToken.Generate();
+            var absolute = now.Add(_options.AbsoluteTimeout);
             var session = new AdminSession(
                 adminId,
-                RefreshTokenHasher.Hash(string.Empty, secret),
-                DateTime.UtcNow.Add(JwtOptions.RefreshTokenLifetime));
+                AdminSessionToken.Hash(token),
+                now,
+                Min(now.Add(_options.IdleTimeout), absolute),
+                absolute,
+                IPAddress.TryParse(client.IpAddress, out var ip) ? ip : null,
+                Truncate(client.UserAgent, 512));
 
             await _sessions.AddAsync(session, cancellationToken);
-            await _sessions.SaveChangesAsync(cancellationToken);
-            await AuditAsync(AuditEvents.Auth.SessionCreated, AuditOutcome.Success, adminId, session.Id);
+            await AuditAsync(AuditEvents.Auth.SessionCreated, AuditOutcome.Success, adminId, session.Id, null);
 
-            return ToResponse(adminId, email, session.Id, secret);
+            return new AdminSessionIssue(session.Id, token, absolute);
         }
 
-        public async Task<TokenResponse> RefreshAsync(
-            string refreshToken,
+        public async Task<AdminSessionAuthResult> AuthenticateAsync(
+            string? token,
+            AdminClientInfo client,
             CancellationToken cancellationToken = default)
         {
-            var session = await LoadValidSessionAsync(
-                refreshToken,
-                AuditEvents.Auth.TokenRefreshFailed,
-                cancellationToken);
-            var admin = await _admins.GetByIdAsync(session.AdminId, cancellationToken);
-            if (admin is null || admin.Status == AdminStatus.Disabled)
+            if (!AdminSessionToken.HasValidShape(token))
             {
-                await AuditFailureAsync(
-                    AuditEvents.Auth.TokenRefreshFailed,
-                    admin is null ? "admin_not_found" : "admin_disabled",
-                    AuditOutcome.Failure,
-                    session.AdminId,
-                    session.Id);
-                throw Unauthorized();
+                // Missing cookie is normal (not logged in). A present but malformed one is worth a record.
+                if (!string.IsNullOrEmpty(token))
+                {
+                    await AuditAsync(AuditEvents.Auth.SessionRejected, AuditOutcome.Failure, null, null, "malformed_token");
+                }
+
+                return AdminSessionAuthResult.Fail(string.IsNullOrEmpty(token) ? "missing_token" : "malformed_token");
             }
 
-            var secret = RefreshTokenHasher.GenerateSecret();
-            session.Rotate(
-                RefreshTokenHasher.Hash(string.Empty, secret),
-                DateTime.UtcNow.Add(JwtOptions.RefreshTokenLifetime));
+            var now = _time.GetUtcNow().UtcDateTime;
+            var hash = AdminSessionToken.Hash(token!);
+            var session = await _sessions.FindByHashAsync(hash, now, cancellationToken);
+            if (session is null)
+            {
+                await AuditAsync(AuditEvents.Auth.SessionRejected, AuditOutcome.Failure, null, null, "session_not_found");
+                return AdminSessionAuthResult.Fail("session_not_found");
+            }
 
-            await _sessions.SaveChangesAsync(cancellationToken);
-            await AuditAsync(AuditEvents.Auth.TokenRefreshed, AuditOutcome.Success, admin.Id, session.Id);
+            if (session.IsRevoked)
+            {
+                // A revoked token coming back is replay of a stolen or stale cookie.
+                await AuditAsync(AuditEvents.Auth.SessionRejected, AuditOutcome.Suspicious, session.AdminId, session.Id, "session_revoked");
+                return AdminSessionAuthResult.Fail("session_revoked");
+            }
 
-            return ToResponse(admin.Id, admin.Email, session.Id, secret);
+            if (session.IsExpired(now))
+            {
+                var reason = now >= session.AbsoluteExpiresAt
+                    ? AdminSessionRevocationReasons.AbsoluteTimeout
+                    : AdminSessionRevocationReasons.IdleTimeout;
+                await _sessions.RevokeAsync(session.AdminId, session.Id, reason, now, cancellationToken);
+                await AuditAsync(AuditEvents.Auth.SessionExpired, AuditOutcome.Failure, session.AdminId, session.Id, reason);
+                return AdminSessionAuthResult.Fail(reason);
+            }
+
+            var admin = session.Admin;
+            if (admin is null || !admin.IsVerified || admin.Status != AdminStatus.Active)
+            {
+                // A suspended admin's existing sessions stop working at once, whatever their lifetime.
+                await _sessions.RevokeAllAsync(session.AdminId, AdminSessionRevocationReasons.AccountDisabled, now, cancellationToken);
+                await AuditAsync(AuditEvents.Auth.SessionRejected, AuditOutcome.Denied, session.AdminId, session.Id, "admin_not_active");
+                return AdminSessionAuthResult.Fail("admin_not_active");
+            }
+
+            var idleExpiresAt = Min(now.Add(_options.IdleTimeout), session.AbsoluteExpiresAt);
+            string? rotatedToken = null;
+
+            // Only the current token rotates. The previous one (grace window) just rides along.
+            var usedCurrentToken = string.Equals(session.SessionHash, hash, StringComparison.Ordinal);
+            if (usedCurrentToken && now - session.RotatedAt >= _options.RotationInterval)
+            {
+                var newToken = AdminSessionToken.Generate();
+                var rotated = await _sessions.TryRotateAsync(
+                    session.Id,
+                    hash,
+                    AdminSessionToken.Hash(newToken),
+                    now,
+                    now.Add(_options.RotationGrace),
+                    idleExpiresAt,
+                    cancellationToken);
+
+                // Losing the race is fine: the winning request hands the browser the new cookie.
+                if (rotated)
+                {
+                    rotatedToken = newToken;
+                    await AuditAsync(AuditEvents.Auth.SessionRotated, AuditOutcome.Success, admin.Id, session.Id, null);
+                }
+            }
+            else if (now - session.LastActivityAt >= _options.ActivityWriteInterval)
+            {
+                await _sessions.TouchAsync(session.Id, now, idleExpiresAt, cancellationToken);
+            }
+
+            return new AdminSessionAuthResult
+            {
+                Succeeded = true,
+                AdminId = admin.Id,
+                SessionId = session.Id,
+                Email = admin.Email,
+                Role = admin.Role,
+                RotatedToken = rotatedToken,
+                AbsoluteExpiresAt = session.AbsoluteExpiresAt
+            };
         }
 
         public async Task RevokeAsync(
-            string refreshToken,
+            Guid adminId,
+            Guid sessionId,
+            string reason,
             CancellationToken cancellationToken = default)
         {
-            var session = await LoadValidSessionAsync(
-                refreshToken,
-                AuditEvents.Auth.SessionRevokeFailed,
-                cancellationToken);
-            var adminId = session.AdminId;
-            var sessionId = session.Id;
-            await _sessions.DeleteAsync(session, cancellationToken);
-            await _sessions.SaveChangesAsync(cancellationToken);
-            await AuditAsync(AuditEvents.Auth.SessionRevoked, AuditOutcome.Success, adminId, sessionId);
+            // Scoped to the caller's own admin id in the SQL itself, so one admin can never end another's session.
+            if (await _sessions.RevokeAsync(adminId, sessionId, reason, _time.GetUtcNow().UtcDateTime, cancellationToken))
+            {
+                await AuditAsync(AuditEvents.Auth.SessionRevoked, AuditOutcome.Success, adminId, sessionId, reason);
+            }
         }
 
         public async Task RevokeAllAsync(
             Guid adminId,
+            string reason,
             CancellationToken cancellationToken = default)
         {
-            await _sessions.DeleteAllByAdminIdAsync(adminId, cancellationToken);
-            await _sessions.SaveChangesAsync(cancellationToken);
+            var count = await _sessions.RevokeAllAsync(adminId, reason, _time.GetUtcNow().UtcDateTime, cancellationToken);
             await _audit.WriteAuthenticationAsync(
                 new AuthenticationAuditEntry(
                     AuditActorType.Admin,
                     adminId,
                     AuditEvents.Auth.AllSessionsRevoked,
-                    AuditOutcome.Success),
+                    AuditOutcome.Success,
+                    FailureReason: reason,
+                    Metadata: new Dictionary<string, string?> { ["revoked"] = count.ToString() }),
                 CancellationToken.None);
         }
 
-        private async Task<AdminSession> LoadValidSessionAsync(
-            string refreshToken,
-            string failureEvent,
-            CancellationToken cancellationToken)
+        private Task AuditAsync(string eventType, AuditOutcome outcome, Guid? adminId, Guid? sessionId, string? reason)
         {
-            var request = new RefreshTokenRequest { RefreshToken = refreshToken };
-            await _refreshTokenValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-            if (!RefreshTokenHasher.TryParse(refreshToken.Trim(), out var sessionId, out var secret))
-            {
-                await AuditFailureAsync(failureEvent, "malformed_token", AuditOutcome.Failure, null, null);
-                throw Unauthorized();
-            }
-
-            var session = await _sessions.GetByIdAsync(sessionId, cancellationToken);
-            if (session is null || session.RevokedAt is not null || session.IsExpired(DateTime.UtcNow))
-            {
-                var revoked = session?.RevokedAt is not null;
-                await AuditFailureAsync(
-                    failureEvent,
-                    session is null ? "session_not_found" : revoked ? "session_revoked" : "session_expired",
-                    revoked ? AuditOutcome.Suspicious : AuditOutcome.Failure,
-                    session?.AdminId,
-                    sessionId);
-
-                if (session is not null)
-                {
-                    await _sessions.DeleteAsync(session, cancellationToken);
-                    await _sessions.SaveChangesAsync(cancellationToken);
-                }
-
-                throw Unauthorized();
-            }
-
-            if (!RefreshTokenHasher.Verify(string.Empty, secret, session.RefreshTokenHash))
-            {
-                await AuditFailureAsync(
-                    failureEvent,
-                    "secret_mismatch",
-                    AuditOutcome.Suspicious,
-                    session.AdminId,
-                    session.Id);
-                throw Unauthorized();
-            }
-
-            return session;
-        }
-
-        private Task AuditAsync(string eventType, AuditOutcome outcome, Guid adminId, Guid sessionId)
-        {
-            return _audit.WriteAuthenticationAsync(
-                new AuthenticationAuditEntry(
-                    AuditActorType.Admin,
-                    adminId,
-                    eventType,
-                    outcome,
-                    SessionId: sessionId),
-                CancellationToken.None);
-        }
-
-        private Task AuditFailureAsync(
-            string eventType,
-            string reason,
-            AuditOutcome outcome,
-            Guid? adminId,
-            Guid? sessionId)
-        {
+            // Never the token, its hash or the cookie: only ids and a reason code.
             return _audit.WriteAuthenticationAsync(
                 new AuthenticationAuditEntry(
                     AuditActorType.Admin,
@@ -198,24 +185,9 @@ namespace Yakku.Application.AdminAuth.Services
                 CancellationToken.None);
         }
 
-        private TokenResponse ToResponse(Guid adminId, string email, Guid sessionId, string secret)
-        {
-            return new TokenResponse
-            {
-                AccessToken = _tokenService.CreateAdminAccessToken(adminId, sessionId, email),
-                RefreshToken = $"{sessionId}.{secret}",
-                AccessTokenExpiresInSeconds = JwtOptions.AccessTokenExpiresInSeconds,
-                RefreshTokenExpiresInSeconds = JwtOptions.RefreshTokenExpiresInSeconds
-            };
-        }
+        private static DateTime Min(DateTime a, DateTime b) => a <= b ? a : b;
 
-        private static AppException Unauthorized()
-        {
-            return new AppException(
-                401,
-                ApiErrorCodes.Unauthorized,
-                "Invalid or expired refresh token.",
-                "refreshToken");
-        }
+        private static string? Truncate(string? value, int max) =>
+            value is null ? null : value.Length <= max ? value : value[..max];
     }
 }

@@ -45,6 +45,32 @@ namespace Yakku.Infrastructure.Redis
             return _redis.DeleteAsync(SecretFailuresKey(email), cancellationToken);
         }
 
+        public async Task<int> GetLoginFailuresAsync(string key, CancellationToken cancellationToken = default)
+        {
+            var value = await _redis.GetAsync($"admin:login-failures:{key}", cancellationToken);
+            return int.TryParse(value, out var count) ? count : 0;
+        }
+
+        public Task RecordLoginFailureAsync(string key, TimeSpan window, CancellationToken cancellationToken = default)
+        {
+            return _redis.IncrementAsync($"admin:login-failures:{key}", window, cancellationToken);
+        }
+
+        public Task ClearLoginFailuresAsync(string key, CancellationToken cancellationToken = default)
+        {
+            return _redis.DeleteAsync($"admin:login-failures:{key}", cancellationToken);
+        }
+
+        public Task SetLoginBlockAsync(string key, TimeSpan ttl, CancellationToken cancellationToken = default)
+        {
+            return _redis.SetAsync($"admin:login-block:{key}", "1", ttl, cancellationToken);
+        }
+
+        public async Task<bool> IsLoginBlockedAsync(string key, CancellationToken cancellationToken = default)
+        {
+            return await _redis.GetAsync($"admin:login-block:{key}", cancellationToken) is not null;
+        }
+
         public Task DeletePendingAsync(string email, CancellationToken cancellationToken = default)
         {
             return _redis.DeleteAsync(PendingKey(email), cancellationToken);

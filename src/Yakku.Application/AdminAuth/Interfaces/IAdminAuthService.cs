@@ -13,8 +13,9 @@ namespace Yakku.Application.AdminAuth.Interfaces
             AdminVerifyEmailRequest request,
             CancellationToken cancellationToken = default);
 
-        Task<AdminAuthResponse> LoginAsync(
+        Task<AdminSessionIssue> LoginAsync(
             AdminLoginRequest request,
+            AdminClientInfo client,
             CancellationToken cancellationToken = default);
 
         /// <summary>Always succeeds from the caller's view; emails a reset link only when the admin exists.</summary>

@@ -83,41 +83,64 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("AbsoluteExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("AdminId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime>("ExpiresAt")
+                    b.Property<DateTime>("IdleExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<IPAddress>("IpAddress")
                         .HasColumnType("inet");
 
-                    b.Property<DateTime?>("LastUsedAt")
+                    b.Property<DateTime>("LastActivityAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("RefreshTokenHash")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                    b.Property<DateTime?>("PreviousHashValidUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PreviousSessionHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime>("RotatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SessionHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("UserAgent")
-                        .HasColumnType("text");
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AdminId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_AdminSessions_AdminId");
+                    b.HasIndex("AbsoluteExpiresAt")
+                        .HasDatabaseName("IX_AdminSessions_AbsoluteExpiresAt");
 
-                    b.HasIndex("RefreshTokenHash")
+                    b.HasIndex("PreviousSessionHash")
+                        .HasDatabaseName("IX_AdminSessions_PreviousSessionHash");
+
+                    b.HasIndex("SessionHash")
                         .IsUnique()
-                        .HasDatabaseName("IX_AdminSessions_RefreshTokenHash");
+                        .HasDatabaseName("IX_AdminSessions_SessionHash");
+
+                    b.HasIndex("AdminId", "RevokedAt")
+                        .HasDatabaseName("IX_AdminSessions_AdminId_RevokedAt");
 
                     b.ToTable("admin_sessions", (string)null);
                 });
@@ -2599,8 +2622,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Admin", "Admin")
-                        .WithOne("Session")
-                        .HasForeignKey("Yakku.Domain.Entities.AdminSession", "AdminId")
+                        .WithMany("Sessions")
+                        .HasForeignKey("AdminId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -3030,7 +3053,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.Admin", b =>
                 {
-                    b.Navigation("Session");
+                    b.Navigation("Sessions");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.AskBackConversation", b =>

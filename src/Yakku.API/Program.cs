@@ -1,11 +1,14 @@
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Yakku.API.AdminSecurity;
 using Yakku.API.Configuration;
 using Yakku.API.Middleware;
 using Yakku.API.Swagger;
@@ -34,6 +37,28 @@ if (Encoding.UTF8.GetByteCount(jwtSecret) < 32)
     throw new InvalidOperationException("JWT_SECRET must be at least 32 characters.");
 }
 
+var corsOrigins = ParseCorsOrigins(Environment.GetEnvironmentVariable("CORS_ORIGINS"));
+
+// Admin cookie, CSRF and session settings. Anything outside Development is treated as production, and an
+// insecure combination stops the app from starting.
+var adminSecurity = AdminSecuritySettings.Load(
+    !builder.Environment.IsDevelopment(),
+    jwtSecret,
+    name => name == "CORS_ORIGINS" ? string.Join(",", corsOrigins) : Environment.GetEnvironmentVariable(name));
+builder.Services.AddAdminSecurity(adminSecurity);
+
+// Behind Render (and the Vercel proxy) the socket address is a proxy. TRUSTED_PROXY_HOPS is how many proxies
+// append to X-Forwarded-For before the request reaches us; the client address is taken from that many entries
+// from the right, so an attacker-supplied leading entry is never believed.
+var proxyHops = int.TryParse(Environment.GetEnvironmentVariable("TRUSTED_PROXY_HOPS"), out var hops) && hops > 0 ? hops : 1;
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = proxyHops;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -58,6 +83,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
         options.Events = new JwtBearerEvents
         {
+            OnTokenValidated = AdminSecurityExtensions.RejectAdminBearer,
             // Browsers and mobile WebSocket clients cannot set an Authorization header, so the hub takes the
             // token from the query string. Only for hub paths; the REST API still needs the header.
             OnMessageReceived = context =>
@@ -102,11 +128,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("Admin", policy =>
-        policy.RequireClaim(AuthClaimTypes.Actor, AuthClaimTypes.AdminActor));
-});
 
 builder.Services.AddSingleton<PollAuditInterceptor>();
 builder.Services.AddDbContext<YakkuDbContext>((serviceProvider, options) =>
@@ -163,7 +184,7 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("media-upload", httpContext => FixedWindow(httpContext, permitLimit: 20));
     options.AddPolicy("poll-votes", httpContext => FixedWindow(httpContext, permitLimit: 30));
     // Admin register, secret code, email link, password reset and login are brute-force targets.
-    options.AddPolicy("admin-auth", httpContext => FixedWindow(httpContext, permitLimit: 10));
+    options.AddPolicy("admin-auth", httpContext => FixedWindow(httpContext, permitLimit: adminSecurity.LoginRateLimitPerMinute));
     // Reusing a valid guest and creating one share this limit, so a single address cannot mint guests in bulk.
     var guestCreateLimit = OperationalSettings.Guests.CreateRateLimitPerMinute;
     options.AddPolicy("device-write", httpContext => FixedWindow(httpContext, OperationalSettings.Devices.WriteRateLimitPerMinute));
@@ -188,7 +209,6 @@ builder.Services.AddScoped<Yakku.API.Media.MediaCallerResolver>();
 builder.Services.AddScoped<Yakku.API.Devices.DeviceCallerResolver>();
 builder.Services.AddScoped<Yakku.API.Auth.LiveSessionFilter>();
 
-var corsOrigins = ParseCorsOrigins(Environment.GetEnvironmentVariable("CORS_ORIGINS"));
 if (corsOrigins.Length > 0)
 {
     builder.Services.AddCors(options =>
@@ -205,6 +225,8 @@ if (corsOrigins.Length > 0)
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+app.UseMiddleware<SecurityHeadersMiddleware>(app.Environment.IsDevelopment());
 app.UseExceptionHandler();
 app.UseMiddleware<RequestMonitoringMiddleware>(TimeSpan.FromMilliseconds(OperationalSettings.Monitoring.SlowRequestThresholdMs));
 
@@ -222,6 +244,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<AdminRequestGuardMiddleware>();
 app.UseRateLimiter();
 
 app.MapControllers();

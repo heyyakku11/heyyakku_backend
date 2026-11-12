@@ -3,6 +3,7 @@ using System.Text;
 using FluentValidation;
 using Yakku.Application.AdminAuth.DTOs;
 using Yakku.Application.AdminAuth.Interfaces;
+using Yakku.Application.AdminAuth.Security;
 using Yakku.Application.Audit;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Common.Exceptions;
@@ -38,6 +39,7 @@ namespace Yakku.Application.AdminAuth.Services
         private readonly IValidator<AdminResetPasswordRequest> _resetValidator;
         private readonly IValidator<AdminChangePasswordRequest> _changeValidator;
         private readonly IAuditLogWriter _audit;
+        private readonly AdminLoginThrottle _throttle;
 
         public AdminAuthService(
             IAdminRepository adminRepository,
@@ -51,7 +53,8 @@ namespace Yakku.Application.AdminAuth.Services
             IValidator<AdminForgotPasswordRequest> forgotValidator,
             IValidator<AdminResetPasswordRequest> resetValidator,
             IValidator<AdminChangePasswordRequest> changeValidator,
-            IAuditLogWriter audit)
+            IAuditLogWriter audit,
+            AdminLoginThrottle throttle)
         {
             _adminRepository = adminRepository;
             _store = store;
@@ -65,6 +68,7 @@ namespace Yakku.Application.AdminAuth.Services
             _resetValidator = resetValidator;
             _changeValidator = changeValidator;
             _audit = audit;
+            _throttle = throttle;
         }
 
         public async Task<AdminRegistrationStepResponse> RegisterAsync(
@@ -168,13 +172,14 @@ namespace Yakku.Application.AdminAuth.Services
             await AuditAsync(AuditEvents.Auth.AdminEmailVerified, AuditOutcome.Success, null, email, admin.Id);
         }
 
-        public async Task<AdminAuthResponse> LoginAsync(
+        public async Task<AdminSessionIssue> LoginAsync(
             AdminLoginRequest request,
+            AdminClientInfo client,
             CancellationToken cancellationToken = default)
         {
             try
             {
-                var response = await LoginCoreAsync(request, cancellationToken);
+                var response = await LoginCoreAsync(request, client, cancellationToken);
                 await AuditAsync(AuditEvents.Auth.LoggedIn, AuditOutcome.Success, null, request.Email, metadata: "password");
                 return response;
             }
@@ -189,16 +194,34 @@ namespace Yakku.Application.AdminAuth.Services
             }
         }
 
-        private async Task<AdminAuthResponse> LoginCoreAsync(
+        private async Task<AdminSessionIssue> LoginCoreAsync(
             AdminLoginRequest request,
+            AdminClientInfo client,
             CancellationToken cancellationToken)
         {
             await _loginValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var email = NormalizeEmail(request.Email);
-            var admin = await _adminRepository.GetByEmailAsync(email, cancellationToken);
-            if (admin is null || !AdminPasswordHasher.Verify(request.Password, admin.PasswordHash))
+
+            // Blocked before any password work, and identically for emails that do not exist.
+            if (await _throttle.IsBlockedAsync(email, client.IpAddress, cancellationToken))
             {
+                await AuditAsync(AuditEvents.Auth.LoginThrottled, AuditOutcome.Suspicious, ApiErrorCodes.TooManyAttempts, email);
+                throw new AppException(
+                    429,
+                    ApiErrorCodes.TooManyAttempts,
+                    "Too many login attempts. Please try again later.");
+            }
+
+            var admin = await _adminRepository.GetByEmailAsync(email, cancellationToken);
+
+            // An unknown email still pays for a hash check so response time does not reveal which emails exist.
+            var passwordOk = AdminPasswordHasher.Verify(
+                request.Password,
+                admin?.PasswordHash ?? AdminPasswordHasher.DummyHash);
+            if (admin is null || !passwordOk)
+            {
+                await _throttle.RecordFailureAsync(email, client.IpAddress, cancellationToken);
                 throw new AppException(
                     401,
                     ApiErrorCodes.Unauthorized,
@@ -224,12 +247,12 @@ namespace Yakku.Application.AdminAuth.Services
                     "email");
             }
 
+            await _throttle.RecordSuccessAsync(email, client.IpAddress, cancellationToken);
             admin.RecordLogin();
             await _adminRepository.SaveChangesAsync(cancellationToken);
 
-            return ToAuthResponse(
-                await _sessionService.CreateAsync(admin.Id, admin.Email, cancellationToken),
-                admin);
+            // Always a brand-new session and token: nothing the client sent is reused.
+            return await _sessionService.CreateAsync(admin.Id, client, cancellationToken);
         }
 
         public async Task ForgotPasswordAsync(
@@ -283,7 +306,7 @@ namespace Yakku.Application.AdminAuth.Services
 
             admin.UpdatePassword(AdminPasswordHasher.Hash(request.NewPassword));
             await _adminRepository.SaveChangesAsync(cancellationToken);
-            await _sessionService.RevokeAllAsync(admin.Id, cancellationToken);
+            await _sessionService.RevokeAllAsync(admin.Id, AdminSessionRevocationReasons.PasswordReset, cancellationToken);
 
             await AuditAsync(AuditEvents.Auth.PasswordResetCompleted, AuditOutcome.Success, null, admin.Email, admin.Id);
         }
@@ -315,7 +338,7 @@ namespace Yakku.Application.AdminAuth.Services
             await _adminRepository.SaveChangesAsync(cancellationToken);
 
             // Every session ends, so the admin signs in again with the new password.
-            await _sessionService.RevokeAllAsync(admin.Id, cancellationToken);
+            await _sessionService.RevokeAllAsync(admin.Id, AdminSessionRevocationReasons.PasswordChanged, cancellationToken);
 
             await AuditAsync(AuditEvents.Auth.PasswordChanged, AuditOutcome.Success, null, admin.Email, admin.Id);
         }
@@ -361,17 +384,6 @@ namespace Yakku.Application.AdminAuth.Services
                     Subject: email,
                     Metadata: metadata is null ? null : new Dictionary<string, string?> { ["method"] = metadata }),
                 CancellationToken.None);
-        }
-
-        private static AdminAuthResponse ToAuthResponse(TokenResponse tokens, Admin admin)
-        {
-            return new AdminAuthResponse
-            {
-                AccessToken = tokens.AccessToken,
-                RefreshToken = tokens.RefreshToken,
-                AccessTokenExpiresInSeconds = tokens.AccessTokenExpiresInSeconds,
-                RefreshTokenExpiresInSeconds = tokens.RefreshTokenExpiresInSeconds
-            };
         }
 
         private static bool SecretMatches(string provided, string expected)

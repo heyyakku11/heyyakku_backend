@@ -29,6 +29,18 @@ namespace Yakku.Application.AdminAuth.Interfaces
 
         Task ClearSecretFailuresAsync(string email, CancellationToken cancellationToken = default);
 
+        /// <summary>Failed admin logins counted under a throttle key (pair, account or address) in the current window.</summary>
+        Task<int> GetLoginFailuresAsync(string key, CancellationToken cancellationToken = default);
+
+        Task RecordLoginFailureAsync(string key, TimeSpan window, CancellationToken cancellationToken = default);
+
+        Task ClearLoginFailuresAsync(string key, CancellationToken cancellationToken = default);
+
+        /// <summary>Blocks logins under the key for <paramref name="ttl"/>; the block lifts by itself.</summary>
+        Task SetLoginBlockAsync(string key, TimeSpan ttl, CancellationToken cancellationToken = default);
+
+        Task<bool> IsLoginBlockedAsync(string key, CancellationToken cancellationToken = default);
+
         Task SetVerificationTokenAsync(
             string tokenHash,
             string email,
