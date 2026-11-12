@@ -370,9 +370,7 @@ namespace Yakku.Application.AdminAuth.Services
                 AccessToken = tokens.AccessToken,
                 RefreshToken = tokens.RefreshToken,
                 AccessTokenExpiresInSeconds = tokens.AccessTokenExpiresInSeconds,
-                RefreshTokenExpiresInSeconds = tokens.RefreshTokenExpiresInSeconds,
-                Email = admin.Email,
-                Role = admin.Role.ToString()
+                RefreshTokenExpiresInSeconds = tokens.RefreshTokenExpiresInSeconds
             };
         }
 

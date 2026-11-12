@@ -135,7 +135,7 @@ public class AdminAuthFlowTests
         Assert.Equal(ApiErrorCodes.InvalidToken, reuse.ErrorCode);
 
         var login = await h.Service.LoginAsync(new AdminLoginRequest { Email = "A@example.com", Password = Password });
-        Assert.Equal("a@example.com", login.Email);
+        Assert.False(string.IsNullOrEmpty(login.AccessToken));
     }
 
     [Fact]
