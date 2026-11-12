@@ -175,7 +175,7 @@ namespace Yakku.API.Controllers
 
         [HttpDelete("{id:guid}")]
         [EndpointSummary("Delete Poll")]
-        [EndpointDescription("Permanently deletes a poll the signed-in user owns, together with its options, votes and uploaded media. Returns 404 when the poll does not exist or is not yours, and 409 when its status does not allow deletion.")]
+        [EndpointDescription("Permanently deletes a poll the signed-in user owns, together with its options, votes and uploaded media. The poll can be in any state (draft, active, closed or expired). Returns 404 when the poll does not exist or is not yours.")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

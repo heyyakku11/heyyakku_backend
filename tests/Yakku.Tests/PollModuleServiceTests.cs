@@ -313,6 +313,25 @@ public class PollModuleServiceTests
     }
 
     [Fact]
+    public async Task Delete_WorksInAnyState_ActiveClosedAndExpired()
+    {
+        var harness = new PollHarness();
+        var active = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+        var closed = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+        await harness.Polls.ClosePollAsync(closed.Id, harness.UserId);
+        var expired = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
+        typeof(Poll).GetProperty(nameof(Poll.ExpiresAt))!.SetValue(
+            harness.PollStore.Polls.Single(p => p.Id == expired.Id),
+            DateTime.UtcNow.AddMinutes(-5));
+
+        await harness.Polls.DeletePollAsync(closed.Id, harness.UserId);
+        await harness.Polls.DeletePollAsync(expired.Id, harness.UserId);
+        await harness.Polls.DeletePollAsync(active.Id, harness.UserId);
+
+        Assert.Empty(harness.PollStore.Polls);
+    }
+
+    [Fact]
     public async Task Vote_AllowsOneVotePerUser()
     {
         var harness = new PollHarness();

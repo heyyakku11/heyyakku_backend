@@ -455,11 +455,9 @@ namespace Yakku.Application.Polls.Services
             var keys = new List<StoredObjectReference>();
             await _pollRepository.ExecuteInTransactionAsync(async transactionToken =>
             {
+                // The owner may delete a poll in any state (draft, active, closed, expired). Its votes, options and
+                // saves go with it.
                 var poll = await GetOwnedPollAsync(pollId, creatorId, transactionToken);
-                if (poll.Status is not (PollStatus.Draft or PollStatus.Active))
-                {
-                    throw Conflict("Only a draft or active poll can be deleted.");
-                }
 
                 if (poll.Media is not null)
                 {
