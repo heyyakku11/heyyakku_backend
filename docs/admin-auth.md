@@ -95,16 +95,19 @@ The admin app (Vercel) and API (Render) are different sites, so a `SameSite=Stri
 admin app therefore calls `/api/...` **on its own origin** and `vercel.json` rewrites that to the backend, which makes
 the cookie first-party. Requirements:
 
-1. `heyyakku_admin/vercel.json` rewrite `/api/:path*` -> `https://<backend>/api/:path*` (included).
-2. `VITE_API_BASE_URL` must be **empty** in Vercel's environment variables (the API is reached through the rewrite).
+1. `heyyakku_admin/api/[...path].ts` (a Vercel edge function, included) forwards `/api/*` to the address in the
+   `VITE_API_BASE_URL` environment variable. Nothing is hardcoded: set that variable in the Vercel project (Production and
+   Preview) to the deployed API address, for example the Render URL, and redeploy.
+2. The admin app itself never reads `VITE_API_BASE_URL`; it always calls `/api` on its own origin. The variable is only
+   the forwarding address used by the function (and by the Vite dev server locally).
 3. `ADMIN_WEB_BASE_URL` on the API = the exact Vercel origin (it is the trusted `Origin`).
 4. `TRUSTED_PROXY_HOPS=2` on Render (Vercel then Render both append to `X-Forwarded-For`), otherwise every admin shares
    one apparent IP (Vercel's) and the IP throttle and audit IPs are wrong. Verify in the audit log after deploy.
 5. First deploy after the migration signs every admin out once (old refresh-token sessions are deleted by the
    `AdminCookieSessions` migration; admin accounts are untouched).
-6. Local development: set `VITE_API_BASE_URL=http://localhost:5012` in the admin app's `.env`. `localhost:5173` and
-   `localhost:5012` are the same site, so the strict cookie (`yakku_admin`, not Secure over http) still works; `CORS_ORIGINS`
-   must include `http://localhost:5173`.
+6. Local development: put the API address in the admin app's `.env` as `VITE_API_BASE_URL`; the Vite dev server proxies `/api` to it (`vite.config.ts`), so the
+   cookie (`yakku_admin`, not Secure over http) is first-party here too. `CORS_ORIGINS` should include
+   `http://localhost:5173`.
 
 If you later put both apps on one registrable domain (`admin.example.com` + `api.example.com`) the rewrite is no longer
 required, but then use `SameSite=Lax` and set `ADMIN_TRUSTED_ORIGINS`; keep `Domain` unset.
