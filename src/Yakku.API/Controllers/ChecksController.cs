@@ -67,6 +67,20 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Your checks retrieved successfully"));
         }
 
+        /// <summary>Opens one of the caller's closed made cards again.</summary>
+        [HttpPost("mine/{id:guid}/reshare")]
+        [EndpointSummary("Reshare My Card")]
+        [EndpointDescription("Opens a closed made card the signed-in user owns again so it takes answers and can be shared once more. A card made from a fun card gets 24 more hours (counted from now when its time already ran out); a made weekly check has no expiry and is simply reopened. Returns 404 when it does not exist or is not yours, and 409 when it is not closed.")]
+        [ProducesResponseType(typeof(ApiResponse<UserCheckResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> ReshareMine(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await _checkService.ReshareMineAsync(id, User.GetRequiredUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Card reshared successfully"));
+        }
+
         /// <summary>Closes one of the caller's made checks so it stops taking answers.</summary>
         [HttpPost("mine/{id:guid}/close")]
         [EndpointSummary("Close My Check")]

@@ -15,6 +15,11 @@ namespace Yakku.Application.Checks
             return new AppException(409, ApiErrorCodes.Conflict, "Check is already closed.");
         }
 
+        public static AppException NotClosed()
+        {
+            return new AppException(409, ApiErrorCodes.Conflict, "Only a closed card can be reshared.");
+        }
+
         public static AppException AlreadyUsed()
         {
             return new AppException(

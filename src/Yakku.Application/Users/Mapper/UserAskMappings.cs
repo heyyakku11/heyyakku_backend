@@ -33,6 +33,7 @@ namespace Yakku.Application.Users.Mapper
                 Status = item.IsClosed ? "closed" : "active",
                 CreatedAt = item.CreatedAt,
                 ClosedAt = item.ClosedAt,
+                ExpiresAt = item.ExpiresAt,
                 TotalVoteCount = unlocked ? totalVotes : otherVotes,
                 MinVotes = minVotes,
                 VoteProgress = otherVotes,

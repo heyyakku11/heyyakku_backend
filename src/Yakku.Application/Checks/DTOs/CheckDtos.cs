@@ -65,6 +65,12 @@ namespace Yakku.Application.Checks.DTOs
         public int? CustomAnswerVotes { get; set; }
         public List<UserCheckOptionResponse> Options { get; set; } = new();
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>When the card stops taking answers on its own: 24 hours after it was made for a fun card (and after each reshare). Null for a made weekly check, which has none.</summary>
+        public DateTime? ExpiresAt { get; set; }
+
+        /// <summary>True when the owner closed the card or its time ran out.</summary>
+        public bool IsClosed { get; set; }
         public string? CheckType { get; set; }
         public CheckThemeResponse Theme { get; set; } = new();
     }

@@ -97,6 +97,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.ShareCode).HasColumnName("share_code").HasMaxLength(ShareCodeGenerator.MaxLength).IsRequired();
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
             builder.Property(x => x.ClosedAt).HasColumnName("closed_at");
+            builder.Property(x => x.ExpiresAt).HasColumnName("expires_at");
 
             builder.HasIndex(x => new { x.UserId, x.CheckId })
                 .IsUnique()

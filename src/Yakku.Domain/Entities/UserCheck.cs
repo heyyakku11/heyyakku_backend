@@ -15,7 +15,20 @@ namespace Yakku.Domain.Entities
         /// <summary>When the owner closed it so it stops taking answers; null while it is live.</summary>
         public DateTime? ClosedAt { get; private set; }
 
-        public bool IsClosed => ClosedAt is not null;
+        /// <summary>
+        /// When the card stops taking answers on its own. A card made from a fun card gets
+        /// <see cref="FunCardLifetime"/> from the moment it is made; a made weekly check has no expiry (null).
+        /// </summary>
+        public DateTime? ExpiresAt { get; private set; }
+
+        /// <summary>How long a card made from a fun card stays open, and how much a reshare adds.</summary>
+        public static readonly TimeSpan FunCardLifetime = TimeSpan.FromHours(24);
+
+        /// <summary>True when the owner closed it or its time ran out.</summary>
+        public bool IsClosed => IsClosedAt(DateTime.UtcNow);
+
+        public bool IsClosedAt(DateTime utcNow) =>
+            ClosedAt is not null || (ExpiresAt is { } end && end <= utcNow);
 
         public User User { get; private set; } = null!;
         public Check Check { get; private set; } = null!;
@@ -37,7 +50,29 @@ namespace Yakku.Domain.Entities
             return true;
         }
 
-        public static UserCheck Create(Guid userId, Guid checkId, string shareCode)
+        /// <summary>
+        /// Opens a closed card again so it takes answers and can be shared once more. A card that has an expiry gets
+        /// <see cref="FunCardLifetime"/> more: its expiry moves 24 hours later (counted from now when it has already
+        /// passed). A card with no expiry is simply reopened. False when the card is not closed.
+        /// </summary>
+        public bool TryReshare(DateTime utcNow)
+        {
+            if (!IsClosedAt(utcNow))
+            {
+                return false;
+            }
+
+            if (ExpiresAt is { } end)
+            {
+                var from = end > utcNow ? end : utcNow;
+                ExpiresAt = from + FunCardLifetime;
+            }
+
+            ClosedAt = null;
+            return true;
+        }
+
+        public static UserCheck Create(Guid userId, Guid checkId, string shareCode, DateTime? expiresAt = null)
         {
             return new UserCheck
             {
@@ -45,7 +80,8 @@ namespace Yakku.Domain.Entities
                 UserId = userId,
                 CheckId = checkId,
                 ShareCode = shareCode,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = expiresAt
             };
         }
     }

@@ -100,7 +100,9 @@ namespace Yakku.Application.Checks.Services
 
             for (var attempt = 0; attempt < ShareCodeAttempts; attempt++)
             {
-                var userCheck = UserCheck.Create(userId, check.Id, ShareCodeGenerator.New());
+                // A card made from a fun card stays open for 24 hours; a made weekly check has no expiry.
+                var expiresAt = kind == CheckKind.Fun ? DateTime.UtcNow + UserCheck.FunCardLifetime : (DateTime?)null;
+                var userCheck = UserCheck.Create(userId, check.Id, ShareCodeGenerator.New(), expiresAt);
 
                 // The maker's own answer is saved together with the check, so a check is never used without one.
                 var ownerAnswer = BuildVote(userCheck.Id, check, userId, answer);
@@ -171,6 +173,25 @@ namespace Yakku.Application.Checks.Services
             var closed = await _repository.GetUserCheckByIdAsync(userCheckId, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
             return ToUserCheckResponse(closed, userId);
+        }
+
+        public async Task<UserCheckResponse> ReshareMineAsync(
+            Guid userCheckId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var item = await _repository.GetOwnedUserCheckForUpdateAsync(userCheckId, userId, cancellationToken)
+                ?? throw CheckExceptions.NotFound();
+
+            if (!item.TryReshare(DateTime.UtcNow))
+            {
+                throw CheckExceptions.NotClosed();
+            }
+
+            await _repository.SaveChecksAsync(cancellationToken);
+            var reopened = await _repository.GetUserCheckByIdAsync(userCheckId, cancellationToken)
+                ?? throw CheckExceptions.NotFound();
+            return ToUserCheckResponse(reopened, userId);
         }
 
         public async Task DeleteMineAsync(
@@ -297,6 +318,8 @@ namespace Yakku.Application.Checks.Services
                 Question = item.Check.Question,
                 BackgroundColor = item.Check.BackgroundColor,
                 ShareCode = item.ShareCode,
+                ExpiresAt = item.ExpiresAt,
+                IsClosed = item.IsClosed,
                 IsOwner = isOwner,
                 MyVoteOptionId = myVote?.CheckOptionId,
                 MyCustomAnswer = myVote?.CustomAnswer,

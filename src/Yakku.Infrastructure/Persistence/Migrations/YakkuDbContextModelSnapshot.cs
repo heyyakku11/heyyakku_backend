@@ -2192,6 +2192,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
                     b.Property<string>("ShareCode")
                         .IsRequired()
                         .HasMaxLength(64)

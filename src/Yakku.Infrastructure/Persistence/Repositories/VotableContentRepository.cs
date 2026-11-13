@@ -202,12 +202,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             await _context.Database.ExecuteSqlInterpolatedAsync(
                 $"SELECT 1 FROM user_checks WHERE id = {userCheckId} FOR SHARE",
                 cancellationToken);
-            var closedAt = await _context.UserChecks
+            var state = await _context.UserChecks
                 .AsNoTracking()
                 .Where(userCheck => userCheck.Id == userCheckId)
-                .Select(userCheck => userCheck.ClosedAt)
+                .Select(userCheck => new { userCheck.ClosedAt, userCheck.ExpiresAt })
                 .FirstOrDefaultAsync(cancellationToken);
-            if (closedAt is not null)
+            // Closed by the owner, or its time (24 hours for a card made from a fun card) has run out.
+            if (state is not null && (state.ClosedAt is not null || (state.ExpiresAt is not null && state.ExpiresAt <= DateTime.UtcNow)))
             {
                 throw new AppException(400, ApiErrorCodes.ValidationError, "This check is not accepting votes.");
             }
@@ -293,6 +294,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 Question = item.Check.Question,
                 Status = item.IsClosed ? "CLOSED" : item.Check.IsActive ? "ACTIVE" : "INACTIVE",
                 IsOpen = item.Check.IsActive && !item.IsClosed,
+                ExpiresAt = item.ExpiresAt,
                 PubliclyReadable = true,
                 CreatedAt = item.CreatedAt,
                 Options = item.Check.Options

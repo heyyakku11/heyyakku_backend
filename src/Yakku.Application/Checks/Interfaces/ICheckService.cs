@@ -23,6 +23,9 @@ namespace Yakku.Application.Checks.Interfaces
         Task<UserCheckResponse> GetMineByIdAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
 
         /// <summary>Closes the caller's made check so it stops taking answers; 404 when it is not theirs.</summary>
+        /// <summary>Opens one of the caller's closed made cards again; a card with an expiry gets 24 hours more. 404 when it is not theirs, 409 when it is not closed.</summary>
+        Task<UserCheckResponse> ReshareMineAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
+
         Task<UserCheckResponse> CloseMineAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
 
         /// <summary>Deletes the caller's made check with its answers; 404 when it is not theirs.</summary>
