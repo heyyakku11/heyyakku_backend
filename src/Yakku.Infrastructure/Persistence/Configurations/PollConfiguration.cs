@@ -63,6 +63,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.ExpiresAt)
                 .HasColumnName("expires_at");
 
+            builder.Property(x => x.ClosedAt)
+                .HasColumnName("closed_at");
+
             builder.Property(x => x.CreatedAt)
                 .HasColumnName("created_at")
                 .IsRequired()

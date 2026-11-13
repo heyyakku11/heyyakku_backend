@@ -18,7 +18,7 @@ namespace Yakku.Application.Polls.Mapper
                 ContentType = ToEnumString(poll.ContentType),
                 Status = ToEnumString(poll.Status),
                 ExpiresAt = poll.ExpiresAt,
-                ClosedAt = poll.Status == Yakku.Domain.Enums.PollStatus.Closed ? poll.UpdatedAt : null,
+                ClosedAt = poll.ClosedAt,
                 CreatedAt = poll.CreatedAt,
                 MediaReadiness = poll.Media is null ? "none" : "ready",
                 Media = poll.Media is null ? null : ToMediaResponse(poll.Media),
@@ -68,7 +68,7 @@ namespace Yakku.Application.Polls.Mapper
                 CreatedAt = poll.CreatedAt,
                 ExpiresAt = poll.ExpiresAt,
                 // A closed poll is not edited afterwards, so its last update is when it closed.
-                ClosedAt = poll.Status == Yakku.Domain.Enums.PollStatus.Closed ? poll.UpdatedAt : null,
+                ClosedAt = poll.ClosedAt,
                 TotalVoteCount = counts.TotalVotes,
                 MinVotes = counts.MinVotes,
                 VoteProgress = counts.OtherVotes,

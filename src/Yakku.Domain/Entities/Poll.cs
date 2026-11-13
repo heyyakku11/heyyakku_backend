@@ -14,6 +14,9 @@ namespace Yakku.Domain.Entities
         public PollStatus Status { get; private set; }
         public DateTime? ExpiresAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
+
+        /// <summary>When the owner closed it; null while it is open (or if it only ran out of time).</summary>
+        public DateTime? ClosedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
         public User Creator { get; private set; } = null!;
@@ -199,8 +202,10 @@ namespace Yakku.Domain.Entities
                 return false;
             }
 
+            var now = DateTime.UtcNow;
             Status = PollStatus.Closed;
-            UpdatedAt = DateTime.UtcNow;
+            ClosedAt = now;
+            UpdatedAt = now;
             return true;
         }
 
@@ -232,6 +237,7 @@ namespace Yakku.Domain.Entities
             var from = ExpiresAt is { } current && current > utcNow ? current : utcNow;
             ExpiresAt = from + ReshareExtension;
             Status = PollStatus.Active;
+            ClosedAt = null;
             UpdatedAt = utcNow;
             return true;
         }
