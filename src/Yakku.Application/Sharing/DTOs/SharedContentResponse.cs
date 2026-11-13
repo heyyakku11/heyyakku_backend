@@ -114,3 +114,47 @@ namespace Yakku.Application.Sharing.DTOs
         public string? Reason { get; set; }
     }
 }
+
+namespace Yakku.Application.Sharing.DTOs
+{
+    /// <summary>
+    /// What a shared result link shows once a card has ended: the question and how the circle answered, as
+    /// percentages. No counts, names or reasons, so it is safe to open without signing in.
+    /// </summary>
+    public class SharedResultResponse
+    {
+        /// <summary>POLL or CHECK.</summary>
+        public string ContentType { get; set; } = string.Empty;
+
+        public string ShareCode { get; set; } = string.Empty;
+        public string Question { get; set; } = string.Empty;
+
+        /// <summary>The check's type name (Mirror Check, ...); null for a poll.</summary>
+        public string? Title { get; set; }
+
+        public string? BackgroundColor { get; set; }
+
+        /// <summary>True when the card has ended and enough people voted. Otherwise no options are sent.</summary>
+        public bool ResultsAvailable { get; set; }
+
+        /// <summary>True while the card still takes votes (the result is not final yet).</summary>
+        public bool IsLive { get; set; }
+
+        public DateTime? ExpiresAt { get; set; }
+        public int MinVotesToReveal { get; set; }
+        public List<SharedResultOptionResponse> Options { get; set; } = [];
+
+        /// <summary>Share of people who wrote their own answer, 0 to 100; null when results are not available.</summary>
+        public decimal? CustomAnswerPercentage { get; set; }
+    }
+
+    public class SharedResultOptionResponse
+    {
+        public string Text { get; set; } = string.Empty;
+        public int DisplayOrder { get; set; }
+        public decimal Percentage { get; set; }
+
+        /// <summary>True for the option with the most votes.</summary>
+        public bool IsLeading { get; set; }
+    }
+}

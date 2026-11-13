@@ -13,6 +13,13 @@ namespace Yakku.Application.Sharing.Interfaces
             string shareCode,
             VoterIdentity? viewer,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// The shareable result of a card: percentages only, and only once the card has ended with enough votes.
+        /// Works for anyone, including a closed or expired poll that its share link can no longer vote on.
+        /// Throws 404 for an unknown code or a draft.
+        /// </summary>
+        Task<SharedResultResponse> GetResultAsync(string shareCode, CancellationToken cancellationToken = default);
     }
 
     public interface IVotingService

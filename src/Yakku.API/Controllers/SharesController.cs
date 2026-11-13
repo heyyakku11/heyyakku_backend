@@ -24,6 +24,17 @@ namespace Yakku.API.Controllers
             _callerResolver = callerResolver;
         }
 
+        [HttpGet("{shareCode}/result")]
+        [EndpointSummary("Get Shared Result")]
+        [EndpointDescription("The shareable result of a card, for the result link. Percentages only (no counts, names or reasons). Options are sent only once the card has ended with enough votes (resultsAvailable); while it is live, isLive is true and the link should send people to vote instead. Works for closed and expired cards. Anonymous.")]
+        [ProducesResponseType(typeof(ApiResponse<SharedResultResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetResult(string shareCode, CancellationToken cancellationToken)
+        {
+            var result = await _sharedContent.GetResultAsync(shareCode, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Result retrieved successfully"));
+        }
+
         [HttpGet("{shareCode}")]
         [EndpointSummary("Get Shared Content")]
         [EndpointDescription("Resolves a share code to a poll or a check (contentType POLL or CHECK). Returns the question, options, the caller's voting state and the permitted statistics. Anonymous callers are allowed; send a Bearer JWT or an X-Guest-Token to get hasVoted/myVote. Counts and percentages are included only when resultsVisible is true.")]

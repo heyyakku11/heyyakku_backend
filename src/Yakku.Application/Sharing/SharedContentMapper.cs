@@ -88,6 +88,43 @@ namespace Yakku.Application.Sharing
             return response;
         }
 
+        /// <summary>The percentages-only result of an ended card; options are left out while it is live or locked.</summary>
+        public static SharedResultResponse ToResult(VotableContent content, PollVoteCountSnapshot tally, DateTime utcNow)
+        {
+            var ended = content.ClosedReason(utcNow) is not null;
+            var available = ended && tally.ResultsUnlocked;
+            var response = new SharedResultResponse
+            {
+                ContentType = content.IsPoll ? ContentTypes.Poll : ContentTypes.Check,
+                ShareCode = content.ShareCode,
+                Question = content.Question,
+                Title = content.Check?.Title,
+                BackgroundColor = content.Check?.BackgroundColor,
+                IsLive = !ended,
+                ExpiresAt = content.ExpiresAt,
+                MinVotesToReveal = tally.MinVotes,
+                ResultsAvailable = available
+            };
+            if (!available)
+            {
+                return response;
+            }
+
+            var top = content.Options.Select(option => tally.CountFor(option.Id)).DefaultIfEmpty(0).Max();
+            response.CustomAnswerPercentage = Percentage(tally.CustomAnswerCount, tally.TotalVotes);
+            response.Options = content.Options
+                .OrderBy(option => option.DisplayOrder)
+                .Select(option => new SharedResultOptionResponse
+                {
+                    Text = option.Text,
+                    DisplayOrder = option.DisplayOrder,
+                    Percentage = Percentage(tally.CountFor(option.Id), tally.TotalVotes),
+                    IsLeading = top > 0 && tally.CountFor(option.Id) == top
+                })
+                .ToList();
+            return response;
+        }
+
         /// <summary>Share of <paramref name="total"/> in percent, rounded to two decimals; 0 when nobody voted.</summary>
         public static decimal Percentage(int count, int total)
         {

@@ -201,5 +201,10 @@ public class VoteEndpointTests
             LastViewer = viewer;
             return Task.FromResult(new SharedContentResponse { ShareCode = shareCode });
         }
+
+        public Task<SharedResultResponse> GetResultAsync(string shareCode, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new SharedResultResponse { ShareCode = shareCode });
+        }
     }
 }

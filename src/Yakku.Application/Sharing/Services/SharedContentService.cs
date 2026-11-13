@@ -41,6 +41,26 @@ namespace Yakku.Application.Sharing.Services
             return await BuildAsync(content, viewer, _contents, _storage, _policy, cancellationToken);
         }
 
+        public async Task<SharedResultResponse> GetResultAsync(
+            string shareCode,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(shareCode) || shareCode.Trim().Length > MaxShareCodeLength)
+            {
+                throw NotFound();
+            }
+
+            var content = await _contents.FindByShareCodeAsync(shareCode.Trim(), cancellationToken)
+                ?? throw NotFound();
+            if (string.Equals(content.Status, "DRAFT", StringComparison.OrdinalIgnoreCase))
+            {
+                throw NotFound();
+            }
+
+            var tally = await _contents.GetTallyAsync(content, cancellationToken);
+            return SharedContentMapper.ToResult(content, tally, DateTime.UtcNow);
+        }
+
         /// <summary>Shared with <see cref="VotingService"/>: the content as one caller sees it right now.</summary>
         internal static async Task<SharedContentResponse> BuildAsync(
             VotableContent content,
