@@ -8,7 +8,7 @@ namespace Yakku.Application.PushNotifications
     {
         /// <summary>
         /// A push payload carries no private content: a generic text and the ids needed to open the notification
-        /// and the card it is about (<c>contentType</c> poll|check and <c>contentId</c>, which are opaque ids; the
+        /// and the card it is about (<c>contentType</c> poll|check|personality and <c>contentId</c>, which are opaque ids; the
         /// card itself is only readable by its owner over the authenticated API). Tapping the push opens that card's
         /// results screen.
         /// The app fetches the real content over the authenticated API (GET /notifications/{id}), which checks the
@@ -105,7 +105,7 @@ namespace Yakku.Application.PushNotifications
 
                 var type = typeElement.GetString()?.ToLowerInvariant();
                 var id = idElement.GetString();
-                if ((type != "poll" && type != "check") || !Guid.TryParse(id, out var parsed))
+                if ((type != "poll" && type != "check" && type != "personality") || !Guid.TryParse(id, out var parsed))
                 {
                     return false;
                 }

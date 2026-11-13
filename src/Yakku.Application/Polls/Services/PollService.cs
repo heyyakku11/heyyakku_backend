@@ -2,6 +2,7 @@ using FluentValidation;
 using Yakku.Application.Audit;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.Streaks;
 using Yakku.Application.Streaks.Interfaces;
 using Yakku.Application.Polls.DTOs;
@@ -26,6 +27,7 @@ namespace Yakku.Application.Polls.Services
         private readonly IValidator<UpdatePollRequest> _updateValidator;
         private readonly IAuditLogWriter _audit;
         private readonly IStreakService _streaks;
+        private readonly ICardLifecycleNotifications _lifecycle;
 
         public PollService(
             IPollRepository pollRepository,
@@ -35,9 +37,11 @@ namespace Yakku.Application.Polls.Services
             IValidator<CreatePollRequest> createValidator,
             IValidator<UpdatePollRequest> updateValidator,
             IAuditLogWriter audit,
-            IStreakService streaks)
+            IStreakService streaks,
+            ICardLifecycleNotifications? lifecycle = null)
         {
             _streaks = streaks;
+            _lifecycle = lifecycle ?? NullCardLifecycleNotifications.Instance;
             _pollRepository = pollRepository;
             _sessions = sessions;
             _storage = storage;
@@ -393,6 +397,7 @@ namespace Yakku.Application.Polls.Services
             }
 
             await _pollRepository.SaveChangesAsync(cancellationToken);
+            await _lifecycle.NotifyPollClosedAsync(poll.Id, cancellationToken);
             return await ToResponseAsync(poll, creatorId, cancellationToken);
         }
 

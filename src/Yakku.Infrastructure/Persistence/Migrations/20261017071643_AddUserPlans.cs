@@ -43,7 +43,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             migrationBuilder.Sql("""
                 INSERT INTO plans (id, code, name, sort_order, price_minor, currency) VALUES
                     ('a1f3c0de-0000-4000-8000-000000000001', 'free', 'Free', 1, 0, 'INR'),
-                    ('a1f3c0de-0000-4000-8000-000000000002', 'premium', 'Premium', 2, 4900, 'INR'),
+                    ('a1f3c0de-0000-4000-8000-000000000002', 'yakku_lite', 'Yakku Lite', 2, 4900, 'INR'),
                     ('a1f3c0de-0000-4000-8000-000000000003', 'yakku_love', 'Yakku Love', 3, 12900, 'INR');
                 """);
 

@@ -1,6 +1,7 @@
 using FluentValidation;
 using Yakku.Application.Personality.DTOs;
 using Yakku.Application.Personality.Interfaces;
+using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -14,11 +15,16 @@ namespace Yakku.Application.Personality.Services
     {
         private readonly IPersonalityRepository _repository;
         private readonly IValidator<SubmitTraitsRequest> _validator;
+        private readonly ICardLifecycleNotifications _lifecycle;
 
-        public PersonalityService(IPersonalityRepository repository, IValidator<SubmitTraitsRequest> validator)
+        public PersonalityService(
+            IPersonalityRepository repository,
+            IValidator<SubmitTraitsRequest> validator,
+            ICardLifecycleNotifications? lifecycle = null)
         {
             _repository = repository;
             _validator = validator;
+            _lifecycle = lifecycle ?? NullCardLifecycleNotifications.Instance;
         }
 
         public async Task<List<PersonalityTraitResponse>> GetTraitsAsync(CancellationToken cancellationToken = default)
@@ -123,6 +129,7 @@ namespace Yakku.Application.Personality.Services
             await EnsureAllActiveAsync(request.TraitIds, cancellationToken);
 
             PersonalityVoteResponse? response = null;
+            var completed = false;
             await _repository.ExecuteInTransactionAsync(async token =>
             {
                 // The row lock serialises every vote on this card, so the status check, the duplicate check and the
@@ -148,6 +155,12 @@ namespace Yakku.Application.Personality.Services
 
                 card.RegisterVote();
                 _repository.AddVote(new PersonalityVote(card.Id, voter.Id, !voter.IsUser, request.TraitIds));
+                if (card.Status == PersonalityCardStatus.Completed)
+                {
+                    _lifecycle.StagePersonalityReady(card.UserId, card.Id, card.TotalVotes, card.ShareCode);
+                    completed = true;
+                }
+
                 await _repository.SaveChangesAsync(token);
 
                 response = new PersonalityVoteResponse
@@ -160,6 +173,11 @@ namespace Yakku.Application.Personality.Services
                     CompletedAt = card.CompletedAt
                 };
             }, cancellationToken);
+
+            if (completed)
+            {
+                _lifecycle.Wake();
+            }
 
             return response!;
         }

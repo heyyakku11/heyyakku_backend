@@ -6,6 +6,7 @@ using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.Streaks;
 using Yakku.Application.Streaks.Interfaces;
 using Yakku.Application.Votes;
@@ -21,15 +22,18 @@ namespace Yakku.Application.Checks.Services
         private readonly ICheckRepository _repository;
         private readonly IValidator<CastCheckVoteRequest> _voteValidator;
         private readonly IStreakService _streaks;
+        private readonly ICardLifecycleNotifications _lifecycle;
 
         public CheckService(
             ICheckRepository repository,
             IValidator<CastCheckVoteRequest> voteValidator,
-            IStreakService streaks)
+            IStreakService streaks,
+            ICardLifecycleNotifications? lifecycle = null)
         {
             _repository = repository;
             _voteValidator = voteValidator;
             _streaks = streaks;
+            _lifecycle = lifecycle ?? NullCardLifecycleNotifications.Instance;
         }
 
         public async Task<List<CheckResponse>> GetChecksAsync(Guid? userId, CancellationToken cancellationToken = default)
@@ -170,6 +174,7 @@ namespace Yakku.Application.Checks.Services
             }
 
             await _repository.SaveChecksAsync(cancellationToken);
+            await _lifecycle.NotifyCheckClosedAsync(userCheckId, cancellationToken);
             var closed = await _repository.GetUserCheckByIdAsync(userCheckId, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
             return ToUserCheckResponse(closed, userId);

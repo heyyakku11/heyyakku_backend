@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Yakku.Application.Common;
 using Yakku.Application.PushNotifications;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.Sharing;
@@ -65,12 +66,18 @@ namespace Yakku.Infrastructure.Push
             var sequence = counts[0];
 
             var noun = content.IsPoll ? "poll" : "check";
+            var copy = CardActivityCopy.ForVote(
+                content.Question,
+                sequence,
+                OperationalSettings.Results.MinVotesToReveal,
+                content.ExpiresAt,
+                receipt.CreatedAt);
             var notification = new Notification(
                 content.OwnerId,
                 NotificationType.Normal,
                 NotificationEventType.PollAnswered,
-                "New answer",
-                $"Someone answered your {noun}.",
+                copy.Title,
+                copy.Body,
                 data: JsonSerializer.Serialize(new
                 {
                     contentId = content.ContentId,

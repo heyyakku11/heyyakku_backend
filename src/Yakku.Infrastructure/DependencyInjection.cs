@@ -124,8 +124,10 @@ namespace Yakku.Infrastructure
 
             services.AddSingleton<VoteNotificationSignal>();
             services.AddScoped<IVoteNotificationOutbox, VoteNotificationOutbox>();
+            services.AddScoped<ICardLifecycleNotifications, CardLifecycleNotifications>();
             services.AddScoped<VoteNotificationDispatcher>();
             services.AddHostedService<VoteNotificationWorker>();
+            services.AddHostedService<CardCloseNotificationWorker>();
             services.AddHostedService<VoteNotificationRetentionWorker>();
             services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackRepository, AskBackRepository>();
             services.AddScoped<AskBackPushDispatcher>();

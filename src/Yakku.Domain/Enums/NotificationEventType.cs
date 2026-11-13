@@ -10,6 +10,7 @@ namespace Yakku.Domain.Enums
         AccountSecurity = 5,
         SpecialOffer = 6,
         SystemUpdate = 7,
-        ContentFlagged = 8
+        ContentFlagged = 8,
+        PersonalityReady = 9
     }
 }
