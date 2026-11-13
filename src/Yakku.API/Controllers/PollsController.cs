@@ -137,7 +137,7 @@ namespace Yakku.API.Controllers
 
         [HttpPost("{id:guid}/reshare")]
         [EndpointSummary("Reshare Closed Poll")]
-        [EndpointDescription("Opens a closed poll the signed-in user owns again: its expiry moves 24 hours later (from now when it has already passed or there was none), it takes votes again, and the same share link works. Only the owner can do this, and only for a closed poll. Returns 404 when the poll does not exist or is not yours, and 409 when it is not closed.")]
+        [EndpointDescription("Opens a closed poll the signed-in user owns again. Its status goes back to active, closedAt is cleared, and the expiry becomes the close time plus 24 hours (counted from now when the poll only ran out of time). The same share link works. Only the owner can do this, and only for a closed poll. Returns 404 when the poll does not exist or is not yours, and 409 when it is not closed.")]
         [ProducesResponseType(typeof(ApiResponse<PollResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

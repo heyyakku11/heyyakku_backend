@@ -42,17 +42,18 @@ public class UserCheckExpiryTests
     }
 
     [Fact]
-    public void ResharingAClosedFunCard_ReopensItAndAdds24Hours()
+    public void ResharingAClosedFunCard_ClearsTheClose_AndExpires24HoursAfterItClosed()
     {
-        var expiry = Now.AddHours(10);
-        var card = FunCard(expiry);
-        card.TryClose();
+        var card = FunCard(Now.AddHours(10));
+        Assert.True(card.TryClose());
+        var closedAt = card.ClosedAt!.Value;
 
         Assert.True(card.TryReshare(Now));
 
         Assert.Null(card.ClosedAt);
-        Assert.Equal(expiry.AddHours(24), card.ExpiresAt);
-        Assert.False(card.IsClosedAt(Now));
+        Assert.Equal(closedAt.AddHours(24), card.ExpiresAt);
+        Assert.False(card.IsClosedAt(closedAt));
+        Assert.True(card.IsClosedAt(closedAt.AddHours(24)));
     }
 
     [Fact]

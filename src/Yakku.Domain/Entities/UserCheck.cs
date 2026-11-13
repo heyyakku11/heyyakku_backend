@@ -17,11 +17,12 @@ namespace Yakku.Domain.Entities
 
         /// <summary>
         /// When the card stops taking answers on its own. A card made from a fun card gets
-        /// <see cref="FunCardLifetime"/> from the moment it is made; a made weekly check has no expiry (null).
+        /// <see cref="FunCardLifetime"/> from the moment it is made, and from its close time when it is reshared.
+        /// A made weekly check has no expiry (null).
         /// </summary>
         public DateTime? ExpiresAt { get; private set; }
 
-        /// <summary>How long a card made from a fun card stays open, and how much a reshare adds.</summary>
+        /// <summary>How long a fun card stays open after it is made, and after its close time when it is reshared.</summary>
         public static readonly TimeSpan FunCardLifetime = TimeSpan.FromHours(24);
 
         /// <summary>True when the owner closed it or its time ran out.</summary>
@@ -52,8 +53,9 @@ namespace Yakku.Domain.Entities
 
         /// <summary>
         /// Opens a closed card again so it takes answers and can be shared once more. A card that has an expiry gets
-        /// <see cref="FunCardLifetime"/> more: its expiry moves 24 hours later (counted from now when it has already
-        /// passed). A card with no expiry is simply reopened. False when the card is not closed.
+        /// a new one: <see cref="ClosedAt"/> plus <see cref="FunCardLifetime"/> (counted from now when it only ran out
+        /// of time and has no close time). A card with no expiry is simply reopened. <see cref="ClosedAt"/> is cleared.
+        /// False when the card is not closed.
         /// </summary>
         public bool TryReshare(DateTime utcNow)
         {
@@ -62,10 +64,10 @@ namespace Yakku.Domain.Entities
                 return false;
             }
 
-            if (ExpiresAt is { } end)
+            if (ExpiresAt is not null)
             {
-                var from = end > utcNow ? end : utcNow;
-                ExpiresAt = from + FunCardLifetime;
+                var closedAt = ClosedAt ?? utcNow;
+                ExpiresAt = closedAt + FunCardLifetime;
             }
 
             ClosedAt = null;

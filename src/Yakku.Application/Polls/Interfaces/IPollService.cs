@@ -25,7 +25,7 @@ namespace Yakku.Application.Polls.Interfaces
             Guid creatorId,
             CancellationToken cancellationToken = default);
 
-        /// <summary>Opens one of the owner's closed polls again for another 24 hours so it can be shared once more. 404 when it is not theirs, 409 when it is not closed.</summary>
+        /// <summary>Opens one of the owner's closed polls again. Status returns to active, closedAt is cleared, and the expiry becomes the close time plus 24 hours. 404 when it is not theirs, 409 when it is not closed.</summary>
         Task<PollResponse> ResharePollAsync(
             Guid pollId,
             Guid creatorId,

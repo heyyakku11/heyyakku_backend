@@ -218,13 +218,13 @@ public class PollModuleServiceTests
     {
         var harness = new PollHarness();
         var created = await harness.Polls.CreateAsync(QuestionRequest(), harness.UserId);
-        await harness.Polls.ClosePollAsync(created.Id, harness.UserId);
+        var closed = await harness.Polls.ClosePollAsync(created.Id, harness.UserId);
 
-        var before = DateTime.UtcNow;
         var reshared = await harness.Polls.ResharePollAsync(created.Id, harness.UserId);
 
         Assert.Equal("active", reshared.Status);
-        Assert.InRange(reshared.ExpiresAt!.Value, before.AddHours(24), DateTime.UtcNow.AddHours(24));
+        Assert.Null(reshared.ClosedAt);
+        Assert.Equal(closed.ClosedAt!.Value.AddHours(24), reshared.ExpiresAt);
         Assert.Equal(created.ShareCode, reshared.ShareCode);
         Assert.Contains(harness.Audit.Polls, e => e.EventType == AuditEvents.Poll.Reshared && e.ActorUserId == harness.UserId);
     }

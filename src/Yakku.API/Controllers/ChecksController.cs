@@ -70,7 +70,7 @@ namespace Yakku.API.Controllers
         /// <summary>Opens one of the caller's closed made cards again.</summary>
         [HttpPost("mine/{id:guid}/reshare")]
         [EndpointSummary("Reshare My Card")]
-        [EndpointDescription("Opens a closed made card the signed-in user owns again so it takes answers and can be shared once more. A card made from a fun card gets 24 more hours (counted from now when its time already ran out); a made weekly check has no expiry and is simply reopened. Returns 404 when it does not exist or is not yours, and 409 when it is not closed.")]
+        [EndpointDescription("Opens a closed made card the signed-in user owns again so it takes answers and can be shared once more. closedAt is cleared. A card made from a fun card gets a new expiry of its close time plus 24 hours (counted from now when its time already ran out); a made weekly check has no expiry and is simply reopened. Returns 404 when it does not exist or is not yours, and 409 when it is not closed.")]
         [ProducesResponseType(typeof(ApiResponse<UserCheckResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

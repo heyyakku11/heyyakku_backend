@@ -223,9 +223,10 @@ namespace Yakku.Domain.Entities
         }
 
         /// <summary>
-        /// Opens a closed poll again for another <see cref="ReshareExtension"/>: its expiry moves 24 hours later
-        /// (counted from now when it has already passed or there was none) and it is active again. The share code
-        /// stays the same, so the same link works. False when the poll is not closed.
+        /// Opens a closed poll again. The new expiry is the moment it was closed plus <see cref="ReshareExtension"/>.
+        /// A poll that only ran out of time has no <see cref="ClosedAt"/>, so that 24 hours is counted from now.
+        /// Status goes back to active, <see cref="ClosedAt"/> is cleared, and the share code stays the same.
+        /// False when the poll is not closed.
         /// </summary>
         public bool TryReshare(DateTime utcNow)
         {
@@ -234,8 +235,8 @@ namespace Yakku.Domain.Entities
                 return false;
             }
 
-            var from = ExpiresAt is { } current && current > utcNow ? current : utcNow;
-            ExpiresAt = from + ReshareExtension;
+            var closedAt = ClosedAt ?? utcNow;
+            ExpiresAt = closedAt + ReshareExtension;
             Status = PollStatus.Active;
             ClosedAt = null;
             UpdatedAt = utcNow;

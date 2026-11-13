@@ -18,27 +18,32 @@ public class PollReshareTests
     }
 
     [Fact]
-    public void ClosedByTheOwner_ReopensWithItsExpiryMovedBy24Hours()
+    public void ClosedByTheOwner_ReopensLive_WithExpiryAtTheCloseTimePlus24Hours()
     {
         var poll = ActivePoll(Now.AddDays(3));
-        poll.TryClose();
+        Assert.True(poll.TryClose());
+        var closedAt = poll.ClosedAt!.Value;
 
         Assert.True(poll.TryReshare(Now));
 
         Assert.Equal(PollStatus.Active, poll.Status);
-        Assert.Equal(Now.AddDays(3).AddHours(24), poll.ExpiresAt);
-        Assert.True(poll.IsAcceptingVotes(Now));
+        Assert.Null(poll.ClosedAt);
+        Assert.Equal(closedAt.AddHours(24), poll.ExpiresAt);
+        Assert.True(poll.IsAcceptingVotes(closedAt));
     }
 
     [Fact]
-    public void ClosedPollWithoutAnExpiry_GetsExactly24HoursFromNow()
+    public void ClosedPollWithoutAnExpiry_GetsExactly24HoursFromWhenItWasClosed()
     {
         var poll = ActivePoll(null);
-        poll.TryClose();
+        Assert.True(poll.TryClose());
+        var closedAt = poll.ClosedAt!.Value;
 
         Assert.True(poll.TryReshare(Now));
 
-        Assert.Equal(Now.AddHours(24), poll.ExpiresAt);
+        Assert.Equal(PollStatus.Active, poll.Status);
+        Assert.Null(poll.ClosedAt);
+        Assert.Equal(closedAt.AddHours(24), poll.ExpiresAt);
     }
 
     [Fact]
@@ -91,16 +96,22 @@ public class PollReshareTests
     }
 
     [Fact]
-    public void ResharingTwice_AddsAnother24Hours_OnlyAfterItIsClosedAgain()
+    public void ResharingTwice_UsesEachCloseTimePlus24Hours_OnlyAfterItIsClosedAgain()
     {
         var poll = ActivePoll(null);
-        poll.TryClose();
-        poll.TryReshare(Now);
+        Assert.True(poll.TryClose());
+        var firstClose = poll.ClosedAt!.Value;
+        Assert.True(poll.TryReshare(Now));
+        Assert.Equal(firstClose.AddHours(24), poll.ExpiresAt);
+        Assert.Null(poll.ClosedAt);
 
         Assert.False(poll.TryReshare(Now.AddHours(1)));
 
-        poll.TryClose();
+        Assert.True(poll.TryClose());
+        var secondClose = poll.ClosedAt!.Value;
         Assert.True(poll.TryReshare(Now.AddHours(2)));
-        Assert.Equal(Now.AddHours(24).AddHours(24), poll.ExpiresAt);
+        Assert.Equal(PollStatus.Active, poll.Status);
+        Assert.Null(poll.ClosedAt);
+        Assert.Equal(secondClose.AddHours(24), poll.ExpiresAt);
     }
 }
