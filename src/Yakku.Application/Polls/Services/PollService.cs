@@ -465,6 +465,7 @@ namespace Yakku.Application.Polls.Services
                 }
 
                 keys.AddRange(await _sessions.DetachForDeletedDraftAsync(poll.Id, transactionToken));
+                await _pollRepository.DeleteDependentsAsync(poll.Id, transactionToken);
                 _pollRepository.Delete(poll);
                 await _pollRepository.SaveChangesAsync(transactionToken);
             }, cancellationToken);

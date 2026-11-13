@@ -9,6 +9,12 @@ namespace Yakku.Application.Polls.Interfaces
 
         void Delete(PollEntity poll);
 
+        /// <summary>
+        /// Removes the rows that must not outlive the poll: votes (they restrict option deletion),
+        /// the share-code registry row, and saves. Options and media go with the poll itself.
+        /// </summary>
+        Task DeleteDependentsAsync(Guid pollId, CancellationToken cancellationToken = default);
+
         Task<PollEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
         Task<PollEntity?> GetByIdAndCreatorAsync(

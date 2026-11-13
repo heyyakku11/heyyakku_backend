@@ -37,6 +37,23 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             _context.Polls.Remove(poll);
         }
 
+        public async Task DeleteDependentsAsync(Guid pollId, CancellationToken cancellationToken = default)
+        {
+            // Votes reference options with ON DELETE RESTRICT, and that check is not deferred for a
+            // statement that deletes the options on their own. They go first. Share codes and saves
+            // use an optional foreign key plus a check that the target stays set, so they are deleted
+            // rather than left for the database to null.
+            await _context.PollVotes
+                .Where(vote => vote.PollId == pollId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await _context.ShareCodes
+                .Where(code => code.PollId == pollId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await _context.SavedCards
+                .Where(card => card.PollId == pollId)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
         public async Task<Poll?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Polls

@@ -177,6 +177,38 @@ public sealed class PollSchemaIntegrationTests
     }
 
     [SkippableFact]
+    public async Task Delete_RemovesAPollThatHasVotesAShareCodeAndASave()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var owner = await AddUserAsync(context);
+        var voter = await AddUserAsync(context);
+        var poll = await AddPollAsync(context, owner.Id);
+        var optionId = poll.Options.First().Id;
+        context.ShareCodes.Add(ShareCode.ForPoll(poll));
+        context.PollVotes.Add(PollVote.ForOption(voter.Id, poll.Id, optionId, "Because"));
+        context.SavedCards.Add(SavedCard.ForPoll(voter.Id, poll.Id));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var repository = new PollRepository(context);
+        await repository.ExecuteInTransactionAsync(async token =>
+        {
+            var loaded = await repository.GetByIdAndCreatorAsync(poll.Id, owner.Id, token);
+            Assert.NotNull(loaded);
+            await repository.DeleteDependentsAsync(loaded.Id, token);
+            repository.Delete(loaded);
+            await repository.SaveChangesAsync(token);
+        });
+
+        Assert.False(await context.Polls.AnyAsync(item => item.Id == poll.Id));
+        Assert.False(await context.PollVotes.AnyAsync(item => item.PollId == poll.Id));
+        Assert.False(await context.PollOptions.AnyAsync(item => item.PollId == poll.Id));
+        Assert.False(await context.ShareCodes.AnyAsync(item => item.PollId == poll.Id));
+        Assert.False(await context.SavedCards.AnyAsync(item => item.PollId == poll.Id));
+    }
+
+    [SkippableFact]
     public async Task Cleanup_DoesNotDeleteObjectReferencedByPollMedia()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);

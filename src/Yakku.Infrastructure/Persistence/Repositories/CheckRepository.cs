@@ -177,8 +177,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public async Task DeleteUserCheckAsync(UserCheck userCheck, CancellationToken cancellationToken = default)
         {
-            _context.UserChecks.Remove(userCheck);
-            await _context.SaveChangesAsync(cancellationToken);
+            // ExecuteDelete lets the database cascade the answers and the share-code row. Removing the
+            // tracked check instead can null that optional foreign key, which the share-code check forbids.
+            var id = userCheck.Id;
+            _context.Entry(userCheck).State = EntityState.Detached;
+            await _context.UserChecks
+                .Where(item => item.Id == id)
+                .ExecuteDeleteAsync(cancellationToken);
         }
 
         public Task<UserCheck?> GetUserCheckByIdAsync(Guid userCheckId, CancellationToken cancellationToken = default)
