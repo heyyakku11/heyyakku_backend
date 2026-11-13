@@ -33,6 +33,9 @@ namespace Yakku.Application.Checks.Interfaces
         /// <summary>One fun card type with all its cards (active or not). 404 when the type does not exist.</summary>
         Task<AdminFunCardGroupResponse> GetByTypeAsync(Guid funCardTypeId, CancellationToken cancellationToken = default);
 
+        /// <summary>Deletes a fun card, even one users have already made (their copies go with it). 404 when it does not exist.</summary>
+        Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
         Task<AdminFunCardCreatedResponse> CreateAsync(SaveFunCardRequest request, CancellationToken cancellationToken = default);
 
     }

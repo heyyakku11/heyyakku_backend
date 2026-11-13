@@ -102,6 +102,22 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return Task.CompletedTask;
         }
 
+        public async Task DeleteWithUsageAsync(Check check, CancellationToken cancellationToken = default)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+            // Made copies reference the check and its options with restrict rules, so they go first. Their votes and
+            // share codes are removed with them by the database.
+            await _context.UserChecks
+                .Where(item => item.CheckId == check.Id)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            // Options and saved-by-users rows cascade from the check.
+            _context.Checks.Remove(check);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+
         public async Task SaveChecksAsync(CancellationToken cancellationToken = default)
         {
             await _context.SaveChangesAsync(cancellationToken);

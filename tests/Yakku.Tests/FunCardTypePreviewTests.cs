@@ -72,6 +72,26 @@ public class FunCardTypePreviewTests
     }
 
     [Fact]
+    public async Task AdminDelete_RemovesAnyFunCard_EvenOneUsersHaveMade_AndRefusesOtherKinds()
+    {
+        var h = new Harness(fun: 3, emotional: 0);
+        var made = h.Cards[0];
+        h.MarkMade([made]);
+        var weekly = Check.Create(Yakku.Application.Checks.CheckWeek.Current(), "Weekly", "Q?", "#FFFFFF", ["A", "B"]);
+        h.Cards.Add(weekly);
+
+        await h.Admin.DeleteAsync(made.Id);
+
+        Assert.DoesNotContain(h.Cards, c => c.Id == made.Id);
+        // A weekly check id, or an unknown id, is not a fun card.
+        var notFun = await Assert.ThrowsAsync<Yakku.Application.Common.Exceptions.AppException>(() => h.Admin.DeleteAsync(weekly.Id));
+        var missing = await Assert.ThrowsAsync<Yakku.Application.Common.Exceptions.AppException>(() => h.Admin.DeleteAsync(Guid.NewGuid()));
+        Assert.Equal(404, notFun.StatusCode);
+        Assert.Equal(404, missing.StatusCode);
+        Assert.Contains(h.Cards, c => c.Id == weekly.Id);
+    }
+
+    [Fact]
     public async Task SeeAll_ReturnsEveryCardOfThatTypeOnly()
     {
         var h = new Harness(fun: 6, emotional: 2);
@@ -200,7 +220,14 @@ public class FunCardTypePreviewTests
         public Task<bool> TryAddUserCheckAsync(UserCheck userCheck, UserCheckVote vote, Func<CancellationToken, Task>? afterAdded = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddVoteAsync(UserCheckVote vote, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<Check>> GetAllAsync(DateOnly? weekStart, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<Check?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Check?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(cards.FirstOrDefault(c => c.Id == id));
+
+        public Task DeleteWithUsageAsync(Check check, CancellationToken cancellationToken = default)
+        {
+            cards.Remove(check);
+            return Task.CompletedTask;
+        }
         public Task<bool> HasUserChecksAsync(Guid checkId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddCheckAsync(Check check, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RemoveCheckAsync(Check check, CancellationToken cancellationToken = default) => throw new NotSupportedException();

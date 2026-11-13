@@ -251,6 +251,17 @@ namespace Yakku.Application.Checks.Services
             };
         }
 
+        public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var card = await _repository.GetForUpdateAsync(id, cancellationToken);
+            if (card is null || card.Kind != CheckKind.Fun)
+            {
+                throw CheckExceptions.NotFound();
+            }
+
+            await _repository.DeleteWithUsageAsync(card, cancellationToken);
+        }
+
         private static CheckThemeDefinitionResponse ToThemeResponse(CardTheme theme) => new()
         {
             Id = theme.Id,

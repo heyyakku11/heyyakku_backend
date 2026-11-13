@@ -67,6 +67,12 @@ namespace Yakku.Application.Checks.Interfaces
 
         Task RemoveCheckAsync(Check check, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Deletes the check even when users have already made it: their made copies (with the answers, votes and share
+        /// links under them) go first, then the check with its options, all in one transaction.
+        /// </summary>
+        Task DeleteWithUsageAsync(Check check, CancellationToken cancellationToken = default);
+
         /// <summary>Saves tracked admin changes; saves the changes.</summary>
         Task SaveChecksAsync(CancellationToken cancellationToken = default);
     }

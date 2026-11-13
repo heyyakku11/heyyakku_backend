@@ -110,7 +110,7 @@ public class CheckIntegrationTests
     }
 
     [SkippableFact]
-    public async Task Admin_CannotEditContentOrDeleteAUsedCheck_ButCanDeactivateIt()
+    public async Task Admin_CannotEditContentOfAUsedCheck_ButCanDeactivateIt()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
@@ -122,15 +122,35 @@ public class CheckIntegrationTests
 
         var edit = CheckWeekTests.NewRequest(week, "renamed");
         var edited = await Assert.ThrowsAsync<AppException>(() => admin.UpdateAsync(created.Id, edit));
-        var deleted = await Assert.ThrowsAsync<AppException>(() => admin.DeleteAsync(created.Id));
         Assert.Equal(409, edited.StatusCode);
-        Assert.Equal(409, deleted.StatusCode);
 
         var deactivate = CheckWeekTests.NewRequest(week, "used-check");
         deactivate.IsActive = false;
         var result = await admin.UpdateAsync(created.Id, deactivate);
         Assert.False(result.IsActive);
         Assert.DoesNotContain(await service.GetChecksAsync(user.Id), c => c.Id == created.Id);
+    }
+
+    [SkippableFact]
+    public async Task Admin_CanDeleteAUsedCheck_AndTheUsersMadeCopyAndAnswersGoWithIt()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (service, admin) = NewServices(context);
+        var user = await AddUserAsync(context);
+        var week = CheckWeek.Current().AddDays(35);
+        var created = await admin.CreateAsync(CheckWeekTests.NewRequest(week, "used-then-deleted"));
+        // A check in a future week is not live, so use the current week for the made copy.
+        var live = await admin.CreateAsync(CheckWeekTests.NewRequest(CheckWeek.Current(), "live-used-then-deleted"));
+        await service.MakeAsync(user.Id, Answer(live.Id));
+        Assert.NotEmpty(await context.UserChecks.Where(item => item.CheckId == live.Id).ToListAsync());
+
+        await admin.DeleteAsync(live.Id);
+        await admin.DeleteAsync(created.Id);
+
+        Assert.Empty(await context.UserChecks.Where(item => item.CheckId == live.Id).ToListAsync());
+        Assert.False(await context.Checks.AnyAsync(item => item.Id == live.Id));
+        Assert.False(await context.UserCheckVotes.AnyAsync(vote => vote.CheckId == live.Id));
     }
 
     [SkippableFact]

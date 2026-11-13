@@ -5,6 +5,7 @@ using Yakku.Application.Checks.Themes;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Checks.Services
 {
@@ -143,19 +144,14 @@ namespace Yakku.Application.Checks.Services
 
         public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            var check = await _repository.GetForUpdateAsync(id, cancellationToken)
-                ?? throw CheckExceptions.NotFound();
-
-            if (await _repository.HasUserChecksAsync(id, cancellationToken))
+            var check = await _repository.GetForUpdateAsync(id, cancellationToken);
+            if (check is null || check.Kind != CheckKind.Weekly)
             {
-                throw new AppException(
-                    409,
-                    ApiErrorCodes.Conflict,
-                    "This check has already been used and cannot be deleted. Deactivate it instead.");
+                throw CheckExceptions.NotFound();
             }
 
-            await _repository.RemoveCheckAsync(check, cancellationToken);
-            await _repository.SaveChecksAsync(cancellationToken);
+            // Any check can be deleted, used or not. Users' made copies of it, and their answers, are deleted with it.
+            await _repository.DeleteWithUsageAsync(check, cancellationToken);
         }
 
         private static AdminCheckResponse ToResponse(Check check)

@@ -73,5 +73,16 @@ namespace Yakku.API.Controllers
             var result = await _service.CreateAsync(request, cancellationToken);
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Card created successfully"));
         }
+
+        [HttpDelete("{id:guid}")]
+        [EndpointSummary("Delete Fun Card (Admin)")]
+        [EndpointDescription("Permanently deletes a fun card by id, whether or not users have already made it. Users' made copies of it, with their answers, are deleted too. Admin only.")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+        {
+            await _service.DeleteAsync(id, cancellationToken);
+            return NoContent();
+        }
     }
 }
