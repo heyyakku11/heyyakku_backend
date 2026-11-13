@@ -62,7 +62,7 @@ public sealed class PersonalityIntegrationTests
         {
             await using var voterContext = _fixture.CreateContext();
             var voter = await AddUserAsync(voterContext);
-            await ServiceFor(voterContext).VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 8));
+            await ServiceFor(voterContext).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 8));
         }
 
         return (owner, cardId);
@@ -260,7 +260,7 @@ public sealed class PersonalityIntegrationTests
         await using var context = _fixture.CreateContext();
         var voter = await AddUserAsync(context);
 
-        var result = await ServiceFor(context).VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 8));
+        var result = await ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 8));
 
         Assert.Equal(1, result.TotalVotes);
         Assert.Equal("Collecting", result.CardStatus);
@@ -275,10 +275,10 @@ public sealed class PersonalityIntegrationTests
         var (_, cardId) = await CollectingCardAsync(0);
         await using var context = _fixture.CreateContext();
         var voter = await AddUserAsync(context);
-        await ServiceFor(context).VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 8));
+        await ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 8));
 
         await using var again = _fixture.CreateContext();
-        var error = await ExpectErrorAsync(() => ServiceFor(again).VoteAsync(Code(cardId), voter.Id, Traits(2, 5, 9)));
+        var error = await ExpectErrorAsync(() => ServiceFor(again).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(2, 5, 9)));
 
         Assert.Equal(409, error.StatusCode);
         Assert.Equal(1, await again.PersonalityCards.Where(c => c.Id == cardId).Select(c => c.TotalVotes).SingleAsync());
@@ -291,7 +291,7 @@ public sealed class PersonalityIntegrationTests
         var (owner, cardId) = await CollectingCardAsync(0);
         await using var context = _fixture.CreateContext();
 
-        var error = await ExpectErrorAsync(() => ServiceFor(context).VoteAsync(Code(cardId), owner.Id, Traits(1, 4, 8)));
+        var error = await ExpectErrorAsync(() => ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(owner.Id), Traits(1, 4, 8)));
 
         Assert.Equal(403, error.StatusCode);
     }
@@ -305,7 +305,7 @@ public sealed class PersonalityIntegrationTests
         var voter = await AddUserAsync(context);
         var cardId = await CardIdOfAsync(context, owner.Id);
 
-        var error = await ExpectErrorAsync(() => ServiceFor(context).VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 8)));
+        var error = await ExpectErrorAsync(() => ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 8)));
 
         Assert.Equal(409, error.StatusCode);
     }
@@ -319,9 +319,9 @@ public sealed class PersonalityIntegrationTests
         var voter = await AddUserAsync(context);
         var service = ServiceFor(context);
 
-        await Assert.ThrowsAnyAsync<Exception>(() => service.VoteAsync(Code(cardId), voter.Id, Traits(1, 4)));
-        await Assert.ThrowsAnyAsync<Exception>(() => service.VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 4)));
-        await Assert.ThrowsAnyAsync<Exception>(() => service.VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 999)));
+        await Assert.ThrowsAnyAsync<Exception>(() => service.VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4)));
+        await Assert.ThrowsAnyAsync<Exception>(() => service.VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 4)));
+        await Assert.ThrowsAnyAsync<Exception>(() => service.VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 999)));
 
         Assert.False(await context.PersonalityVotes.AnyAsync(v => v.PersonalityCardId == cardId));
         Assert.Equal(0, await context.PersonalityCards.Where(c => c.Id == cardId).Select(c => c.TotalVotes).SingleAsync());
@@ -334,18 +334,18 @@ public sealed class PersonalityIntegrationTests
         var (_, cardId) = await CollectingCardAsync(0);
         await using var context = _fixture.CreateContext();
         var voter = await AddUserAsync(context);
-        context.PersonalityVotes.Add(new PersonalityVote(cardId, voter.Id, new[] { 1, 2, 3 }.Select(T)));
+        context.PersonalityVotes.Add(new PersonalityVote(cardId, voter.Id, false, new[] { 1, 2, 3 }.Select(T)));
         await context.SaveChangesAsync();
 
         // Bypasses the service entirely: only the unique index stands in the way.
         await using var second = _fixture.CreateContext();
-        second.PersonalityVotes.Add(new PersonalityVote(cardId, voter.Id, new[] { 4, 5, 6 }.Select(T)));
+        second.PersonalityVotes.Add(new PersonalityVote(cardId, voter.Id, false, new[] { 4, 5, 6 }.Select(T)));
         var duplicateVote = await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
         Assert.Equal(PostgresErrorCodes.UniqueViolation, ((PostgresException)duplicateVote.InnerException!).SqlState);
 
         await using var third = _fixture.CreateContext();
         var otherVoter = await AddUserAsync(third);
-        third.PersonalityVotes.Add(new PersonalityVote(cardId, otherVoter.Id, new[] { 7, 7, 8 }.Select(T)));
+        third.PersonalityVotes.Add(new PersonalityVote(cardId, otherVoter.Id, false, new[] { 7, 7, 8 }.Select(T)));
         var duplicateTrait = await Assert.ThrowsAsync<DbUpdateException>(() => third.SaveChangesAsync());
         Assert.Equal(PostgresErrorCodes.UniqueViolation, ((PostgresException)duplicateTrait.InnerException!).SqlState);
         Assert.False(await third.PersonalityVotes.AnyAsync(v => v.VoterUserId == otherVoter.Id));
@@ -368,13 +368,13 @@ public sealed class PersonalityIntegrationTests
 
         await using var context = _fixture.CreateContext();
         var fifth = await AddUserAsync(context);
-        var result = await ServiceFor(context).VoteAsync(Code(cardId), fifth.Id, Traits(1, 4, 8));
+        var result = await ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(fifth.Id), Traits(1, 4, 8));
         Assert.Equal("Completed", result.CardStatus);
         Assert.NotNull(result.CompletedAt);
 
         await using var sixthContext = _fixture.CreateContext();
         var sixth = await AddUserAsync(sixthContext);
-        var error = await ExpectErrorAsync(() => ServiceFor(sixthContext).VoteAsync(Code(cardId), sixth.Id, Traits(1, 4, 8)));
+        var error = await ExpectErrorAsync(() => ServiceFor(sixthContext).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(sixth.Id), Traits(1, 4, 8)));
         Assert.Equal(409, error.StatusCode);
 
         Assert.Equal(5, await sixthContext.PersonalityVotes.CountAsync(v => v.PersonalityCardId == cardId));
@@ -398,7 +398,7 @@ public sealed class PersonalityIntegrationTests
             await using var context = _fixture.CreateContext();
             try
             {
-                await ServiceFor(context).VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 8));
+                await ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 8));
                 return true;
             }
             catch (AppException)
@@ -429,7 +429,7 @@ public sealed class PersonalityIntegrationTests
             await using var context = _fixture.CreateContext();
             try
             {
-                await ServiceFor(context).VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 8));
+                await ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 8));
                 return true;
             }
             catch (AppException)
@@ -478,7 +478,7 @@ public sealed class PersonalityIntegrationTests
         {
             await using var voterContext = _fixture.CreateContext();
             var voter = await AddUserAsync(voterContext);
-            await ServiceFor(voterContext).VoteAsync(Code(cardId), voter.Id, Traits(pick));
+            await ServiceFor(voterContext).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(pick));
         }
 
         var results = await ServiceFor(context).GetResultsAsync(Code(cardId), owner.Id);
@@ -504,11 +504,11 @@ public sealed class PersonalityIntegrationTests
         var viewer = await AddUserAsync(context);
         var draftId = await CardIdOfAsync(context, draftOwner.Id);
 
-        var hidden = await ExpectErrorAsync(() => ServiceFor(context).GetSharedCardAsync(Code(draftId), viewer.Id));
+        var hidden = await ExpectErrorAsync(() => ServiceFor(context).GetSharedCardAsync(Code(draftId), Yakku.Application.Sharing.VoterIdentity.ForUser(viewer.Id)));
         Assert.Equal(404, hidden.StatusCode);
 
         var (_, cardId) = await CollectingCardAsync(0);
-        var shared = await ServiceFor(context).GetSharedCardAsync(Code(cardId), viewer.Id);
+        var shared = await ServiceFor(context).GetSharedCardAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(viewer.Id));
         Assert.True(shared.CanVote);
         Assert.False(shared.IsOwner);
         Assert.DoesNotContain(typeof(SharedPersonalityCardResponse).GetProperties(), p => p.Name.Contains("SelfTraits"));
@@ -541,13 +541,13 @@ public sealed class PersonalityIntegrationTests
         await using var context = _fixture.CreateContext();
         var viewer = await AddUserAsync(context);
 
-        var shared = await ServiceFor(context).GetSharedCardAsync(Code(cardId), viewer.Id);
+        var shared = await ServiceFor(context).GetSharedCardAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(viewer.Id));
         Assert.Equal(cardId, shared.CardId);
         Assert.Equal(Code(cardId), shared.ShareCode);
 
         foreach (var bad in new[] { "ffffff", "", "   ", new string('a', 65) })
         {
-            var error = await ExpectErrorAsync(() => ServiceFor(context).GetSharedCardAsync(bad, viewer.Id));
+            var error = await ExpectErrorAsync(() => ServiceFor(context).GetSharedCardAsync(bad, Yakku.Application.Sharing.VoterIdentity.ForUser(viewer.Id)));
             Assert.Equal(404, error.StatusCode);
         }
     }
@@ -582,7 +582,7 @@ public sealed class PersonalityIntegrationTests
         var (_, cardId) = await CollectingCardAsync(0);
         await using var context = _fixture.CreateContext();
         var voter = await AddUserAsync(context);
-        await ServiceFor(context).VoteAsync(Code(cardId), voter.Id, Traits(1, 4, 8));
+        await ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(voter.Id), Traits(1, 4, 8));
 
         voter.RequestDeletion(DateTime.UtcNow.AddDays(-31), TimeSpan.FromDays(30));
         await context.SaveChangesAsync();

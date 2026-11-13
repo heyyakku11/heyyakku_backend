@@ -109,6 +109,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
     internal class PersonalityVoteConfiguration : IEntityTypeConfiguration<PersonalityVote>
     {
         public const string OneVotePerCardIndex = "IX_personality_votes_card_id_voter_user_id";
+        public const string OneGuestVotePerCardIndex = "IX_personality_votes_card_id_voter_guest_id";
 
         public void Configure(EntityTypeBuilder<PersonalityVote> builder)
         {
@@ -117,13 +118,27 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             builder.Property(x => x.PersonalityCardId).HasColumnName("personality_card_id").IsRequired();
-            builder.Property(x => x.VoterUserId).HasColumnName("voter_user_id").IsRequired();
+            builder.Property(x => x.VoterUserId).HasColumnName("voter_user_id");
+            builder.Property(x => x.VoterGuestId).HasColumnName("voter_guest_id");
+
+            // Exactly one kind of voter per vote.
+            builder.ToTable(t => t.HasCheckConstraint(
+                "CK_personality_votes_one_voter",
+                "(\"voter_user_id\" IS NOT NULL AND \"voter_guest_id\" IS NULL) OR (\"voter_user_id\" IS NULL AND \"voter_guest_id\" IS NOT NULL)"));
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
 
             // One vote per user per card, enforced by the database.
             builder.HasIndex(x => new { x.PersonalityCardId, x.VoterUserId })
                 .IsUnique()
+                .HasFilter("\"voter_user_id\" IS NOT NULL")
                 .HasDatabaseName(OneVotePerCardIndex);
+            builder.HasIndex(x => new { x.PersonalityCardId, x.VoterGuestId })
+                .IsUnique()
+                .HasFilter("\"voter_guest_id\" IS NOT NULL")
+                .HasDatabaseName(OneGuestVotePerCardIndex);
+            builder.HasIndex(x => x.VoterGuestId)
+                .HasFilter("\"voter_guest_id\" IS NOT NULL")
+                .HasDatabaseName("IX_personality_votes_voter_guest_id");
             builder.HasIndex(x => x.VoterUserId).HasDatabaseName("IX_personality_votes_voter_user_id");
 
             builder.HasOne(x => x.PersonalityCard)
@@ -135,6 +150,11 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasOne(x => x.Voter)
                 .WithMany()
                 .HasForeignKey(x => x.VoterUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(x => x.VoterGuest)
+                .WithMany()
+                .HasForeignKey(x => x.VoterGuestId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

@@ -100,10 +100,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(card => card.ShareCode == shareCode, cancellationToken);
         }
 
-        public Task<bool> HasVotedAsync(Guid cardId, Guid voterUserId, CancellationToken cancellationToken = default)
+        public Task<bool> HasVotedAsync(Guid cardId, Guid voterId, bool isGuest, CancellationToken cancellationToken = default)
         {
             return _context.PersonalityVotes
-                .AnyAsync(vote => vote.PersonalityCardId == cardId && vote.VoterUserId == voterUserId, cancellationToken);
+                .AnyAsync(
+                    vote => vote.PersonalityCardId == cardId
+                        && (isGuest ? vote.VoterGuestId == voterId : vote.VoterUserId == voterId),
+                    cancellationToken);
         }
 
         public async Task<List<TraitTally>> GetTraitTalliesAsync(Guid cardId, CancellationToken cancellationToken = default)
@@ -171,7 +174,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             catch (DbUpdateException exception) when (
                 exception.InnerException is PostgresException postgres
                 && postgres.SqlState == PostgresErrorCodes.UniqueViolation
-                && string.Equals(postgres.ConstraintName, PersonalityVoteConfiguration.OneVotePerCardIndex, StringComparison.Ordinal))
+                && (string.Equals(postgres.ConstraintName, PersonalityVoteConfiguration.OneVotePerCardIndex, StringComparison.Ordinal)
+                    || string.Equals(postgres.ConstraintName, PersonalityVoteConfiguration.OneGuestVotePerCardIndex, StringComparison.Ordinal)))
             {
                 throw PersonalityExceptions.AlreadyVoted();
             }

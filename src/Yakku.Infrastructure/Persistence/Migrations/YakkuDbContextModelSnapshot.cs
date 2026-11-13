@@ -1339,20 +1339,37 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("personality_card_id");
 
-                    b.Property<Guid>("VoterUserId")
+                    b.Property<Guid?>("VoterGuestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("voter_guest_id");
+
+                    b.Property<Guid?>("VoterUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("voter_user_id");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("VoterGuestId")
+                        .HasDatabaseName("IX_personality_votes_voter_guest_id")
+                        .HasFilter("\"voter_guest_id\" IS NOT NULL");
+
                     b.HasIndex("VoterUserId")
                         .HasDatabaseName("IX_personality_votes_voter_user_id");
 
+                    b.HasIndex("PersonalityCardId", "VoterGuestId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_personality_votes_card_id_voter_guest_id")
+                        .HasFilter("\"voter_guest_id\" IS NOT NULL");
+
                     b.HasIndex("PersonalityCardId", "VoterUserId")
                         .IsUnique()
-                        .HasDatabaseName("IX_personality_votes_card_id_voter_user_id");
+                        .HasDatabaseName("IX_personality_votes_card_id_voter_user_id")
+                        .HasFilter("\"voter_user_id\" IS NOT NULL");
 
-                    b.ToTable("personality_votes", (string)null);
+                    b.ToTable("personality_votes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_personality_votes_one_voter", "(\"voter_user_id\" IS NOT NULL AND \"voter_guest_id\" IS NULL) OR (\"voter_user_id\" IS NULL AND \"voter_guest_id\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVoteTrait", b =>
@@ -2816,15 +2833,21 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Yakku.Domain.Entities.Guest", "VoterGuest")
+                        .WithMany()
+                        .HasForeignKey("VoterGuestId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("Yakku.Domain.Entities.User", "Voter")
                         .WithMany()
                         .HasForeignKey("VoterUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("PersonalityCard");
 
                     b.Navigation("Voter");
+
+                    b.Navigation("VoterGuest");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityVoteTrait", b =>

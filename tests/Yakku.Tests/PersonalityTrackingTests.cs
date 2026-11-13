@@ -35,6 +35,7 @@ public sealed class PersonalityTrackingTests
         var vote = new PersonalityVote(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            false,
             new[] { PersonalityTraitIds.Creative, PersonalityTraitIds.Intelligent, PersonalityTraitIds.Calm });
         context.PersonalityVotes.Add(vote);
         context.ChangeTracker.DetectChanges();

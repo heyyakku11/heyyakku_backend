@@ -82,13 +82,13 @@ namespace Yakku.Application.Personality.Services
 
         public async Task<SharedPersonalityCardResponse> GetSharedCardAsync(
             string shareCode,
-            Guid callerId,
+            Yakku.Application.Sharing.VoterIdentity? viewer,
             CancellationToken cancellationToken = default)
         {
             var card = await _repository.GetCardByShareCodeAsync(NormalizeCode(shareCode), cancellationToken)
                 ?? throw PersonalityExceptions.CardNotFound();
 
-            var isOwner = card.UserId == callerId;
+            var isOwner = viewer is { IsUser: true } && card.UserId == viewer.Id;
 
             // A draft is not shared yet: only its owner knows it exists.
             if (card.Status == PersonalityCardStatus.Draft && !isOwner)
@@ -96,7 +96,8 @@ namespace Yakku.Application.Personality.Services
                 throw PersonalityExceptions.CardNotFound();
             }
 
-            var hasVoted = !isOwner && await _repository.HasVotedAsync(card.Id, callerId, cancellationToken);
+            var hasVoted = !isOwner && viewer is not null
+                && await _repository.HasVotedAsync(card.Id, viewer.Id, !viewer.IsUser, cancellationToken);
 
             return new SharedPersonalityCardResponse
             {
@@ -114,7 +115,7 @@ namespace Yakku.Application.Personality.Services
 
         public async Task<PersonalityVoteResponse> VoteAsync(
             string shareCode,
-            Guid voterId,
+            Yakku.Application.Sharing.VoterIdentity voter,
             SubmitTraitsRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -130,7 +131,7 @@ namespace Yakku.Application.Personality.Services
                 var card = await _repository.LockCardByShareCodeAsync(NormalizeCode(shareCode), token)
                     ?? throw PersonalityExceptions.CardNotFound();
 
-                if (card.UserId == voterId)
+                if (voter.IsUser && card.UserId == voter.Id)
                 {
                     throw PersonalityExceptions.CannotVoteOnOwnCard();
                 }
@@ -140,13 +141,13 @@ namespace Yakku.Application.Personality.Services
                     throw PersonalityExceptions.NotCollectingVotes();
                 }
 
-                if (await _repository.HasVotedAsync(card.Id, voterId, token))
+                if (await _repository.HasVotedAsync(card.Id, voter.Id, !voter.IsUser, token))
                 {
                     throw PersonalityExceptions.AlreadyVoted();
                 }
 
                 card.RegisterVote();
-                _repository.AddVote(new PersonalityVote(card.Id, voterId, request.TraitIds));
+                _repository.AddVote(new PersonalityVote(card.Id, voter.Id, !voter.IsUser, request.TraitIds));
                 await _repository.SaveChangesAsync(token);
 
                 response = new PersonalityVoteResponse

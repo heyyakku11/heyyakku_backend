@@ -20,7 +20,7 @@ namespace Yakku.Application.Personality.Interfaces
         /// <summary>The card with this share code, with its owner's profile and self traits, read-only.</summary>
         Task<PersonalityCard?> GetCardByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default);
 
-        Task<bool> HasVotedAsync(Guid cardId, Guid voterUserId, CancellationToken cancellationToken = default);
+        Task<bool> HasVotedAsync(Guid cardId, Guid voterId, bool isGuest, CancellationToken cancellationToken = default);
 
         /// <summary>Per-trait vote counts across all votes of a card, computed from the persisted vote rows.</summary>
         Task<List<TraitTally>> GetTraitTalliesAsync(Guid cardId, CancellationToken cancellationToken = default);

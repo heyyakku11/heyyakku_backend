@@ -15,12 +15,12 @@ namespace Yakku.Application.Personality.Interfaces
 
         Task<SharedPersonalityCardResponse> GetSharedCardAsync(
             string shareCode,
-            Guid callerId,
+            Yakku.Application.Sharing.VoterIdentity? viewer,
             CancellationToken cancellationToken = default);
 
         Task<PersonalityVoteResponse> VoteAsync(
             string shareCode,
-            Guid voterId,
+            Yakku.Application.Sharing.VoterIdentity voter,
             SubmitTraitsRequest request,
             CancellationToken cancellationToken = default);
 

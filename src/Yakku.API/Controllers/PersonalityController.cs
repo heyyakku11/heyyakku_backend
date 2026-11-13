@@ -13,10 +13,12 @@ namespace Yakku.API.Controllers
     public class PersonalityController : ControllerBase
     {
         private readonly IPersonalityService _service;
+        private readonly Yakku.API.Media.MediaCallerResolver _callerResolver;
 
-        public PersonalityController(IPersonalityService service)
+        public PersonalityController(IPersonalityService service, Yakku.API.Media.MediaCallerResolver callerResolver)
         {
             _service = service;
+            _callerResolver = callerResolver;
         }
 
         [AllowAnonymous]
@@ -56,22 +58,23 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Self-assessment submitted successfully"));
         }
 
-        [ServiceFilter(typeof(LiveSessionFilter))]
+        [AllowAnonymous]
         [HttpGet("personality-cards/{shareCode}")]
         [EndpointSummary("Get A Shared Personality Card")]
-        [EndpointDescription("Opens a card by its share code, as a voter sees it. Cards still in draft are not found. The owner's own picks and any voter details are never included.")]
+        [EndpointDescription("Opens a card by its share code, as a voter sees it. Open to signed-in users and guests (send a Bearer JWT or an X-Guest-Token); an anonymous caller sees the card but has not voted. Cards still in draft are not found. The owner's own picks and any voter details are never included.")]
         [ProducesResponseType(typeof(ApiResponse<SharedPersonalityCardResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetShared(string shareCode, CancellationToken cancellationToken)
         {
-            var result = await _service.GetSharedCardAsync(shareCode, User.GetRequiredUserId(), cancellationToken);
+            var viewer = await _callerResolver.TryResolveVoterAsync(HttpContext, cancellationToken);
+            var result = await _service.GetSharedCardAsync(shareCode, viewer, cancellationToken);
             return Ok(ApiResponse.Ok(result, "Personality card retrieved successfully"));
         }
 
-        [ServiceFilter(typeof(LiveSessionFilter))]
+        [AllowAnonymous]
         [HttpPost("personality-cards/{shareCode}/votes")]
         [EndpointSummary("Vote On A Personality Card")]
-        [EndpointDescription("Picks exactly 3 distinct active traits that describe the card's owner. One vote per user per card, never on your own card, and only while the card is collecting votes. The vote that reaches the threshold completes the card.")]
+        [EndpointDescription("Picks exactly 3 distinct active traits that describe the card's owner. Signed-in users and guests (X-Guest-Token) can vote. One vote per voter per card, never on your own card, and only while the card is collecting votes. The vote that reaches the threshold completes the card.")]
         [ProducesResponseType(typeof(ApiResponse<PersonalityVoteResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
@@ -82,7 +85,8 @@ namespace Yakku.API.Controllers
             [FromBody] SubmitTraitsRequest request,
             CancellationToken cancellationToken)
         {
-            var result = await _service.VoteAsync(shareCode, User.GetRequiredUserId(), request, cancellationToken);
+            var voter = await _callerResolver.ResolveVoterAsync(HttpContext, cancellationToken);
+            var result = await _service.VoteAsync(shareCode, voter, request, cancellationToken);
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Vote submitted successfully"));
         }
 
