@@ -320,6 +320,7 @@ namespace Yakku.Application.Checks.Services
                 ShareCode = item.ShareCode,
                 ExpiresAt = item.ExpiresAt,
                 IsClosed = item.IsClosed,
+                ClosedAt = item.ClosedAt,
                 IsOwner = isOwner,
                 MyVoteOptionId = myVote?.CheckOptionId,
                 MyCustomAnswer = myVote?.CustomAnswer,

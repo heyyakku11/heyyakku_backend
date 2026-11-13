@@ -173,17 +173,19 @@ public class FunCardTypePreviewTests
         }
     }
 
-    private sealed class FakeSaved : ISavedFunCardRepository
+    private sealed class FakeSaved : Yakku.Application.SavedCards.Interfaces.ISavedCardRepository
     {
         public HashSet<Guid> Ids { get; } = [];
 
-        public Task<HashSet<Guid>> GetSavedIdsAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(Ids);
+        public Task<HashSet<Guid>> GetSavedCardIdsAsync(Guid userId, SavedCardType cardType, CancellationToken cancellationToken = default) =>
+            Task.FromResult(cardType == SavedCardType.FunCard ? Ids : []);
+
         public Task<Check?> GetActiveFunCardAsync(Guid checkId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<SavedFunCard?> GetAsync(Guid userId, Guid checkId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task AddAsync(SavedFunCard saved, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public void Remove(SavedFunCard saved) => throw new NotSupportedException();
+        public Task<SavedCard?> GetAsync(Guid userId, SavedCardType cardType, Guid cardId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task AddAsync(SavedCard saved, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public void Remove(SavedCard saved) => throw new NotSupportedException();
         public Task<bool> SaveChangesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<SavedFunCard>> ListByUserAsync(Guid userId, DateTime? cursorSavedAt, Guid? cursorCheckId, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<SavedCard>> ListByUserAsync(Guid userId, DateTime? cursorSavedAt, Guid? cursorId, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeThemes(List<CardTheme> themes) : ICheckThemeRepository

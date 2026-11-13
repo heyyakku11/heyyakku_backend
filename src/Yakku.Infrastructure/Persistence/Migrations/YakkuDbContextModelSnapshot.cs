@@ -1887,58 +1887,62 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Yakku.Domain.Entities.SavedFunCard", b =>
+            modelBuilder.Entity("Yakku.Domain.Entities.SavedCard", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
-                    b.Property<Guid>("CheckId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CardType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("card_type");
+
+                    b.Property<Guid?>("FunCardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("funcard_id");
+
+                    b.Property<Guid?>("PollId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("poll_id");
 
                     b.Property<DateTime>("SavedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("saved_at");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CheckId")
-                        .HasDatabaseName("IX_SavedFunCards_CheckId");
-
-                    b.HasIndex("UserId", "CheckId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_SavedFunCards_UserId_CheckId");
-
-                    b.ToTable("saved_fun_cards", (string)null);
-                });
-
-            modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PollId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("SavedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
+                    b.HasIndex("FunCardId")
+                        .HasDatabaseName("IX_saved_cards_funcard_id")
+                        .HasFilter("\"funcard_id\" IS NOT NULL");
 
                     b.HasIndex("PollId")
-                        .HasDatabaseName("IX_SavedPolls_PollId");
+                        .HasDatabaseName("IX_saved_cards_poll_id")
+                        .HasFilter("\"poll_id\" IS NOT NULL");
+
+                    b.HasIndex("UserId", "FunCardId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_saved_cards_user_funcard")
+                        .HasFilter("\"funcard_id\" IS NOT NULL");
 
                     b.HasIndex("UserId", "PollId")
                         .IsUnique()
-                        .HasDatabaseName("IX_SavedPolls_UserId_PollId");
+                        .HasDatabaseName("IX_saved_cards_user_poll")
+                        .HasFilter("\"poll_id\" IS NOT NULL");
 
-                    b.ToTable("saved_polls", (string)null);
+                    b.HasIndex("UserId", "SavedAt")
+                        .HasDatabaseName("IX_saved_cards_user_saved_at");
+
+                    b.ToTable("saved_cards", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_saved_cards_card_type_matches_target", "(\"card_type\" = 'POLL' AND \"poll_id\" IS NOT NULL AND \"funcard_id\" IS NULL) OR (\"card_type\" = 'FUNCARD' AND \"funcard_id\" IS NOT NULL AND \"poll_id\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.ShareCode", b =>
@@ -2899,38 +2903,25 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Yakku.Domain.Entities.SavedFunCard", b =>
+            modelBuilder.Entity("Yakku.Domain.Entities.SavedCard", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Check", "Check")
                         .WithMany()
-                        .HasForeignKey("CheckId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("FunCardId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Yakku.Domain.Entities.Poll", "Poll")
+                        .WithMany("SavedCards")
+                        .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("Yakku.Domain.Entities.User", "User")
-                        .WithMany()
+                        .WithMany("SavedCards")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Check");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Yakku.Domain.Entities.SavedPoll", b =>
-                {
-                    b.HasOne("Yakku.Domain.Entities.Poll", "Poll")
-                        .WithMany("SavedPolls")
-                        .HasForeignKey("PollId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Yakku.Domain.Entities.User", "User")
-                        .WithMany("SavedPolls")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
 
                     b.Navigation("Poll");
 
@@ -3107,7 +3098,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Options");
 
-                    b.Navigation("SavedPolls");
+                    b.Navigation("SavedCards");
 
                     b.Navigation("UploadSessions");
 
@@ -3133,7 +3124,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Profile")
                         .IsRequired();
 
-                    b.Navigation("SavedPolls");
+                    b.Navigation("SavedCards");
 
                     b.Navigation("Sessions");
 

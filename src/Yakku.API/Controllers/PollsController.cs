@@ -25,19 +25,16 @@ namespace Yakku.API.Controllers
     {
         private readonly IPollService _pollService;
         private readonly IUserService _userService;
-        private readonly ISavedPollService _savedPollService;
         private readonly IReasonService _reasonService;
 
         public PollsController(
             IPollService pollService,
             IUserService userService,
-            ISavedPollService savedPollService,
             IReasonService reasonService)
         {
             _reasonService = reasonService;
             _pollService = pollService;
             _userService = userService;
-            _savedPollService = savedPollService;
         }
 
         [HttpPost]
@@ -103,24 +100,6 @@ namespace Yakku.API.Controllers
                 cancellationToken);
 
             return Ok(ApiResponse.Ok(result.Items, "Polls retrieved successfully", result.Meta));
-        }
-
-        [HttpGet("saved")]
-        [EndpointSummary("List Saved Polls")]
-        [EndpointDescription("Lists the polls the signed-in user has saved, most recently saved first. Uses cursor pagination: pass the cursor from the previous response's meta to get the next page. Returns 400 for an invalid cursor.")]
-        [ProducesResponseType(typeof(ApiResponse<List<PollResponse>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> GetSaved(
-            [FromQuery] string? cursor,
-            CancellationToken cancellationToken)
-        {
-            var result = await _savedPollService.ListAsync(
-                User.GetRequiredUserId(),
-                cursor,
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok(result.Items, "Saved polls retrieved successfully", result.Meta));
         }
 
         [HttpGet("{id:guid}")]
@@ -226,38 +205,6 @@ namespace Yakku.API.Controllers
         {
             var result = await _reasonService.ReportPollReasonAsync(id, User.GetRequiredUserId(), reasonId, cancellationToken);
             return Ok(ApiResponse.Ok(result, "Reason reported"));
-        }
-
-        [HttpPut("{id:guid}/save")]
-        [EndpointSummary("Save Poll")]
-        [EndpointDescription("Adds a poll to the signed-in user's saved polls. Idempotent: saving an already saved poll succeeds and changes nothing. Only other users' polls can be saved: returns 400 for your own poll and 404 when the poll does not exist.")]
-        [ProducesResponseType(typeof(ApiResponse<SavedPollStateResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> Save(Guid id, CancellationToken cancellationToken)
-        {
-            var result = await _savedPollService.SaveAsync(
-                User.GetRequiredUserId(),
-                id,
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok(result, "Poll saved successfully"));
-        }
-
-        [HttpDelete("{id:guid}/save")]
-        [EndpointSummary("Unsave Poll")]
-        [EndpointDescription("Removes a poll from the signed-in user's saved polls. Idempotent: removing a poll that is not saved succeeds and changes nothing.")]
-        [ProducesResponseType(typeof(ApiResponse<SavedPollStateResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Unsave(Guid id, CancellationToken cancellationToken)
-        {
-            var result = await _savedPollService.UnsaveAsync(
-                User.GetRequiredUserId(),
-                id,
-                cancellationToken);
-
-            return Ok(ApiResponse.Ok(result, "Poll unsaved successfully"));
         }
     }
 }

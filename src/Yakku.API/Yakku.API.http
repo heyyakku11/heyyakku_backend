@@ -62,8 +62,8 @@ Authorization: Bearer {{accessToken}}
 GET {{Yakku.API_HostAddress}}/api/v1/polls/answered
 Authorization: Bearer {{accessToken}}
 
-### List saved polls
-GET {{Yakku.API_HostAddress}}/api/v1/polls/saved
+### List saved cards (polls and fun cards)
+GET {{Yakku.API_HostAddress}}/api/v1/saved-cards
 Authorization: Bearer {{accessToken}}
 
 ### Get my poll (details and results)
@@ -78,12 +78,12 @@ Authorization: Bearer {{accessToken}}
 DELETE {{Yakku.API_HostAddress}}/api/v1/polls/00000000-0000-0000-0000-000000000000
 Authorization: Bearer {{accessToken}}
 
-### Save a poll
-PUT {{Yakku.API_HostAddress}}/api/v1/polls/00000000-0000-0000-0000-000000000000/save
+### Save a poll (cardType: poll | fun_card)
+PUT {{Yakku.API_HostAddress}}/api/v1/saved-cards/poll/00000000-0000-0000-0000-000000000000
 Authorization: Bearer {{accessToken}}
 
 ### Unsave a poll
-DELETE {{Yakku.API_HostAddress}}/api/v1/polls/00000000-0000-0000-0000-000000000000/save
+DELETE {{Yakku.API_HostAddress}}/api/v1/saved-cards/poll/00000000-0000-0000-0000-000000000000
 Authorization: Bearer {{accessToken}}
 
 ### Open a share link (poll or check; optional auth to see hasVoted / myVote)

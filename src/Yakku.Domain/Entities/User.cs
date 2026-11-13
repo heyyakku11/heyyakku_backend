@@ -29,7 +29,7 @@ namespace Yakku.Domain.Entities
         public PersonalityCard PersonalityCard { get; private set; } = null!;
         public ICollection<UserSession> Sessions { get; private set; } = new List<UserSession>();
         public ICollection<Poll> Polls { get; private set; } = new List<Poll>();
-        public ICollection<SavedPoll> SavedPolls { get; private set; } = new List<SavedPoll>();
+        public ICollection<SavedCard> SavedCards { get; private set; } = new List<SavedCard>();
         public ICollection<MediaUploadSession> UploadSessions { get; private set; } = new List<MediaUploadSession>();
         public ICollection<Device> Devices { get; private set; } = new List<Device>();
         public ICollection<Notification> Notifications { get; private set; } = new List<Notification>();

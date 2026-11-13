@@ -17,9 +17,12 @@ namespace Yakku.Application.Checks.Services
     {
         private readonly ICheckRepository _repository;
         private readonly ICheckService _checks;
-        private readonly ISavedFunCardRepository _saved;
+        private readonly Yakku.Application.SavedCards.Interfaces.ISavedCardRepository _saved;
 
-        public FunCardService(ICheckRepository repository, ICheckService checks, ISavedFunCardRepository saved)
+        public FunCardService(
+            ICheckRepository repository,
+            ICheckService checks,
+            Yakku.Application.SavedCards.Interfaces.ISavedCardRepository saved)
         {
             _repository = repository;
             _checks = checks;
@@ -90,7 +93,7 @@ namespace Yakku.Application.Checks.Services
         }
 
         private async Task<HashSet<Guid>> SavedIdsAsync(Guid? userId, CancellationToken cancellationToken) =>
-            userId is null ? [] : await _saved.GetSavedIdsAsync(userId.Value, cancellationToken);
+            userId is null ? [] : await _saved.GetSavedCardIdsAsync(userId.Value, SavedCardType.FunCard, cancellationToken);
 
         public Task<UserCheckResponse> MakeAsync(
             Guid userId,

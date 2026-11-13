@@ -121,12 +121,12 @@ In Development, OTP is logged (`LoggingEmailSender`), not emailed.
 | `POST` | `/api/v1/polls` | JWT | Create poll as **active** (`question` / `image` / `video` / `audio`; media types require completed upload) |
 | `GET` | `/api/v1/polls/asked` | JWT | Polls I created, newest first (`cursor` query) |
 | `GET` | `/api/v1/polls/answered` | JWT | Polls I voted on, most recently voted first (`cursor` query) |
-| `GET` | `/api/v1/polls/saved` | JWT | Polls I saved, most recently saved first (`cursor` query) |
 | `GET` | `/api/v1/polls/{id}` | JWT | My own poll with details and results (`404` if it is not mine). Others use the share link |
 | `POST` | `/api/v1/polls/{id}/close` | JWT | Close my poll so it stops accepting votes (`409` if not active) |
 | `DELETE` | `/api/v1/polls/{id}` | JWT | Delete my poll with its options, votes and media (`409` if its status does not allow it) |
-| `PUT` | `/api/v1/polls/{id}/save` | JWT | Save a poll (idempotent) |
-| `DELETE` | `/api/v1/polls/{id}/save` | JWT | Unsave a poll (idempotent) |
+| `GET` | `/api/v1/saved-cards` | JWT | Cards I saved, polls and fun cards together, most recently saved first (`cursor` query). Each item has `cardType` (`poll` or `fun_card`) and the matching `poll` or `funCard` |
+| `PUT` | `/api/v1/saved-cards/{cardType}/{id}` | JWT | Save a card (`cardType` is `poll` or `fun_card`; idempotent). A poll must be someone else's; a fun card must be active |
+| `DELETE` | `/api/v1/saved-cards/{cardType}/{id}` | JWT | Unsave a card (idempotent) |
 | `GET` | `/api/v1/shares/{shareCode}` | anonymous, JWT or guest | **Universal share link.** Resolves a poll *or* a made check (`contentType` `POLL`/`CHECK`) to one response shape: question, options, `voting` (`canVote`, `hasVoted`, `myVote`) and `stats`. Counts and percentages appear only when `stats.resultsVisible` (see [Voting](#voting-polls-and-checks)) |
 | `POST` | `/api/v1/votes` | JWT **or** guest | **Unified vote** on a poll or a check: `{ shareCode, optionId \| customAnswer, reason? }`. `201` with the same shape as the share GET; `409` on a repeat vote, `403` for the owner of a check, `404` unknown/unreadable, `400` closed/expired/invalid option. Rate-limited |
 | `POST` | `/api/v1/guests` | — | Create **or reuse** a guest: a valid `yakku_guest` cookie / `X-Guest-Token` returns the same guest with `guestToken: null`; a new `guestToken` (and cookie) is issued only when none is valid. Rate-limited per IP; `409` if the caller is already signed in |

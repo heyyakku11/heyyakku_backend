@@ -20,7 +20,7 @@ namespace Yakku.Domain.Entities
         public ICollection<PollOption> Options { get; private set; } = new List<PollOption>();
         public PollMedia? Media { get; private set; }
         public ICollection<PollVote> Votes { get; private set; } = new List<PollVote>();
-        public ICollection<SavedPoll> SavedPolls { get; private set; } = new List<SavedPoll>();
+        public ICollection<SavedCard> SavedCards { get; private set; } = new List<SavedCard>();
         public ICollection<MediaUploadSession> UploadSessions { get; private set; } = new List<MediaUploadSession>();
 
         private Poll()

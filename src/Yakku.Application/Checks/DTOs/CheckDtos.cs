@@ -71,6 +71,9 @@ namespace Yakku.Application.Checks.DTOs
 
         /// <summary>True when the owner closed the card or its time ran out.</summary>
         public bool IsClosed { get; set; }
+
+        /// <summary>When the owner closed the card; null while it is open (or when it only expired).</summary>
+        public DateTime? ClosedAt { get; set; }
         public string? CheckType { get; set; }
         public CheckThemeResponse Theme { get; set; } = new();
     }

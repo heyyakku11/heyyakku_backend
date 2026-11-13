@@ -8,6 +8,9 @@ namespace Yakku.Application.Polls.DTOs
         public string ContentType { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public DateTime? ExpiresAt { get; set; }
+
+        /// <summary>When the owner closed the poll; null while it is open.</summary>
+        public DateTime? ClosedAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public string MediaReadiness { get; set; } = "none";
         public PollMediaResponse? Media { get; set; }

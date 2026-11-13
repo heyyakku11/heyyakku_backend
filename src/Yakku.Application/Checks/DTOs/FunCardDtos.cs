@@ -84,21 +84,6 @@ namespace Yakku.Application.Checks.DTOs
 
 namespace Yakku.Application.Checks.DTOs
 {
-    public class SavedFunCardStateResponse
-    {
-        public Guid FunCardId { get; set; }
-        public bool Saved { get; set; }
-    }
-
-    public class SavedFunCardsPage
-    {
-        public List<FunCardResponse> Items { get; set; } = new();
-        public Yakku.Application.Common.Responses.PaginationMeta Meta { get; set; } = new();
-    }
-}
-
-namespace Yakku.Application.Checks.DTOs
-{
     /// <summary>One fun card type for the app: its cards the caller has not made yet, capped at a preview.</summary>
     public class FunCardTypeResponse
     {
