@@ -44,3 +44,8 @@ The old `user_profiles.IsPushAllowed` is dropped. It is not copied to every devi
 last reported a **granted** permission **and** its user had not switched push off. Unknown or denied permissions, users
 who opted out, and guest or unowned devices start off, and the app turns them on again when it reports a granted
 permission. `Down` restores the column, marking a user opted out when they have granted devices and none is on.
+
+## Vote notifications
+
+Pushes for votes on a card are batched by that card's own voting frequency. See [vote-notification-batching.md](vote-notification-batching.md).
+

@@ -106,7 +106,7 @@ public sealed class SessionDeviceAssociationTests
         var oldest = NewInstallation();
         var sessions = NewSessionService(context);
         await sessions.CreateAsync(user.Id, oldest);
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < SessionService.MaxLiveSessions; i++)
         {
             await sessions.CreateAsync(user.Id, NewInstallation());
         }
@@ -115,9 +115,106 @@ public sealed class SessionDeviceAssociationTests
         var row = await verify.Devices.SingleAsync(d => d.InstallationId == oldest.InstallationId);
         Assert.Null(row.UserId);
         Assert.Null(row.CurrentSessionId);
-        Assert.Equal(5, await verify.UserSessions.CountAsync(s => s.UserId == user.Id && s.RevokedAt == null));
+        Assert.Equal(SessionService.MaxLiveSessions, await verify.UserSessions.CountAsync(s => s.UserId == user.Id && s.RevokedAt == null));
         var targets = await new DeviceRepository(verify).GetPushTargetsByUserIdAsync(user.Id, DateTime.UtcNow);
-        Assert.Equal(5, targets.Count);
+        Assert.Equal(SessionService.MaxLiveSessions, targets.Count);
+    }
+
+    [Fact]
+    public void TheSessionCapIsThree()
+    {
+        Assert.Equal(3, SessionService.MaxLiveSessions);
+    }
+
+    [SkippableFact]
+    public async Task ThreeDevices_AreAllLiveAtOnce_AndAllReceivePush()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await AddUserAsync(context);
+        var installations = Enumerable.Range(0, 3).Select(_ => NewInstallation()).ToList();
+        var sessions = NewSessionService(context);
+
+        foreach (var installation in installations)
+        {
+            await sessions.CreateAsync(user.Id, installation);
+        }
+
+        await using var verify = _fixture.CreateContext();
+        Assert.Equal(3, await verify.UserSessions.CountAsync(s => s.UserId == user.Id && s.RevokedAt == null));
+        var rows = await verify.Devices.Where(d => d.UserId == user.Id).ToListAsync();
+        Assert.Equal(3, rows.Count);
+        var targets = await new DeviceRepository(verify).GetPushTargetsByUserIdAsync(user.Id, DateTime.UtcNow);
+        Assert.Equal(rows.Select(d => d.Id).Order(), targets.Select(d => d.Id).Order());
+    }
+
+    [SkippableFact]
+    public async Task AFourthDevice_EndsOnlyTheLeastRecentlyActiveSession_AndTheNewestIsKept()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await AddUserAsync(context);
+        var first = NewInstallation();
+        var second = NewInstallation();
+        var third = NewInstallation();
+        var fourth = NewInstallation();
+        var sessions = NewSessionService(context);
+        var firstLogin = await sessions.CreateAsync(user.Id, first);
+        var secondLogin = await sessions.CreateAsync(user.Id, second);
+        var thirdLogin = await sessions.CreateAsync(user.Id, third);
+
+        // The second device was idle the longest; the first one was used most recently, although it signed in first.
+        var firstId = SessionIdOf(firstLogin.RefreshToken);
+        var secondId = SessionIdOf(secondLogin.RefreshToken);
+        var thirdId = SessionIdOf(thirdLogin.RefreshToken);
+        var now = DateTime.UtcNow;
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE user_sessions SET \"LastActiveAt\" = {now.AddMinutes(-1)} WHERE \"Id\" = {firstId}");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE user_sessions SET \"LastActiveAt\" = {now.AddHours(-5)} WHERE \"Id\" = {secondId}");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE user_sessions SET \"LastActiveAt\" = {now.AddHours(-1)} WHERE \"Id\" = {thirdId}");
+
+        var fourthLogin = await NewSessionService(_fixture.CreateContext()).CreateAsync(user.Id, fourth);
+
+        await using var verify = _fixture.CreateContext();
+        var fourthId = SessionIdOf(fourthLogin.RefreshToken);
+        Assert.NotNull((await verify.UserSessions.SingleAsync(s => s.Id == secondId)).RevokedAt);
+        Assert.Null((await verify.UserSessions.SingleAsync(s => s.Id == firstId)).RevokedAt);
+        Assert.Null((await verify.UserSessions.SingleAsync(s => s.Id == thirdId)).RevokedAt);
+        Assert.Null((await verify.UserSessions.SingleAsync(s => s.Id == fourthId)).RevokedAt);
+
+        // Only the evicted device stops receiving push; the other three still do.
+        var targets = await new DeviceRepository(verify).GetPushTargetsByUserIdAsync(user.Id, DateTime.UtcNow);
+        var expected = await verify.Devices
+            .Where(d => d.InstallationId == first.InstallationId
+                || d.InstallationId == third.InstallationId
+                || d.InstallationId == fourth.InstallationId)
+            .Select(d => d.Id)
+            .ToListAsync();
+        Assert.Equal(expected.Order(), targets.Select(d => d.Id).Order());
+    }
+
+    [SkippableFact]
+    public async Task SigningInAgainOnTheSameInstallation_ReplacesThatDevicesSession_WithoutTouchingOtherDevices()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await AddUserAsync(context);
+        var phone = NewInstallation();
+        var tablet = NewInstallation();
+        var sessions = NewSessionService(context);
+        var phoneLogin = await sessions.CreateAsync(user.Id, phone);
+        var tabletLogin = await sessions.CreateAsync(user.Id, tablet);
+
+        var phoneAgain = await sessions.CreateAsync(user.Id, phone);
+
+        await using var verify = _fixture.CreateContext();
+        Assert.NotNull((await verify.UserSessions.SingleAsync(s => s.Id == SessionIdOf(phoneLogin.RefreshToken))).RevokedAt);
+        Assert.Null((await verify.UserSessions.SingleAsync(s => s.Id == SessionIdOf(phoneAgain.RefreshToken))).RevokedAt);
+        Assert.Null((await verify.UserSessions.SingleAsync(s => s.Id == SessionIdOf(tabletLogin.RefreshToken))).RevokedAt);
+        Assert.Equal(2, await verify.UserSessions.CountAsync(s => s.UserId == user.Id && s.RevokedAt == null));
+        Assert.Equal(1, await verify.Devices.CountAsync(d => d.InstallationId == phone.InstallationId));
     }
 
     // ---- account switch ----------------------------------------------------------------------------------------
@@ -540,8 +637,8 @@ public sealed class SessionDeviceAssociationTests
         }
 
         await using var verify = _fixture.CreateContext();
-        Assert.Equal(5, await verify.UserSessions.CountAsync(s => s.UserId == user.Id && s.RevokedAt == null));
-        Assert.Equal(5, (await new DeviceRepository(verify).GetPushTargetsByUserIdAsync(user.Id, DateTime.UtcNow)).Count);
+        Assert.Equal(SessionService.MaxLiveSessions, await verify.UserSessions.CountAsync(s => s.UserId == user.Id && s.RevokedAt == null));
+        Assert.Equal(SessionService.MaxLiveSessions, (await new DeviceRepository(verify).GetPushTargetsByUserIdAsync(user.Id, DateTime.UtcNow)).Count);
     }
 
     // ---- notification isolation and privacy --------------------------------------------------------------------

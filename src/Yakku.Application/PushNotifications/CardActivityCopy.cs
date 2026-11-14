@@ -56,6 +56,14 @@ namespace Yakku.Application.PushNotifications
             return (ClosedTitle, Fit($"{quoted} closed with {friendVotes} {votesWord}. Not enough to show a result."));
         }
 
+        /// <summary>A friend described the owner, and the card still needs more votes before it completes.</summary>
+        public static (string Title, string Body) ForPersonalityVote(int friendVotes, int requiredVotes)
+        {
+            var remaining = Math.Max(requiredVotes - friendVotes, 1);
+            var need = remaining == 1 ? "1 more friend" : $"{remaining} more friends";
+            return ($"{friendVotes} of {requiredVotes} friends", Fit($"A friend described you. {need} to reveal your top 3."));
+        }
+
         /// <summary>The personality card just reached its last vote and the top three traits can be shown.</summary>
         public static (string Title, string Body) ForPersonality(int friendVotes)
         {

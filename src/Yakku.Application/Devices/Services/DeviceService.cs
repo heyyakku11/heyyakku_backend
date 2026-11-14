@@ -574,6 +574,17 @@ namespace Yakku.Application.Devices.Services
                     null,
                     new Dictionary<string, string?> { ["displacedSessionId"] = displacedSessionId.ToString() });
             }
+            else if (displacedSessionId is not null)
+            {
+                // The same user signed in again on an installation that still held their earlier session. This is
+                // the only way a login ends a session on purpose besides the cap, so it is recorded.
+                await AuditAsync(
+                    caller,
+                    AuditEvents.Device.SessionReplaced,
+                    AuditOutcome.Success,
+                    null,
+                    new Dictionary<string, string?> { ["replacedSessionId"] = displacedSessionId.ToString() });
+            }
 
             return new DeviceLoginBindResult(device.Id, displacedSessionId, previousUserId);
         }

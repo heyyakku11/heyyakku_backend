@@ -3,8 +3,14 @@ using Yakku.Domain.Enums;
 namespace Yakku.Domain.Entities
 {
     /// <summary>
-    /// A fixed window of a card's later votes. <see cref="EndsAt"/> is the eligibility cutoff: events read before
-    /// it are left out of the digest.
+    /// A notification batch: the votes of one card collected for a single aggregated push. Table
+    /// <c>vote_digest_windows</c> predates the adaptive batching, so some names are kept:
+    /// <see cref="StartsAt"/> is the batch's FirstPendingAt, <see cref="EndsAt"/> is its NextFlushAt (the due time,
+    /// moved by each vote up to <see cref="MaxFlushAt"/>) and <see cref="CompletedAt"/> is when it was sent.
+    /// <see cref="EndsAt"/> is also the cutoff for read events: an event read before it is left out of the push.
+    /// <see cref="Id"/> is the stable BatchId and the push's delivery id. <see cref="Status"/>: Open accepts events,
+    /// Due is a batch that stopped accepting events and waits (also a failed send waiting to retry), Processing is
+    /// claimed by a worker, then Sent, Skipped or Failed.
     /// </summary>
     public class VoteDigestWindow
     {
@@ -22,6 +28,21 @@ namespace Yakku.Domain.Entities
         public int EventCount { get; private set; }
         public DateTime? CompletedAt { get; private set; }
 
+        /// <summary>The time of the most recent vote in the batch.</summary>
+        public DateTime? LastVoteAt { get; private set; }
+
+        /// <summary>The latest the batch may wait: FirstPendingAt plus the maximum wait. Continuous voting cannot pass it.</summary>
+        public DateTime? MaxFlushAt { get; private set; }
+
+        /// <summary>Raised on every reschedule. A write carrying an older generation never overwrites a newer one.</summary>
+        public int Generation { get; private set; }
+
+        /// <summary>When a worker last claimed the batch to send it.</summary>
+        public DateTime? ClaimedAt { get; private set; }
+
+        /// <summary>FCM message id of the accepted push.</summary>
+        public string? ProviderMessageId { get; private set; }
+
         private VoteDigestWindow()
         {
         }
@@ -30,8 +51,9 @@ namespace Yakku.Domain.Entities
             Guid ownerId,
             ShareContentType contentType,
             Guid contentId,
-            DateTime startsAt,
-            TimeSpan length)
+            DateTime firstPendingAt,
+            DateTime nextFlushAt,
+            DateTime maxFlushAt)
         {
             return new VoteDigestWindow
             {
@@ -39,16 +61,13 @@ namespace Yakku.Domain.Entities
                 OwnerId = ownerId,
                 ContentType = contentType,
                 ContentId = contentId,
-                StartsAt = startsAt,
-                EndsAt = startsAt + length,
+                StartsAt = firstPendingAt,
+                EndsAt = nextFlushAt,
+                LastVoteAt = firstPendingAt,
+                MaxFlushAt = maxFlushAt,
+                Generation = 1,
                 Status = VoteDigestWindowStatus.Open
             };
-        }
-
-        /// <summary>Stops accepting events; the dispatcher sends it next.</summary>
-        public void MarkDue()
-        {
-            Status = VoteDigestWindowStatus.Due;
         }
     }
 }

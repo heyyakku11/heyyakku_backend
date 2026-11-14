@@ -13,7 +13,11 @@ namespace Yakku.Application.Auth.Services
 {
     public class SessionService : ISessionService
     {
-        private const int MaxLiveSessions = 5;
+        /// <summary>
+        /// Live login sessions one user may hold at a time, one per device. A login over the cap ends the session
+        /// that was active least recently, so the newest login always succeeds.
+        /// </summary>
+        public const int MaxLiveSessions = 3;
 
         private readonly IUserSessionRepository _sessions;
         private readonly ITokenService _tokenService;
@@ -112,7 +116,7 @@ namespace Yakku.Application.Auth.Services
                 if (overflow > 0)
                 {
                     foreach (var evicted in liveSessions
-                                 .OrderBy(live => live.LastActiveAt ?? DateTime.MinValue)
+                                 .OrderBy(live => live.LastActiveAt ?? live.CreatedAt)
                                  .ThenBy(live => live.CreatedAt)
                                  .Take(overflow))
                     {

@@ -197,6 +197,7 @@ namespace Yakku.Application.PushNotifications.Services
             var failed = 0;
             var deactivated = 0;
             var retryable = 0;
+            string? firstMessageId = null;
 
             for (var index = 0; index < eligible.Count; index++)
             {
@@ -208,6 +209,7 @@ namespace Yakku.Application.PushNotifications.Services
                 if (result.Success)
                 {
                     successful++;
+                    firstMessageId ??= result.MessageId;
                     continue;
                 }
 
@@ -238,7 +240,8 @@ namespace Yakku.Application.PushNotifications.Services
                 Successful = successful,
                 Failed = failed,
                 InvalidTokensDeactivated = deactivated,
-                RetryableFailures = retryable
+                RetryableFailures = retryable,
+                FirebaseMessageId = firstMessageId
             };
         }
 
@@ -296,7 +299,8 @@ namespace Yakku.Application.PushNotifications.Services
                 Successful = result.Successful,
                 Failed = result.Failed,
                 InvalidTokensDeactivated = result.InvalidTokensDeactivated,
-                RetryableFailures = result.RetryableFailures
+                RetryableFailures = result.RetryableFailures,
+                FirebaseMessageId = result.FirebaseMessageId
             };
         }
 

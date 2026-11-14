@@ -5,7 +5,18 @@ using System.Text.Json.Serialization;
 
 namespace Yakku.Infrastructure.Redis
 {
-    public sealed class UpstashRedisClient
+    /// <summary>Runs a Lua script on Redis. A seam so the batching scripts can be tested against a real Redis server.</summary>
+    public interface IRedisScriptClient
+    {
+        /// <summary>EVAL: the reply as JSON (integers as numbers, bulk strings as strings, arrays as arrays).</summary>
+        Task<JsonElement> EvalAsync(
+            string script,
+            IReadOnlyList<string> keys,
+            IReadOnlyList<object> arguments,
+            CancellationToken cancellationToken = default);
+    }
+
+    public sealed class UpstashRedisClient : IRedisScriptClient
     {
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -98,6 +109,18 @@ namespace Yakku.Infrastructure.Redis
         public async Task DeleteAsync(string key, CancellationToken cancellationToken = default)
         {
             await ExecuteAsync(["DEL", key], cancellationToken);
+        }
+
+        public Task<JsonElement> EvalAsync(
+            string script,
+            IReadOnlyList<string> keys,
+            IReadOnlyList<object> arguments,
+            CancellationToken cancellationToken = default)
+        {
+            var command = new List<object>(3 + keys.Count + arguments.Count) { "EVAL", script, keys.Count };
+            command.AddRange(keys);
+            command.AddRange(arguments);
+            return ExecuteAsync(command.ToArray(), cancellationToken);
         }
 
         public async Task<bool> PingAsync(CancellationToken cancellationToken = default)

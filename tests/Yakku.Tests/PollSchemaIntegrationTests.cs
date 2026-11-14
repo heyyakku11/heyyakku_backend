@@ -12,7 +12,7 @@ using Yakku.Infrastructure.Persistence.Repositories;
 namespace Yakku.Tests;
 
 [CollectionDefinition(Name)]
-public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>
+public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>, ICollectionFixture<RedisFixture>
 {
     public const string Name = "postgres";
 }

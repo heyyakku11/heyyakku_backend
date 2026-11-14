@@ -16,15 +16,18 @@ namespace Yakku.Application.Personality.Services
         private readonly IPersonalityRepository _repository;
         private readonly IValidator<SubmitTraitsRequest> _validator;
         private readonly ICardLifecycleNotifications _lifecycle;
+        private readonly IVoteNotificationOutbox? _notifications;
 
         public PersonalityService(
             IPersonalityRepository repository,
             IValidator<SubmitTraitsRequest> validator,
-            ICardLifecycleNotifications? lifecycle = null)
+            ICardLifecycleNotifications? lifecycle = null,
+            IVoteNotificationOutbox? notifications = null)
         {
             _repository = repository;
             _validator = validator;
             _lifecycle = lifecycle ?? NullCardLifecycleNotifications.Instance;
+            _notifications = notifications;
         }
 
         public async Task<List<PersonalityTraitResponse>> GetTraitsAsync(CancellationToken cancellationToken = default)
@@ -130,6 +133,7 @@ namespace Yakku.Application.Personality.Services
 
             PersonalityVoteResponse? response = null;
             var completed = false;
+            var voteRecorded = false;
             await _repository.ExecuteInTransactionAsync(async token =>
             {
                 // The row lock serialises every vote on this card, so the status check, the duplicate check and the
@@ -154,7 +158,8 @@ namespace Yakku.Application.Personality.Services
                 }
 
                 card.RegisterVote();
-                _repository.AddVote(new PersonalityVote(card.Id, voter.Id, !voter.IsUser, request.TraitIds));
+                var vote = new PersonalityVote(card.Id, voter.Id, !voter.IsUser, request.TraitIds);
+                _repository.AddVote(vote);
                 if (card.Status == PersonalityCardStatus.Completed)
                 {
                     _lifecycle.StagePersonalityReady(card.UserId, card.Id, card.TotalVotes, card.ShareCode);
@@ -162,6 +167,23 @@ namespace Yakku.Application.Personality.Services
                 }
 
                 await _repository.SaveChangesAsync(token);
+
+                // Every other vote tells the owner someone voted: the first ones at once, a fast-voted card batched
+                // (same pipeline as polls and checks). The completing vote is covered by "personality ready" above,
+                // so it does not also send a vote push. Recorded in this transaction, after the vote row is saved
+                // (so a duplicate vote is still reported as one): the vote and its notification commit together.
+                if (!completed && _notifications is not null)
+                {
+                    await _notifications.RecordPersonalityVoteAsync(
+                        card.UserId,
+                        card.Id,
+                        card.ShareCode,
+                        new Yakku.Application.Sharing.VoteReceipt(vote.Id, vote.CreatedAt),
+                        card.TotalVotes,
+                        card.RequiredVotes,
+                        token);
+                    voteRecorded = true;
+                }
 
                 response = new PersonalityVoteResponse
                 {
@@ -177,6 +199,12 @@ namespace Yakku.Application.Personality.Services
             if (completed)
             {
                 _lifecycle.Wake();
+            }
+
+            if (voteRecorded)
+            {
+                // Committed: wake the dispatcher so the first pushes go out without waiting for its poll.
+                _notifications!.Wake();
             }
 
             return response!;

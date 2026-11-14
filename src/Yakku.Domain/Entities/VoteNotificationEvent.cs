@@ -28,8 +28,40 @@ namespace Yakku.Domain.Entities
         public DateTime CreatedAt { get; private set; }
         public DateTime? SubmittedAt { get; private set; }
 
+        /// <summary>FCM message id of the accepted push when this event was sent on its own.</summary>
+        public string? ProviderMessageId { get; private set; }
+
         private VoteNotificationEvent()
         {
+        }
+
+        /// <summary>
+        /// A vote past the card's immediate votes. It waits, durably, to be classified from the card's recent voting
+        /// frequency. <see cref="CreatedAt"/> is the vote's time and is the timestamp the frequency window counts.
+        /// </summary>
+        public static VoteNotificationEvent Undecided(
+            Guid ownerId,
+            ShareContentType contentType,
+            Guid contentId,
+            Guid voteId,
+            int sequence,
+            Guid notificationId,
+            DateTime now)
+        {
+            return new VoteNotificationEvent
+            {
+                Id = Guid.NewGuid(),
+                OwnerId = ownerId,
+                ContentType = contentType,
+                ContentId = contentId,
+                VoteId = voteId,
+                Sequence = sequence,
+                Kind = VoteNotificationKind.Undecided,
+                NotificationId = notificationId,
+                Status = VoteNotificationStatus.Pending,
+                NextAttemptAt = now,
+                CreatedAt = now
+            };
         }
 
         public static VoteNotificationEvent Immediate(

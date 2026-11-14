@@ -1,6 +1,9 @@
 using System.Threading.Channels;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Yakku.Application.PushNotifications.Batching;
 using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Audit;
 using Yakku.Application.Guests;
@@ -122,9 +125,34 @@ namespace Yakku.Infrastructure
             services.AddSingleton<IAdminEmailQueue, AdminEmailQueue>();
             services.AddHostedService<AdminEmailWorker>();
 
+            // Frequency-based vote notification batching. Settings come from the "VoteNotifications" section or
+            // VoteNotifications__* environment variables (a .env file is loaded into the environment above, so it
+            // counts too) and are validated when the host starts.
+            services.AddSingleton<IValidateOptions<VoteNotificationBatchingOptions>, VoteNotificationBatchingOptionsValidator>();
+            services.AddOptions<VoteNotificationBatchingOptions>()
+                .Configure<IConfiguration>((options, configuration) =>
+                {
+                    var merged = new ConfigurationBuilder()
+                        .AddConfiguration(configuration)
+                        .AddEnvironmentVariables()
+                        .Build();
+                    merged.GetSection(VoteNotificationBatchingOptions.SectionName).Bind(options);
+                })
+                .ValidateOnStart();
+            services.AddSingleton(sp => sp.GetRequiredService<IOptions<VoteNotificationBatchingOptions>>().Value);
+            services.AddSingleton<IRedisScriptClient>(sp => sp.GetRequiredService<UpstashRedisClient>());
+            services.AddSingleton<IVoteBatchingStore, VoteBatchingRedisStore>();
+            services.AddSingleton<VoteBatchingPolicy>();
+            services.AddSingleton<VoteBatchingEngine>();
+            services.AddSingleton<VoteNotificationMetrics>();
+
             services.AddSingleton<VoteNotificationSignal>();
             services.AddScoped<IVoteNotificationOutbox, VoteNotificationOutbox>();
             services.AddScoped<ICardLifecycleNotifications, CardLifecycleNotifications>();
+            services.AddScoped<VotePushSender>();
+            services.AddScoped<VoteEventClassifier>();
+            services.AddScoped<CardModeEvaluator>();
+            services.AddScoped<VoteBatchDispatcher>();
             services.AddScoped<VoteNotificationDispatcher>();
             services.AddHostedService<VoteNotificationWorker>();
             services.AddHostedService<CardCloseNotificationWorker>();

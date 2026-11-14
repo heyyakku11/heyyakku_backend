@@ -11,6 +11,9 @@ namespace Yakku.Application.PushNotifications.DTOs
 
         /// <summary>Failures worth retrying (FCM unavailable, internal error, quota); not invalid tokens.</summary>
         public int RetryableFailures { get; init; }
+
+        /// <summary>FCM message id of the first push the provider accepted; null when none was.</summary>
+        public string? FirebaseMessageId { get; init; }
         public bool Success => EligibleDevices > 0 && Failed == 0;
     }
 }

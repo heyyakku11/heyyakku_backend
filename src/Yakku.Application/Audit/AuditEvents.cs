@@ -52,6 +52,12 @@ namespace Yakku.Application.Audit
             public const string LoginBound = "device.login_bound";
             public const string LoginBindFailed = "device.login_bind_failed";
             public const string AccountSwitched = "device.account_switched";
+
+            /// <summary>
+            /// A login on an installation that the same user was already signed in on: the older session on that
+            /// installation ended. Sessions on other installations are never touched by a login.
+            /// </summary>
+            public const string SessionReplaced = "device.session_replaced";
         }
 
         public static class Poll

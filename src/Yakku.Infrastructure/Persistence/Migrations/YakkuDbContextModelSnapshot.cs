@@ -2454,6 +2454,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("attempts");
 
+                    b.Property<DateTime?>("ClaimedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("claimed_at");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("completed_at");
@@ -2476,6 +2480,16 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("event_count");
 
+                    b.Property<int>("Generation")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("generation");
+
+                    b.Property<DateTime?>("LastVoteAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_vote_at");
+
                     b.Property<Guid?>("LeaseToken")
                         .HasColumnType("uuid")
                         .HasColumnName("lease_token");
@@ -2484,6 +2498,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("lease_until");
 
+                    b.Property<DateTime?>("MaxFlushAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("max_flush_at");
+
                     b.Property<DateTime?>("NextAttemptAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("next_attempt_at");
@@ -2491,6 +2509,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
+
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("provider_message_id");
 
                     b.Property<DateTime>("StartsAt")
                         .HasColumnType("timestamp with time zone")
@@ -2532,9 +2555,27 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("content_id");
 
+                    b.Property<string>("DeliveryMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("INDIVIDUAL")
+                        .HasColumnName("delivery_mode");
+
+                    b.Property<DateTime?>("LastVoteAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_vote_at");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
 
                     b.Property<int>("VoteCount")
                         .HasColumnType("integer")
@@ -2545,6 +2586,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("vote_notification_cards", null, t =>
                         {
                             t.HasCheckConstraint("CK_vote_notification_cards_count_positive", "\"vote_count\" > 0");
+
+                            t.HasCheckConstraint("CK_vote_notification_cards_delivery_mode", "\"delivery_mode\" IN ('INDIVIDUAL', 'BATCH')");
                         });
                 });
 
@@ -2599,6 +2642,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
 
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("provider_message_id");
+
                     b.Property<int>("Sequence")
                         .HasColumnType("integer")
                         .HasColumnName("sequence");
@@ -2634,15 +2682,22 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_vote_notification_events_content_type_vote_id");
 
+                    b.HasIndex("Kind", "CreatedAt")
+                        .HasDatabaseName("IX_vote_notification_events_undecided")
+                        .HasFilter("\"kind\" = 'UNDECIDED' AND \"status\" IN ('PENDING', 'SENDING')");
+
                     b.HasIndex("WindowId", "Status")
                         .HasDatabaseName("IX_vote_notification_events_window_id_status")
                         .HasFilter("\"window_id\" IS NOT NULL");
+
+                    b.HasIndex("ContentType", "ContentId", "Sequence")
+                        .HasDatabaseName("IX_vote_notification_events_card_sequence");
 
                     b.ToTable("vote_notification_events", null, t =>
                         {
                             t.HasCheckConstraint("CK_vote_notification_events_digest_has_window", "(\"kind\" = 'DIGEST') = (\"window_id\" IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_vote_notification_events_kind", "\"kind\" IN ('IMMEDIATE', 'DIGEST')");
+                            t.HasCheckConstraint("CK_vote_notification_events_kind", "\"kind\" IN ('IMMEDIATE', 'DIGEST', 'UNDECIDED')");
 
                             t.HasCheckConstraint("CK_vote_notification_events_status", "\"status\" IN ('PENDING', 'SENDING', 'SUBMITTED', 'SKIPPED', 'FAILED')");
                         });

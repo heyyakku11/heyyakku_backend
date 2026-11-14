@@ -14,7 +14,7 @@ namespace Yakku.Application.PushNotifications
         /// The app fetches the real content over the authenticated API (GET /notifications/{id}), which checks the
         /// signed-in user owns it. Lock screens, OS logs and FCM never see poll text, names or phone numbers.
         /// </summary>
-        public static NotificationPayload ForNotification(Notification notification)
+        public static NotificationPayload ForNotification(Notification notification, Guid? deliveryId = null)
         {
             var data = new Dictionary<string, string>
             {
@@ -22,6 +22,12 @@ namespace Yakku.Application.PushNotifications
                 ["type"] = notification.Type.ToString().ToLowerInvariant(),
                 ["eventType"] = notification.EventType.ToString()
             };
+
+            // Stable across retries of the same push, so the app can drop a duplicate FCM delivery.
+            if (deliveryId is { } id)
+            {
+                data["deliveryId"] = id.ToString();
+            }
 
             if (TryReadTarget(notification.Data, out var contentType, out var contentId))
             {
@@ -39,16 +45,22 @@ namespace Yakku.Application.PushNotifications
             };
         }
 
+        public const string BatchTitle = "Your card is getting attention!";
+
         /// <summary>
-        /// The summary push for a digest window: how many new answers the card got, and where to open it. Like
-        /// every push it carries no voter and no answer.
+        /// The aggregated push for a batch of votes on one card: how many people voted, and where to open it. Like
+        /// every push it carries no voter and no answer. <c>deliveryId</c> is the batch id and stays the same when
+        /// the push is retried, so the app can drop a duplicate; <c>cardId</c> is the card (poll or check) id.
+        /// The keys the earlier digest push carried (<c>digest</c>, <c>count</c>, <c>contentType</c>, <c>contentId</c>,
+        /// <c>deepLink</c>) are unchanged, so opening it still lands on the card's results.
         /// </summary>
-        public static NotificationPayload ForDigest(string contentType, Guid contentId, int count)
+        public static NotificationPayload ForBatch(string contentType, Guid contentId, int count, Guid batchId)
         {
+            var people = count == 1 ? "1 person has" : $"{count} people have";
             return new NotificationPayload
             {
-                Title = "Yakku",
-                Body = count == 1 ? "1 new answer" : $"{count} new answers",
+                Title = BatchTitle,
+                Body = $"{people} voted on your card. Tap to see the results.",
                 Data = new Dictionary<string, string>
                 {
                     ["type"] = "normal",
@@ -57,6 +69,9 @@ namespace Yakku.Application.PushNotifications
                     ["count"] = count.ToString(),
                     ["contentType"] = contentType,
                     ["contentId"] = contentId.ToString(),
+                    ["cardId"] = contentId.ToString(),
+                    ["batchId"] = batchId.ToString(),
+                    ["deliveryId"] = batchId.ToString(),
                     ["deepLink"] = $"yakku://results/{contentType}/{contentId}"
                 }
             };

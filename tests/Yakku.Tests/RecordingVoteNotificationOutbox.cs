@@ -22,5 +22,25 @@ internal sealed class RecordingVoteNotificationOutbox : IVoteNotificationOutbox
         return Task.CompletedTask;
     }
 
+    public List<(Guid OwnerId, Guid CardId, VoteReceipt Receipt, int TotalVotes)> PersonalityRecorded { get; } = [];
+
+    public Task RecordPersonalityVoteAsync(
+        Guid ownerId,
+        Guid cardId,
+        string shareCode,
+        VoteReceipt receipt,
+        int totalVotes,
+        int requiredVotes,
+        CancellationToken cancellationToken = default)
+    {
+        if (Throw)
+        {
+            throw new InvalidOperationException("outbox failure");
+        }
+
+        PersonalityRecorded.Add((ownerId, cardId, receipt, totalVotes));
+        return Task.CompletedTask;
+    }
+
     public void Wake() => Wakes++;
 }
