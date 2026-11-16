@@ -7,6 +7,7 @@ using Yakku.Application.PushNotifications.Batching;
 using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Audit;
 using Yakku.Application.Guests;
+using Yakku.Application.Auth;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Sms;
 using Yakku.Application.Checks.Interfaces;
@@ -41,7 +42,7 @@ namespace Yakku.Infrastructure
     public static class DependencyInjection
     {
         /// <summary>
-        /// OTP SMS delivery through MSG91, plus the OTP policy (its validity comes from MSG91_OTP_EXPIRY_MINUTES).
+        /// OTP SMS delivery through MSG91, plus the OTP policy (its validity is the <see cref="OtpOptions.ExpiryMinutes"/> constant).
         /// Bad or missing settings stop the app from starting. The AuthKey is read from the environment only
         /// (Render's dashboard in production) and goes nowhere but the MSG91 request header.
         /// </summary>
@@ -50,7 +51,7 @@ namespace Yakku.Infrastructure
             var msg91 = Msg91Options.FromEnvironment(readSetting);
             msg91.ThrowIfInvalid();
             services.AddSingleton(msg91);
-            services.AddSingleton(msg91.OtpPolicy);
+            services.AddSingleton(OtpPolicy.Default);
 
             if (msg91.Enabled)
             {

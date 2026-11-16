@@ -14,9 +14,8 @@ namespace Yakku.Application.Auth.Sms
 
     /// <param name="PhoneNumber">E.164, as normalised by <see cref="PhoneNumberNormalizer"/>.</param>
     /// <param name="Otp">The plain OTP. Must never be logged.</param>
-    /// <param name="ExpiryMinutes">The validity the SMS text states; it matches the Redis TTL of the OTP.</param>
     /// <param name="CorrelationId">Ties log lines and audit rows of one delivery together (the challenge id).</param>
-    public sealed record SmsOtpMessage(string PhoneNumber, string Otp, int ExpiryMinutes, Guid CorrelationId)
+    public sealed record SmsOtpMessage(string PhoneNumber, string Otp, Guid CorrelationId)
     {
         // The OTP is a credential: keep it out of any accidental ToString() / logging of the message.
         public override string ToString() => $"SmsOtpMessage {{ CorrelationId = {CorrelationId} }}";

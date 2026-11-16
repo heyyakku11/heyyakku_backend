@@ -40,20 +40,18 @@ public class SmsRegistrationTests
     }
 
     [Fact]
-    public void TheOtpValidity_ComesFromTheEnvironment_ForTheWholePipeline()
+    public void TheOtpValidity_IsTheConstant_ForTheWholePipeline()
     {
         using var provider = Build(new()
         {
             ["MSG91_AUTH_KEY"] = "key",
-            ["MSG91_FLOW_ID"] = "flow",
-            ["MSG91_OTP_EXPIRY_MINUTES"] = "7"
+            ["MSG91_FLOW_ID"] = "flow"
         });
 
         var policy = provider.GetRequiredService<OtpPolicy>();
 
-        Assert.Equal(TimeSpan.FromMinutes(7), policy.Ttl);
-        Assert.Equal(7, policy.ExpiryMinutes);
-        Assert.Equal(420, policy.ExpiresInSeconds);
+        Assert.Equal(TimeSpan.FromMinutes(OtpOptions.ExpiryMinutes), policy.Ttl);
+        Assert.Equal(OtpOptions.ExpiresInSeconds, policy.ExpiresInSeconds);
     }
 
     [Fact]

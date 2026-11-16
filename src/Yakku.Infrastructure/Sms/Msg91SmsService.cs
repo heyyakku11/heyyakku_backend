@@ -95,7 +95,7 @@ namespace Yakku.Infrastructure.Sms
 
         private HttpRequestMessage BuildRequest(SmsOtpMessage message, string mobiles)
         {
-            // The variable names (otp, expiry) must match the ##variables## of the approved MSG91 flow template.
+            // The variable name (otp) must match the ##variable## of the approved MSG91 flow template, which has no other.
             var payload = new Dictionary<string, object>
             {
                 ["template_id"] = _options.FlowId,
@@ -104,8 +104,7 @@ namespace Yakku.Infrastructure.Sms
                     new Dictionary<string, string>
                     {
                         ["mobiles"] = mobiles,
-                        [Msg91Options.OtpVariableName] = message.Otp,
-                        [Msg91Options.ExpiryVariableName] = message.ExpiryMinutes.ToString(CultureInfo.InvariantCulture)
+                        [Msg91Options.OtpVariableName] = message.Otp
                     }
                 }
             };

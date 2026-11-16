@@ -173,7 +173,7 @@ namespace Yakku.Application.Auth.Services
             try
             {
                 result = await _sms.SendOtpAsync(
-                    new SmsOtpMessage(phoneNumber, otp, _policy.ExpiryMinutes, challenge.ChallengeId),
+                    new SmsOtpMessage(phoneNumber, otp, challenge.ChallengeId),
                     cancellationToken);
             }
             catch

@@ -12,13 +12,9 @@ namespace Yakku.Infrastructure.Sms
         public const string AuthKeyVariable = "MSG91_AUTH_KEY";
         public const string FlowIdVariable = "MSG91_FLOW_ID";
         public const string SenderIdVariable = "MSG91_SENDER_ID";
-        public const string OtpExpiryMinutesVariable = "MSG91_OTP_EXPIRY_MINUTES";
 
-        public const int DefaultOtpExpiryMinutes = 5;
-
-        /// <summary>Names of the dynamic variables in the approved MSG91 flow template (<c>##otp##</c>, <c>##expiry##</c>).</summary>
+        /// <summary>Name of the one dynamic variable in the approved MSG91 flow template (<c>##otp##</c>).</summary>
         public const string OtpVariableName = "otp";
-        public const string ExpiryVariableName = "expiry";
 
         private readonly List<string> _errors = [];
 
@@ -40,11 +36,7 @@ namespace Yakku.Infrastructure.Sms
         /// </summary>
         public string SenderId { get; private init; } = string.Empty;
 
-        public int OtpExpiryMinutes { get; private init; } = DefaultOtpExpiryMinutes;
-
         public IReadOnlyList<string> Errors => _errors;
-
-        public OtpPolicy OtpPolicy => OtpPolicy.ForExpiryMinutes(OtpExpiryMinutes);
 
         public static Msg91Options FromEnvironment(Func<string, string?> read)
         {
@@ -66,15 +58,6 @@ namespace Yakku.Infrastructure.Sms
                         errors.Add($"{EnabledVariable} must be true or false.");
                         break;
                 }
-            }
-
-            var expiry = DefaultOtpExpiryMinutes;
-            var expiryRaw = Clean(read(OtpExpiryMinutesVariable));
-            if (expiryRaw is not null
-                && (!int.TryParse(expiryRaw, out expiry) || expiry < 1 || expiry > OtpPolicy.MaxExpiryMinutes))
-            {
-                errors.Add($"{OtpExpiryMinutesVariable} must be a whole number of minutes between 1 and {OtpPolicy.MaxExpiryMinutes}.");
-                expiry = DefaultOtpExpiryMinutes;
             }
 
             var authKey = Clean(read(AuthKeyVariable)) ?? string.Empty;
@@ -110,8 +93,7 @@ namespace Yakku.Infrastructure.Sms
                 Enabled = enabled,
                 AuthKey = authKey,
                 FlowId = flowId,
-                SenderId = senderId,
-                OtpExpiryMinutes = expiry
+                SenderId = senderId
             };
             options._errors.AddRange(errors);
             return options;
@@ -133,7 +115,7 @@ namespace Yakku.Infrastructure.Sms
 
         public override string ToString()
         {
-            return $"Msg91Options {{ Enabled = {Enabled}, FlowConfigured = {FlowId.Length > 0}, AuthKeyConfigured = {AuthKey.Length > 0}, OtpExpiryMinutes = {OtpExpiryMinutes} }}";
+            return $"Msg91Options {{ Enabled = {Enabled}, FlowConfigured = {FlowId.Length > 0}, AuthKeyConfigured = {AuthKey.Length > 0} }}";
         }
 
         private static bool IsValidSenderId(string value)

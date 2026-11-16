@@ -33,8 +33,8 @@ public class Msg91SmsServiceTests
         return (new Msg91SmsService(client, Options(), log), handler, log);
     }
 
-    private static SmsOtpMessage Message(string phone = Phone, int expiry = 5) =>
-        new(phone, Otp, expiry, Guid.Parse("11111111-2222-3333-4444-555555555555"));
+    private static SmsOtpMessage Message(string phone = Phone) =>
+        new(phone, Otp, Guid.Parse("11111111-2222-3333-4444-555555555555"));
 
     private static StubHttpHandler Reply(HttpStatusCode status, string body) => StubHttpHandler.Replying(status, body);
 
@@ -64,18 +64,19 @@ public class Msg91SmsServiceTests
         var recipient = Assert.Single(body.RootElement.GetProperty("recipients").EnumerateArray());
         Assert.Equal("919876543210", recipient.GetProperty("mobiles").GetString());
         Assert.Equal(Otp, recipient.GetProperty("otp").GetString());
-        Assert.Equal("5", recipient.GetProperty("expiry").GetString());
     }
 
     [Fact]
-    public async Task TheExpiryInTheSms_IsTheMinutesTheCallerSays()
+    public async Task TheOtp_IsTheOnlyTemplateVariableSent_NoExpiry()
     {
         var (service, handler, _) = Create(Reply(HttpStatusCode.OK, """{"type":"success","message":"id"}"""));
 
-        await service.SendOtpAsync(Message(expiry: 10));
+        await service.SendOtpAsync(Message());
 
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body);
-        Assert.Equal("10", body.RootElement.GetProperty("recipients")[0].GetProperty("expiry").GetString());
+        var recipient = body.RootElement.GetProperty("recipients")[0];
+        var names = recipient.EnumerateObject().Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+        Assert.Equal(["mobiles", "otp"], names);
     }
 
     [Theory]

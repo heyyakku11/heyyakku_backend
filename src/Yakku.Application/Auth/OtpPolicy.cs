@@ -1,17 +1,27 @@
 namespace Yakku.Application.Auth
 {
     /// <summary>
-    /// How long an OTP lives and how often one may be sent. The TTL is the single source for the Redis expiry,
-    /// the "valid for N minutes" in the SMS, and the <c>expiresInSeconds</c> the client sees.
+    /// How long an OTP lives and how often one may be sent. The defaults come from <see cref="OtpOptions"/>.
+    /// An OTP lives <see cref="OtpOptions.ExpiryMinutes"/> minutes, and never longer: <see cref="Ttl"/> rejects any
+    /// value above that, so no policy (and no configuration) can make an OTP last longer. It is the single source
+    /// for the Redis expiry and the <c>expiresInSeconds</c> the client sees.
     /// </summary>
     public sealed record OtpPolicy
     {
-        /// <summary>The longest OTP validity that can be stated in whole minutes in the SMS.</summary>
-        public const int MaxExpiryMinutes = 30;
-
         public static readonly OtpPolicy Default = new();
 
-        public TimeSpan Ttl { get; init; } = OtpOptions.Ttl;
+        private readonly TimeSpan _ttl = OtpOptions.Ttl;
+
+        /// <summary>Defaults to the maximum; a shorter lifetime is allowed (tests), a longer one throws.</summary>
+        public TimeSpan Ttl
+        {
+            get => _ttl;
+            init => _ttl = value > TimeSpan.Zero && value <= OtpOptions.Ttl
+                ? value
+                : throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    $"An OTP must live more than zero and at most {OtpOptions.ExpiryMinutes} minutes.");
+        }
 
         public TimeSpan ResendCooldown { get; init; } = OtpOptions.ResendCooldown;
 
@@ -22,20 +32,6 @@ namespace Yakku.Application.Auth
 
         public int MaxVerificationAttempts { get; init; } = OtpOptions.MaxVerificationAttempts;
 
-        public int ExpiryMinutes => (int)Math.Ceiling(Ttl.TotalMinutes);
-
         public int ExpiresInSeconds => (int)Math.Ceiling(Ttl.TotalSeconds);
-
-        public static OtpPolicy ForExpiryMinutes(int minutes)
-        {
-            if (minutes < 1 || minutes > MaxExpiryMinutes)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(minutes),
-                    $"OTP expiry must be between 1 and {MaxExpiryMinutes} minutes.");
-            }
-
-            return new OtpPolicy { Ttl = TimeSpan.FromMinutes(minutes) };
-        }
     }
 }

@@ -45,7 +45,7 @@ Fill in `.env`. Never commit that file; `.env.example` is the template that stay
 | `UPSTASH_REDIS_REST_URL` | Yes | Redis REST base URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes | Redis REST token |
 | `JWT_SECRET` | Yes | Access-token signing key (at least 32 characters) |
-| `MSG91_AUTH_KEY`, `MSG91_FLOW_ID` | Yes (unless `MSG91_ENABLED=false`) | OTP SMS delivery; see [MSG91 configuration](#msg91-configuration). `MSG91_SENDER_ID`, `MSG91_OTP_EXPIRY_MINUTES`, `MSG91_ENABLED` are optional. |
+| `MSG91_AUTH_KEY`, `MSG91_FLOW_ID` | Yes (unless `MSG91_ENABLED=false`) | OTP SMS delivery; see [MSG91 configuration](#msg91-configuration). `MSG91_SENDER_ID`, `MSG91_ENABLED` are optional. |
 | `ADMIN_*`, `TRUSTED_PROXY_HOPS` | No | Admin cookie-session, CSRF and login-throttle settings with secure defaults; see [docs/admin-auth.md](docs/admin-auth.md). |
 | `CORS_ORIGINS` | No | Comma-separated browser origins allowed to send credentials (`yakku_guest` cookie). Leave empty when the API and web app share the same origin. |
 | `AWS_ENDPOINT_URL_S3` | Yes | Neon Object Storage S3 endpoint (path-style) |
@@ -106,12 +106,13 @@ Read from environment variables (the Render dashboard in production; a git-ignor
 | `MSG91_AUTH_KEY` | When enabled | MSG91 AuthKey. Server-side only. |
 | `MSG91_FLOW_ID` | When enabled | Flow (template) id sent as `template_id`. |
 | `MSG91_SENDER_ID` | No | DLT sender header (3–11 letters/digits). Bound to the flow in MSG91, so it is validated but not sent. |
-| `MSG91_OTP_EXPIRY_MINUTES` | No (5) | The one OTP validity: Redis TTL, the `##expiry##` in the SMS and `expiresInSeconds` (1–30). |
 | `MSG91_ENABLED` | No (true) | `false` turns SMS off; OTP requests then fail with 503. |
 
-The approved flow template must define the variables `##otp##` and `##expiry##`:
+The OTP validity is not configurable by environment: it is the constant `OtpOptions.ExpiryMinutes` (5) in `src/Yakku.Application/Auth/OtpOptions.cs`. It drives the Redis TTL and `expiresInSeconds`. If you change it, update the "valid for N minutes" text of the MSG91 and DLT templates to match, because the SMS no longer carries it.
 
-> Your YAKKU verification code is ##otp##. Use this OTP to verify your mobile number. It is valid for ##expiry## minutes. Do not share it with anyone.
+The approved flow template must define exactly one variable, `##otp##`; the validity is fixed text:
+
+> Your YAKKU verification code is ##otp##. Use this OTP to verify your mobile number. It is valid for 5 minutes. Do not share it with anyone.
 
 ### Auth error codes
 

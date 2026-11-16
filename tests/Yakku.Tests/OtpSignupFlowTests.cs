@@ -71,7 +71,6 @@ public sealed class OtpSignupFlowTests
         var sms = Assert.Single(h.Sms.Sent);
         Assert.Equal(Phone, sms.PhoneNumber);
         Assert.Matches(@"^\d{6}$", sms.Otp);
-        Assert.Equal(5, sms.ExpiryMinutes);
 
         // The response never carries the OTP, and Redis never holds it in clear.
         Assert.DoesNotContain(sms.Otp, JsonSerializer.Serialize(response));
@@ -119,15 +118,16 @@ public sealed class OtpSignupFlowTests
     }
 
     [SkippableFact]
-    public async Task TheConfiguredValidity_IsUsedForTheRedisTtl_TheSmsText_AndTheResponse()
+    public async Task EveryOtp_LivesExactlyFiveMinutes_InRedisAndInTheResponse()
     {
-        var h = await StartAsync(OtpPolicy.ForExpiryMinutes(10));
+        var h = await StartAsync();
 
         var response = await h.NewAuth().RequestOtpAsync(Request());
 
-        Assert.Equal(600, response.ExpiresInSeconds);
-        Assert.Equal(10, h.Sms.Last.ExpiryMinutes);
-        Assert.InRange((await _redis.Database.KeyTimeToLiveAsync(ChallengeKey))!.Value.TotalSeconds, 598, 600);
+        Assert.Equal(300, response.ExpiresInSeconds);
+        var ttl = (await _redis.Database.KeyTimeToLiveAsync(ChallengeKey))!.Value;
+        Assert.InRange(ttl.TotalSeconds, 298, 300);
+        Assert.True(ttl <= TimeSpan.FromMinutes(5));
     }
 
     // ---- validation ----------------------------------------------------------------------------------------

@@ -24,9 +24,6 @@ public class Msg91OptionsTests
         Assert.True(options.Enabled);
         Assert.Equal("key", options.AuthKey);
         Assert.Equal("flow", options.FlowId);
-        Assert.Equal(5, options.OtpExpiryMinutes);
-        Assert.Equal(TimeSpan.FromMinutes(5), options.OtpPolicy.Ttl);
-        Assert.Equal(300, options.OtpPolicy.ExpiresInSeconds);
     }
 
     [Fact]
@@ -104,33 +101,17 @@ public class Msg91OptionsTests
     }
 
     [Theory]
-    [InlineData("1", 1)]
-    [InlineData("10", 10)]
-    [InlineData("30", 30)]
-    public void TheOtpExpiry_IsReadFromTheEnvironment_AndDrivesThePolicy(string raw, int minutes)
+    [InlineData("1")]
+    [InlineData("30")]
+    [InlineData("five")]
+    public void AnOtpExpiryEnvironmentVariable_IsIgnored_BecauseTheValidityIsAConstant(string raw)
     {
         var options = Load(("MSG91_AUTH_KEY", "k"), ("MSG91_FLOW_ID", "f"), ("MSG91_OTP_EXPIRY_MINUTES", raw));
 
         options.ThrowIfInvalid();
 
-        Assert.Equal(minutes, options.OtpExpiryMinutes);
-        Assert.Equal(TimeSpan.FromMinutes(minutes), options.OtpPolicy.Ttl);
-        Assert.Equal(minutes, options.OtpPolicy.ExpiryMinutes);
-    }
-
-    [Theory]
-    [InlineData("0")]
-    [InlineData("-5")]
-    [InlineData("31")]
-    [InlineData("five")]
-    [InlineData("2.5")]
-    public void AnInvalidOtpExpiry_Fails(string raw)
-    {
-        var options = Load(("MSG91_AUTH_KEY", "k"), ("MSG91_FLOW_ID", "f"), ("MSG91_OTP_EXPIRY_MINUTES", raw));
-
-        var exception = Assert.Throws<InvalidOperationException>(options.ThrowIfInvalid);
-
-        Assert.Contains("MSG91_OTP_EXPIRY_MINUTES", exception.Message);
+        Assert.Equal(5, OtpOptions.ExpiryMinutes);
+        Assert.Equal(TimeSpan.FromMinutes(OtpOptions.ExpiryMinutes), OtpPolicy.Default.Ttl);
     }
 
     [Theory]
@@ -179,5 +160,22 @@ public class Msg91OptionsTests
         Assert.Equal(OtpOptions.ResendCooldown, OtpPolicy.Default.ResendCooldown);
         Assert.Equal(OtpOptions.MaxVerificationAttempts, OtpPolicy.Default.MaxVerificationAttempts);
         Assert.Equal(OtpOptions.ExpiresInSeconds, OtpPolicy.Default.ExpiresInSeconds);
+        Assert.Equal(OtpOptions.ExpiryMinutes * 60, OtpOptions.ExpiresInSeconds);
+        Assert.Equal(300, OtpPolicy.Default.ExpiresInSeconds);
+    }
+
+    [Fact]
+    public void NoOtpValidity_CanExceedFiveMinutes()
+    {
+        Assert.Equal(5, OtpOptions.ExpiryMinutes);
+        Assert.True(OtpOptions.Ttl <= TimeSpan.FromMinutes(5));
+        Assert.True(OtpPolicy.Default.Ttl <= TimeSpan.FromMinutes(5));
+        Assert.True(OtpPolicy.Default.ExpiresInSeconds <= 300);
+
+        // A policy can be shorter, never longer.
+        Assert.Equal(TimeSpan.FromSeconds(1), new OtpPolicy { Ttl = TimeSpan.FromSeconds(1) }.Ttl);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OtpPolicy { Ttl = TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1) });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OtpPolicy { Ttl = TimeSpan.FromMinutes(10) });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OtpPolicy { Ttl = TimeSpan.Zero });
     }
 }

@@ -71,14 +71,14 @@ public sealed class OtpChallengeStoreRedisTests
     }
 
     [SkippableFact]
-    public async Task Issue_TtlFollowsThePolicy_NotAHardcodedFiveMinutes()
+    public async Task Issue_StoresTheOtpForAtMostFiveMinutes()
     {
         var store = await StartAsync();
 
-        await store.TryIssueAsync(Phone, Challenge(), OtpPolicy.ForExpiryMinutes(10));
+        await store.TryIssueAsync(Phone, Challenge(), OtpPolicy.Default);
 
         var ttl = await _redis.Database.KeyTimeToLiveAsync(ChallengeKey);
-        Assert.InRange(ttl!.Value.TotalSeconds, 598, 600);
+        Assert.InRange(ttl!.Value.TotalSeconds, 298, 300);
     }
 
     [SkippableFact]
