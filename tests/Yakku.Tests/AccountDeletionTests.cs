@@ -1,4 +1,6 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging.Abstractions;
+using Yakku.Application.Auth;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Models;
@@ -63,7 +65,7 @@ public class AccountDeletionTests
     {
         var h = new Harness();
         await h.Service.RequestDeletionAsync(h.User.Id);
-        h.Otp.Set(Phone, new OtpChallenge { OtpHash = "123456", Purpose = OtpPurpose.Login, CreatedAt = DateTime.UtcNow });
+        h.Otp.Set(Phone, new OtpChallenge { OtpHash = OtpHasher.Hash(Phone, "123456"), Purpose = OtpPurpose.Login, CreatedAt = DateTime.UtcNow });
 
         var response = await h.Auth.VerifyOtpAsync(new VerifyOtpRequest { PhoneNumber = Phone, Otp = "123456" });
 
@@ -76,7 +78,7 @@ public class AccountDeletionTests
     public async Task Login_OfAnActiveAccount_IsNotReportedAsRestored()
     {
         var h = new Harness();
-        h.Otp.Set(Phone, new OtpChallenge { OtpHash = "123456", Purpose = OtpPurpose.Login, CreatedAt = DateTime.UtcNow });
+        h.Otp.Set(Phone, new OtpChallenge { OtpHash = OtpHasher.Hash(Phone, "123456"), Purpose = OtpPurpose.Login, CreatedAt = DateTime.UtcNow });
 
         var response = await h.Auth.VerifyOtpAsync(new VerifyOtpRequest { PhoneNumber = Phone, Otp = "123456" });
 
@@ -158,7 +160,10 @@ public class AccountDeletionTests
                 new InlineValidator<ResendOtpRequest>(),
                 new InlineValidator<VerifyOtpRequest>(),
                 Audit,
-                new FakeSnapshot());
+                new FakeSnapshot(),
+                new FakeSmsService(),
+                OtpPolicy.Default,
+                NullLogger<AuthService>.Instance);
         }
 
         public User User { get; }
@@ -291,6 +296,31 @@ public class AccountDeletionTests
         }
 
         public Task<bool> DeleteIfChallengeMatchesAsync(string email, Guid challengeId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<OtpIssueResult> TryIssueAsync(string phoneNumber, OtpChallenge challenge, OtpPolicy policy, CancellationToken cancellationToken = default)
+        {
+            _challenges[phoneNumber] = challenge;
+            return Task.FromResult(new OtpIssueResult(OtpIssueStatus.Issued, TimeSpan.Zero));
+        }
+
+        public Task<OtpVerificationResult> VerifyAndConsumeAsync(string phoneNumber, string otpHash, int maxAttempts, CancellationToken cancellationToken = default)
+        {
+            if (!_challenges.TryGetValue(phoneNumber, out var challenge))
+            {
+                return Task.FromResult(new OtpVerificationResult(OtpVerificationStatus.NotFound));
+            }
+
+            if (challenge.OtpHash != otpHash)
+            {
+                return Task.FromResult(new OtpVerificationResult(OtpVerificationStatus.Invalid));
+            }
+
+            _challenges.Remove(phoneNumber);
+            return Task.FromResult(new OtpVerificationResult(OtpVerificationStatus.Verified, challenge));
+        }
+
+        public Task<bool> RevokeUndeliveredAsync(string phoneNumber, Guid challengeId, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
     }
 

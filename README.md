@@ -1,6 +1,6 @@
 # Yakku Backend
 
-ASP.NET Core API for Hey Yakku. Users prove email ownership with a 6-digit OTP. A user row is created only after verification succeeds. Until then, Redis holds a short-lived challenge — not a user.
+ASP.NET Core API for Hey Yakku. Users prove ownership of their mobile number with a 6-digit OTP sent by SMS. A user row is created only after verification succeeds. Until then, Redis holds a short-lived challenge — not a user.
 
 Postgres stores users, profiles, sessions, guests, polls, votes, and system logs. Upstash Redis (REST) stores OTP challenges only.
 
@@ -45,6 +45,7 @@ Fill in `.env`. Never commit that file; `.env.example` is the template that stay
 | `UPSTASH_REDIS_REST_URL` | Yes | Redis REST base URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes | Redis REST token |
 | `JWT_SECRET` | Yes | Access-token signing key (at least 32 characters) |
+| `MSG91_AUTH_KEY`, `MSG91_FLOW_ID` | Yes (unless `MSG91_ENABLED=false`) | OTP SMS delivery; see [MSG91 configuration](#msg91-configuration). `MSG91_SENDER_ID`, `MSG91_OTP_EXPIRY_MINUTES`, `MSG91_ENABLED` are optional. |
 | `ADMIN_*`, `TRUSTED_PROXY_HOPS` | No | Admin cookie-session, CSRF and login-throttle settings with secure defaults; see [docs/admin-auth.md](docs/admin-auth.md). |
 | `CORS_ORIGINS` | No | Comma-separated browser origins allowed to send credentials (`yakku_guest` cookie). Leave empty when the API and web app share the same origin. |
 | `AWS_ENDPOINT_URL_S3` | Yes | Neon Object Storage S3 endpoint (path-style) |
@@ -86,26 +87,42 @@ The image listens on `8080`. Pass the same env vars as `.env`.
 
 ## Auth
 
-1. `POST /api/auth/request-otp` with `{ "email": "user@example.com" }`.
-2. Emails are trimmed and lowercased. Missing user → registration challenge; existing user → login challenge.
-3. OTP is 6 digits, hashed (SHA-256 of `email` + newline + otp), stored in Redis at `auth:otp:{email}` with a **5-minute** TTL.
-4. Resend is blocked for 60 seconds (`OTP_RESEND_COOLDOWN`). After that the same key is overwritten.
-5. `POST /api/auth/verify-otp` with `{ "email": "...", "otp": "483921" }`. Success on registration inserts `Users` + `UserProfiles`; success on login updates `LastLoginAt`. The Redis key is deleted either way. Response includes access and refresh tokens.
-6. Five failed verifies → `OTP_ATTEMPTS_EXCEEDED` until a new OTP is requested.
+OTPs are delivered by SMS through the [MSG91 Flow API](https://control.msg91.com/api/v5/flow) (Indian mobile numbers, `+91` and ten digits).
 
-If the code is never verified, the Redis key expires. No unverified user is left in Postgres.
+1. `POST /api/v1/auth/send` with `{ "phoneNumber": "+919876543210" }`. Missing user → registration challenge; existing user → login challenge.
+2. The backend generates a 6-digit OTP (`RandomNumberGenerator`) and, in **one atomic Redis step** (Lua), checks the resend cooldown and the per-number send limit and stores the challenge at `auth:otp:{phone}` with the OTP validity as its TTL. Only a SHA-256 hash of the OTP is stored.
+3. It then calls MSG91 (`Msg91SmsService`). The request succeeds only if MSG91 answers 2xx **and** `"type":"success"`. If MSG91 does not accept it, the stored OTP is invalidated (compare-and-delete by challenge id, so a newer OTP is never removed), the send allowance is given back, and the client gets `503 SERVICE_UNAVAILABLE` with no provider details.
+4. `POST /api/v1/auth/verify` with `{ "phoneNumber": "...", "otp": "483921" }`. Compare, attempt counting and consumption are one atomic Redis step: a correct OTP works exactly once, and parallel guesses all count. Success on registration inserts `Users` + `UserProfiles`; success on login updates `LastLoginAt`. Response includes access and refresh tokens.
+5. Limits: 60 s resend cooldown (`OTP_RESEND_COOLDOWN`), 5 OTPs per number per hour (`RATE_LIMITED`, 429), 5 wrong guesses per OTP (`OTP_ATTEMPTS_EXCEEDED`), and per-client-address rate limits on both endpoints (429).
 
-In Development, OTP is logged (`LoggingEmailSender`), not emailed.
+If the code is never verified, the Redis key expires. No unverified user is left in Postgres. The API never returns the OTP, and the OTP, the MSG91 AuthKey and full phone numbers are never logged.
+
+### MSG91 configuration
+
+Read from environment variables (the Render dashboard in production; a git-ignored `.env` locally). The app **refuses to start** if `MSG91_ENABLED` is true and a required value is missing.
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `MSG91_AUTH_KEY` | When enabled | MSG91 AuthKey. Server-side only. |
+| `MSG91_FLOW_ID` | When enabled | Flow (template) id sent as `template_id`. |
+| `MSG91_SENDER_ID` | No | DLT sender header (3–11 letters/digits). Bound to the flow in MSG91, so it is validated but not sent. |
+| `MSG91_OTP_EXPIRY_MINUTES` | No (5) | The one OTP validity: Redis TTL, the `##expiry##` in the SMS and `expiresInSeconds` (1–30). |
+| `MSG91_ENABLED` | No (true) | `false` turns SMS off; OTP requests then fail with 503. |
+
+The approved flow template must define the variables `##otp##` and `##expiry##`:
+
+> Your YAKKU verification code is ##otp##. Use this OTP to verify your mobile number. It is valid for ##expiry## minutes. Do not share it with anyone.
 
 ### Auth error codes
 
 | Code | When |
 |---|---|
 | `OTP_RESEND_COOLDOWN` | New OTP requested within 60 seconds |
-| `OTP_NOT_FOUND` | No challenge, or TTL expired |
+| `RATE_LIMITED` | Too many OTPs for this number in an hour, or too many requests from this client |
+| `SERVICE_UNAVAILABLE` | The SMS could not be delivered (OTP is invalidated; try again) |
+| `OTP_NOT_FOUND` | No challenge, expired, or already used |
 | `OTP_INVALID` | Wrong code |
 | `OTP_ATTEMPTS_EXCEEDED` | 5 failed verifies |
-| `OTP_EXPIRED` | Key gone while updating attempts |
 | `NOT_FOUND` | Login verify but user missing |
 | `CONFLICT` | Could not allocate a unique display name |
 

@@ -8,6 +8,7 @@ using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.Audit;
 using Yakku.Application.Guests;
 using Yakku.Application.Auth.Interfaces;
+using Yakku.Application.Auth.Sms;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Email;
@@ -30,6 +31,7 @@ using Yakku.Infrastructure.Persistence;
 using Yakku.Infrastructure.Push;
 using Yakku.Infrastructure.Persistence.Repositories;
 using Yakku.Infrastructure.Redis;
+using Yakku.Infrastructure.Sms;
 using Yakku.Application.Storage;
 using Yakku.Infrastructure.Storage;
 using Yakku.Infrastructure.System;
@@ -38,10 +40,42 @@ namespace Yakku.Infrastructure
 {
     public static class DependencyInjection
     {
+        /// <summary>
+        /// OTP SMS delivery through MSG91, plus the OTP policy (its validity comes from MSG91_OTP_EXPIRY_MINUTES).
+        /// Bad or missing settings stop the app from starting. The AuthKey is read from the environment only
+        /// (Render's dashboard in production) and goes nowhere but the MSG91 request header.
+        /// </summary>
+        public static IServiceCollection AddSmsDelivery(this IServiceCollection services, Func<string, string?> readSetting)
+        {
+            var msg91 = Msg91Options.FromEnvironment(readSetting);
+            msg91.ThrowIfInvalid();
+            services.AddSingleton(msg91);
+            services.AddSingleton(msg91.OtpPolicy);
+
+            if (msg91.Enabled)
+            {
+                // One typed client from IHttpClientFactory: pooled handlers, HTTPS only, a hard timeout, no retries.
+                services.AddHttpClient<ISmsService, Msg91SmsService>(client =>
+                {
+                    client.BaseAddress = new Uri("https://control.msg91.com/");
+                    client.Timeout = TimeSpan.FromSeconds(10);
+                    client.MaxResponseContentBufferSize = 64 * 1024;
+                });
+            }
+            else
+            {
+                services.AddSingleton<ISmsService, DisabledSmsService>();
+            }
+
+            return services;
+        }
+
         public static IServiceCollection AddInfrastructure(this IServiceCollection services)
         {
             EnvFile.Load();
             MediaUploadPolicyFactory.ValidateStorageConfiguration();
+
+            services.AddSmsDelivery(Environment.GetEnvironmentVariable);
 
             services.AddHttpContextAccessor();
             services.AddScoped<IPollRepository, PollRepository>();

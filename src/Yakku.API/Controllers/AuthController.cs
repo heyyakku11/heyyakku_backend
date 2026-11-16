@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Yakku.API.Auth;
 using Yakku.API.Guests;
 using Yakku.API.Media;
@@ -36,11 +37,14 @@ namespace Yakku.API.Controllers
             _logger = logger;
         }
 
+        [EnableRateLimiting("otp-send")]
         [HttpPost("send")]
         [EndpointSummary("Send OTP for User Authentication")]
-        [EndpointDescription("Sends OTP for login or registration. New numbers must include a name.")]
+        [EndpointDescription("Sends an OTP by SMS for login or registration (Indian mobile numbers only). Returns 400 inside the resend cooldown, 429 when the number or the caller has asked too often, and 503 when the SMS could not be delivered. The OTP is never returned.")]
         [ProducesResponseType(typeof(ApiResponse<RequestOtpResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> RequestOtp(
             [FromBody] RequestOtpRequest request,
             CancellationToken cancellationToken)
@@ -56,6 +60,7 @@ namespace Yakku.API.Controllers
             }
         }
 
+        [EnableRateLimiting("otp-verify")]
         [HttpPost("verify")]
         [EndpointSummary("Verify OTP and Authenticate User")]
         [EndpointDescription("Verifies OTP, registers new users, and returns access/refresh tokens.")]

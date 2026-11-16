@@ -3,17 +3,17 @@ using System.Text;
 
 namespace Yakku.Application.Auth
 {
-    internal static class OtpHasher
+    public static class OtpHasher
     {
-        public static string Hash(string email, string otp)
+        public static string Hash(string phoneNumber, string otp)
         {
-            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{email}\n{otp}"));
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{phoneNumber}\n{otp}"));
             return Convert.ToHexString(bytes);
         }
 
-        public static bool Verify(string email, string otp, string expectedHash)
+        public static bool Verify(string phoneNumber, string otp, string expectedHash)
         {
-            var actual = Hash(email, otp);
+            var actual = Hash(phoneNumber, otp);
             var actualBytes = Encoding.UTF8.GetBytes(actual);
             var expectedBytes = Encoding.UTF8.GetBytes(expectedHash);
 

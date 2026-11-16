@@ -24,6 +24,15 @@ namespace Yakku.Application.Common
             public const int CreateRateLimitPerMinute = 20;
         }
 
+        public static class Otp
+        {
+            /// <summary>POST /api/v1/auth/send requests allowed per client address per minute.</summary>
+            public const int SendRateLimitPerMinute = 10;
+
+            /// <summary>POST /api/v1/auth/verify requests allowed per client address per minute.</summary>
+            public const int VerifyRateLimitPerMinute = 30;
+        }
+
         public static class AccountDeletion
         {
             /// <summary>Days between a delete request and the permanent purge; logging in again cancels it.</summary>

@@ -181,6 +181,10 @@ builder.Services.AddRateLimiter(options =>
                 ]),
             token);
     };
+    // OTP send costs real money (one SMS) and verify is the guessing surface; both are limited per client address
+    // on top of the per-phone cooldown, hourly send cap and attempt limit enforced in Redis.
+    options.AddPolicy("otp-send", httpContext => FixedWindow(httpContext, OperationalSettings.Otp.SendRateLimitPerMinute));
+    options.AddPolicy("otp-verify", httpContext => FixedWindow(httpContext, OperationalSettings.Otp.VerifyRateLimitPerMinute));
     options.AddPolicy("media-upload", httpContext => FixedWindow(httpContext, permitLimit: 20));
     options.AddPolicy("poll-votes", httpContext => FixedWindow(httpContext, permitLimit: 30));
     // Admin register, secret code, email link, password reset and login are brute-force targets.

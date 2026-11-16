@@ -1,8 +1,10 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using Yakku.Application.Audit;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Models;
+using Yakku.Application.Auth.Sms;
 using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
@@ -15,8 +17,7 @@ namespace Yakku.Application.Auth.Services
 {
     public class AuthService : IAuthService
     {
-        /// <summary>A reserved name outlives its OTP challenge slightly, then frees itself if unclaimed.</summary>
-        private static readonly TimeSpan NameHold = OtpOptions.Ttl + TimeSpan.FromMinutes(1);
+        private const string DeliveryFailedMessage = "We couldn't send the verification code right now. Please try again shortly.";
 
         private readonly IUserRepository _userRepository;
         private readonly IOtpChallengeStore _otpChallengeStore;
@@ -28,6 +29,12 @@ namespace Yakku.Application.Auth.Services
         private readonly IValidator<VerifyOtpRequest> _verifyOtpValidator;
         private readonly IAuditLogWriter _audit;
         private readonly ILoginSnapshotReader _loginSnapshot;
+        private readonly ISmsService _sms;
+        private readonly OtpPolicy _policy;
+        private readonly ILogger<AuthService> _logger;
+
+        /// <summary>A reserved name outlives its OTP challenge slightly, then frees itself if unclaimed.</summary>
+        private readonly TimeSpan _nameHold;
 
         public AuthService(
             IUserRepository userRepository,
@@ -39,8 +46,15 @@ namespace Yakku.Application.Auth.Services
             IValidator<ResendOtpRequest> resendOtpValidator,
             IValidator<VerifyOtpRequest> verifyOtpValidator,
             IAuditLogWriter audit,
-            ILoginSnapshotReader loginSnapshot)
+            ILoginSnapshotReader loginSnapshot,
+            ISmsService sms,
+            OtpPolicy policy,
+            ILogger<AuthService> logger)
         {
+            _sms = sms;
+            _policy = policy;
+            _logger = logger;
+            _nameHold = policy.Ttl + TimeSpan.FromMinutes(1);
             _userRepository = userRepository;
             _otpChallengeStore = otpChallengeStore;
             _otpGenerator = otpGenerator;
@@ -85,53 +99,157 @@ namespace Yakku.Application.Auth.Services
             await _requestOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            EnsureSmsAvailable();
+
             var user = await _userRepository.GetByPhoneNumberAsync(phoneNumber, cancellationToken);
             var purpose = user is null ? OtpPurpose.Registration : OtpPurpose.Login;
 
+            // Only read to keep a registering number's reserved name across re-requests. The resend cooldown and
+            // the send limit are enforced atomically when the new challenge is stored.
             var existing = await _otpChallengeStore.GetAsync(phoneNumber, cancellationToken);
-            if (existing is not null && DateTime.UtcNow - existing.CreatedAt < OtpOptions.ResendCooldown)
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.OtpResendCooldown,
-                    "Please wait before requesting another OTP.",
-                    "phoneNumber");
-            }
-
-            var otp = _otpGenerator.Generate();
-            var challengeId = Guid.NewGuid();
             string? anonymousName = null;
             if (purpose == OtpPurpose.Registration)
             {
-                if (!string.IsNullOrWhiteSpace(existing?.AnonymousName))
-                {
-                    anonymousName = existing!.AnonymousName;
-                    await _anonymousNames.RefreshAsync(anonymousName!, NameHold, cancellationToken);
-                }
-                else
-                {
-                    anonymousName = await _anonymousNames.ReserveAsync(NameHold, cancellationToken);
-                }
+                anonymousName = !string.IsNullOrWhiteSpace(existing?.AnonymousName)
+                    ? existing!.AnonymousName
+                    : await _anonymousNames.ReserveAsync(_nameHold, cancellationToken);
             }
 
+            await IssueAndSendOtpAsync(phoneNumber, purpose, anonymousName, cancellationToken);
+
+            return new RequestOtpResponse
+            {
+                Purpose = purpose.ToString(),
+                ExpiresInSeconds = _policy.ExpiresInSeconds
+            };
+        }
+
+        /// <summary>
+        /// Generate, store (atomically, with the cooldown and send limit), then deliver. The OTP only counts as sent
+        /// once the SMS provider has accepted it; if it did not, the stored OTP is invalidated so nobody is left with
+        /// a code that was never delivered. Redis and the provider cannot share a transaction, so this is compensation
+        /// by id: it removes only this request's challenge and never a newer one from a concurrent request.
+        /// </summary>
+        private async Task IssueAndSendOtpAsync(
+            string phoneNumber,
+            OtpPurpose purpose,
+            string? anonymousName,
+            CancellationToken cancellationToken)
+        {
+            var otp = _otpGenerator.Generate();
             var challenge = new OtpChallenge
             {
-                ChallengeId = challengeId,
-                // OtpHash = OtpHasher.Hash(phoneNumber, otp),
-                OtpHash = otp,
+                ChallengeId = Guid.NewGuid(),
+                OtpHash = OtpHasher.Hash(phoneNumber, otp),
                 Purpose = purpose,
                 AnonymousName = anonymousName,
                 AttemptCount = 0,
                 CreatedAt = DateTime.UtcNow
             };
 
-            await _otpChallengeStore.SetAsync(phoneNumber, challenge, OtpOptions.Ttl, cancellationToken);
-
-            return new RequestOtpResponse
+            var issued = await _otpChallengeStore.TryIssueAsync(phoneNumber, challenge, _policy, cancellationToken);
+            switch (issued.Status)
             {
-                Purpose = purpose.ToString(),
-                ExpiresInSeconds = OtpOptions.ExpiresInSeconds
-            };
+                case OtpIssueStatus.CooldownActive:
+                    throw new AppException(
+                        400,
+                        ApiErrorCodes.OtpResendCooldown,
+                        "Please wait before requesting another OTP.",
+                        "phoneNumber");
+                case OtpIssueStatus.SendLimitReached:
+                    throw new AppException(
+                        429,
+                        ApiErrorCodes.RateLimited,
+                        "Too many OTP requests. Please try again later.",
+                        "phoneNumber");
+            }
+
+            if (!string.IsNullOrWhiteSpace(anonymousName))
+            {
+                await _anonymousNames.RefreshAsync(anonymousName, _nameHold, cancellationToken);
+            }
+
+            SmsSendResult result;
+            try
+            {
+                result = await _sms.SendOtpAsync(
+                    new SmsOtpMessage(phoneNumber, otp, _policy.ExpiryMinutes, challenge.ChallengeId),
+                    cancellationToken);
+            }
+            catch
+            {
+                // Includes the caller cancelling mid-send: the OTP is stored but its delivery is unknown.
+                await RevokeUndeliveredAsync(phoneNumber, challenge.ChallengeId);
+                throw;
+            }
+
+            await _audit.WriteNotificationAsync(
+                new NotificationAuditEntry(
+                    NotificationChannel.Sms,
+                    "msg91",
+                    AuditEvents.Notification.OtpSms,
+                    null,
+                    null,
+                    phoneNumber,
+                    challenge.ChallengeId,
+                    1,
+                    false,
+                    result.Accepted ? NotificationAuditStatus.Accepted : NotificationAuditStatus.Failed,
+                    result.ProviderRequestId,
+                    result.Accepted ? null : result.Failure.ToString(),
+                    null,
+                    result.LatencyMs),
+                CancellationToken.None);
+
+            if (!result.Accepted)
+            {
+                await RevokeUndeliveredAsync(phoneNumber, challenge.ChallengeId);
+                throw ToDeliveryFailure(result.Failure);
+            }
+        }
+
+        private async Task RevokeUndeliveredAsync(string phoneNumber, Guid challengeId)
+        {
+            try
+            {
+                var revoked = await _otpChallengeStore.RevokeUndeliveredAsync(phoneNumber, challengeId, CancellationToken.None);
+                _logger.LogInformation(
+                    "Undelivered OTP challenge {ChallengeId} {Outcome}.",
+                    challengeId,
+                    revoked ? "was invalidated" : "was already replaced or expired");
+            }
+            catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException)
+            {
+                // Redis is unreachable. The OTP still expires on its own TTL; the delivery error is what the caller gets.
+                _logger.LogWarning(
+                    "Could not invalidate undelivered OTP challenge {ChallengeId} ({ExceptionType}); it expires on its own.",
+                    challengeId,
+                    exception.GetType().Name);
+            }
+        }
+
+        private void EnsureSmsAvailable()
+        {
+            if (!_sms.IsEnabled)
+            {
+                _logger.LogWarning("OTP requested while SMS delivery is disabled (MSG91_ENABLED=false).");
+                throw ToDeliveryFailure(SmsFailureCategory.Disabled);
+            }
+        }
+
+        /// <summary>The client learns that delivery failed, never why: provider details stay in the logs.</summary>
+        private static AppException ToDeliveryFailure(SmsFailureCategory failure)
+        {
+            if (failure == SmsFailureCategory.InvalidRecipient)
+            {
+                return new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "Phone number must be a valid Indian mobile number.",
+                    "phoneNumber");
+            }
+
+            return new AppException(503, ApiErrorCodes.ServiceUnavailable, DeliveryFailedMessage);
         }
 
         public async Task<RequestOtpResponse> ResendOtpAsync(
@@ -141,6 +259,8 @@ namespace Yakku.Application.Auth.Services
             await _resendOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            EnsureSmsAvailable();
+
             var existing = await _otpChallengeStore.GetAsync(phoneNumber, cancellationToken);
             if (existing is null)
             {
@@ -151,37 +271,12 @@ namespace Yakku.Application.Auth.Services
                     "phoneNumber");
             }
 
-            if (DateTime.UtcNow - existing.CreatedAt < OtpOptions.ResendCooldown)
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.OtpResendCooldown,
-                    "Please wait before requesting another OTP.",
-                    "phoneNumber");
-            }
-
-            var otp = _otpGenerator.Generate();
-            var challengeId = Guid.NewGuid();
-            var challenge = new OtpChallenge
-            {
-                ChallengeId = challengeId,
-                OtpHash = otp,
-                Purpose = existing.Purpose,
-                AnonymousName = existing.AnonymousName,
-                AttemptCount = 0,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await _otpChallengeStore.SetAsync(phoneNumber, challenge, OtpOptions.Ttl, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(existing.AnonymousName))
-            {
-                await _anonymousNames.RefreshAsync(existing.AnonymousName, NameHold, cancellationToken);
-            }
+            await IssueAndSendOtpAsync(phoneNumber, existing.Purpose, existing.AnonymousName, cancellationToken);
 
             return new RequestOtpResponse
             {
                 Purpose = existing.Purpose.ToString(),
-                ExpiresInSeconds = OtpOptions.ExpiresInSeconds
+                ExpiresInSeconds = _policy.ExpiresInSeconds
             };
         }
 
@@ -218,55 +313,38 @@ namespace Yakku.Application.Auth.Services
             await _verifyOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
-            var challenge = await _otpChallengeStore.GetAsync(phoneNumber, cancellationToken);
-            if (challenge is null)
-            {
-                throw new AppException(
-                    404,
-                    ApiErrorCodes.OtpNotFound,
-                    "OTP not found or has expired.",
-                    "otp");
-            }
 
-            if (challenge.AttemptCount >= OtpOptions.MaxVerificationAttempts)
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.OtpAttemptsExceeded,
-                    "Too many invalid OTP attempts. Request a new OTP.",
-                    "otp");
-            }
+            // One atomic step: check the attempt limit, compare, count a miss, and consume on a match. A correct OTP
+            // therefore works exactly once, and parallel guesses all count towards the limit.
+            var verification = await _otpChallengeStore.VerifyAndConsumeAsync(
+                phoneNumber,
+                OtpHasher.Hash(phoneNumber, request.Otp.Trim()),
+                _policy.MaxVerificationAttempts,
+                cancellationToken);
 
-            // if (!OtpHasher.Verify(phoneNumber, request.Otp.Trim(), challenge.OtpHash))
-            if (!string.Equals(request.Otp.Trim(), challenge.OtpHash, StringComparison.Ordinal))
+            switch (verification.Status)
             {
-                challenge.AttemptCount++;
-                var replaced = await _otpChallengeStore.ReplaceKeepingTtlAsync(phoneNumber, challenge, cancellationToken);
-                if (!replaced)
-                {
+                case OtpVerificationStatus.NotFound:
                     throw new AppException(
-                        400,
-                        ApiErrorCodes.OtpExpired,
-                        "OTP has expired.",
+                        404,
+                        ApiErrorCodes.OtpNotFound,
+                        "OTP not found or has expired.",
                         "otp");
-                }
-
-                if (challenge.AttemptCount >= OtpOptions.MaxVerificationAttempts)
-                {
+                case OtpVerificationStatus.AttemptsExceeded:
                     throw new AppException(
                         400,
                         ApiErrorCodes.OtpAttemptsExceeded,
                         "Too many invalid OTP attempts. Request a new OTP.",
                         "otp");
-                }
-
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.OtpInvalid,
-                    "Invalid OTP.",
-                    "otp");
+                case OtpVerificationStatus.Invalid:
+                    throw new AppException(
+                        400,
+                        ApiErrorCodes.OtpInvalid,
+                        "Invalid OTP.",
+                        "otp");
             }
 
+            var challenge = verification.Challenge!;
             if (challenge.Purpose == OtpPurpose.Registration)
             {
                 return await CompleteRegistrationAsync(phoneNumber, challenge, ToInstallation(request.Device), cancellationToken);
@@ -282,7 +360,7 @@ namespace Yakku.Application.Auth.Services
             CancellationToken cancellationToken)
         {
             var anonymousName = string.IsNullOrWhiteSpace(challenge.AnonymousName)
-                ? await _anonymousNames.ReserveAsync(NameHold, cancellationToken)
+                ? await _anonymousNames.ReserveAsync(_nameHold, cancellationToken)
                 : challenge.AnonymousName;
 
             User user;
@@ -303,7 +381,7 @@ namespace Yakku.Application.Auth.Services
                     // Someone took the name between the check and the insert: try another.
                     _userRepository.ClearTracking();
                     await _anonymousNames.ReleaseAsync(anonymousName, CancellationToken.None);
-                    anonymousName = await _anonymousNames.ReserveAsync(NameHold, cancellationToken);
+                    anonymousName = await _anonymousNames.ReserveAsync(_nameHold, cancellationToken);
                 }
                 catch (AppException exception) when (
                     exception.StatusCode == 409
@@ -316,8 +394,8 @@ namespace Yakku.Application.Auth.Services
                 }
             }
 
+            // The OTP was consumed when it was verified; deleting the key here could remove a newer OTP.
             await _anonymousNames.ReleaseAsync(anonymousName, CancellationToken.None);
-            await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
 
             return await ToResponseAsync(user, OtpPurpose.Registration, installation, cancellationToken);
         }
@@ -330,7 +408,6 @@ namespace Yakku.Application.Auth.Services
             var user = await _userRepository.GetByPhoneNumberAsync(phoneNumber, cancellationToken);
             if (user is null)
             {
-                await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
                 throw new AppException(
                     404,
                     ApiErrorCodes.NotFound,
@@ -342,7 +419,6 @@ namespace Yakku.Application.Auth.Services
             var restored = user.CancelDeletion();
             user.RecordLogin();
             await _userRepository.SaveChangesAsync(cancellationToken);
-            await _otpChallengeStore.DeleteAsync(phoneNumber, cancellationToken);
 
             if (restored)
             {

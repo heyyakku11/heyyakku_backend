@@ -77,6 +77,7 @@ namespace Yakku.Application.Audit
         public static class Notification
         {
             public const string OtpEmail = "otp_email";
+            public const string OtpSms = "otp_sms";
             public const string AdminEmail = "admin_email";
             public const string Push = "push";
         }
