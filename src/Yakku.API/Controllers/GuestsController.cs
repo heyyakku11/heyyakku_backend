@@ -30,7 +30,7 @@ namespace Yakku.API.Controllers
         [HttpPost]
         [EnableRateLimiting("guest-create")]
         [EndpointSummary("Create or Reuse a Guest Identity")]
-        [EndpointDescription("Returns the caller's existing valid guest (cookie or X-Guest-Token header) without issuing a new token; otherwise creates one. Authenticated callers get 409.")]
+        [EndpointDescription("Returns the caller's existing valid guest (cookie or X-Guest-Token header) without issuing a new token; otherwise creates one. Authenticated callers get 409. When a new guest is created the server records client details from request headers only (no body): User-Agent (also parsed to browser, OS and device type), Accept-Language, the optional X-Cookies-Enabled (true/false), the country supplied by the edge proxy (CF-IPCountry or X-Vercel-IP-Country) and the client IP. All are optional and never block creation.")]
         [ProducesResponseType(typeof(ApiResponse<GuestResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]

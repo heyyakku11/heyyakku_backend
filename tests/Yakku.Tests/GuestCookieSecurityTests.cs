@@ -46,8 +46,8 @@ public class GuestCookieSecurityTests
         Assert.Equal(64, result.RawTokenToSet!.Length); // 256 bits, hex
         Assert.Matches("^[0-9A-F]{64}$", result.RawTokenToSet);
         // Only the hash is stored.
-        Assert.Equal(Hasher.Hash(result.RawTokenToSet), guests.All[0].GuestTokenHash);
-        Assert.DoesNotContain(result.RawTokenToSet, guests.All[0].GuestTokenHash);
+        Assert.Equal(Hasher.Hash(result.RawTokenToSet), guests.All[0].SessionTokenHash);
+        Assert.DoesNotContain(result.RawTokenToSet, guests.All[0].SessionTokenHash);
 
         var lower = header.ToLowerInvariant();
         Assert.Contains("httponly", lower);

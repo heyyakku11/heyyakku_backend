@@ -28,7 +28,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             CancellationToken cancellationToken = default)
         {
             return await _context.Guests
-                .FirstOrDefaultAsync(guest => guest.GuestTokenHash == tokenHash, cancellationToken);
+                .FirstOrDefaultAsync(guest => guest.SessionTokenHash == tokenHash, cancellationToken);
         }
 
         public async Task<Guest?> GetByTokenHashForUpdateAsync(
@@ -39,7 +39,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             // winner commits, the loser re-evaluates the query and finds no row.
             var matches = await _context.Guests
                 .FromSqlInterpolated(
-                    $"SELECT * FROM guests WHERE \"GuestTokenHash\" = {tokenHash} FOR UPDATE")
+                    $"SELECT * FROM guests WHERE \"SessionTokenHash\" = {tokenHash} FOR UPDATE")
                 .ToListAsync(cancellationToken);
             return matches.FirstOrDefault();
         }

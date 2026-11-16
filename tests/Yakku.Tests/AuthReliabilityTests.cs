@@ -214,7 +214,7 @@ public class AuthReliabilityTests
 
     private sealed class StubIdentityService : IGuestIdentityService
     {
-        public Task<GuestEstablishResult> EstablishAsync(string? rawToken, CancellationToken cancellationToken = default)
+        public Task<GuestEstablishResult> EstablishAsync(string? rawToken, GuestClientInfo? client = null, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
     }
 }

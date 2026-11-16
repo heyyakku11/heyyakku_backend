@@ -11,16 +11,42 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.ToTable("guests");
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.GuestTokenHash)
+            builder.Property(x => x.SessionTokenHash)
                 .IsRequired()
                 .HasMaxLength(255);
 
             builder.Property(x => x.ExpiresAt)
                 .IsRequired();
 
-            builder.HasIndex(x => x.GuestTokenHash)
+            builder.Property(x => x.IpAddress)
+                .HasColumnType("inet");
+
+            builder.Property(x => x.UserAgent)
+                .HasMaxLength(Guest.MaxUserAgentLength);
+
+            builder.Property(x => x.BrowserName)
+                .HasMaxLength(Guest.MaxBrowserNameLength);
+
+            builder.Property(x => x.BrowserVersion)
+                .HasMaxLength(Guest.MaxBrowserVersionLength);
+
+            builder.Property(x => x.OsName)
+                .HasMaxLength(Guest.MaxOsNameLength);
+
+            builder.Property(x => x.DeviceType)
+                .HasConversion<string>()
+                .HasMaxLength(16);
+
+            builder.Property(x => x.Language)
+                .HasMaxLength(Guest.MaxLanguageLength);
+
+            builder.Property(x => x.CountryCode)
+                .HasMaxLength(Guest.CountryCodeLength)
+                .IsFixedLength();
+
+            builder.HasIndex(x => x.SessionTokenHash)
                 .IsUnique()
-                .HasDatabaseName("IX_Guests_GuestTokenHash");
+                .HasDatabaseName("IX_Guests_SessionTokenHash");
 
             builder.HasIndex(x => x.ExpiresAt)
                 .HasDatabaseName("IX_Guests_ExpiresAt");

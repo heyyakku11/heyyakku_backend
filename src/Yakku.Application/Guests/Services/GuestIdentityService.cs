@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.Audit;
 using Yakku.Application.Guests.DTOs;
@@ -32,6 +33,7 @@ namespace Yakku.Application.Guests.Services
 
         public async Task<GuestEstablishResult> EstablishAsync(
             string? rawToken,
+            GuestClientInfo? client = null,
             CancellationToken cancellationToken = default)
         {
             var stopwatch = Stopwatch.StartNew(); //remove later
@@ -67,6 +69,20 @@ namespace Yakku.Application.Guests.Services
 
             var token = _tokenGenerator.Generate();
             var guest = new Guest(_tokenHasher.Hash(token));
+            // Client details are recorded only when a guest is created; a reused guest keeps what it was created with.
+            if (client is not null)
+            {
+                guest.CaptureClient(
+                    IPAddress.TryParse(client.IpAddress, out var ip) ? ip : null,
+                    client.UserAgent,
+                    client.BrowserName,
+                    client.BrowserVersion,
+                    client.OsName,
+                    client.DeviceType,
+                    client.Language,
+                    client.CountryCode,
+                    client.CookiesEnabled);
+            }
             LogStep("generate + hash new token", stopwatch);
             await _guestRepository.AddAsync(guest, cancellationToken);
             LogStep("db add (tracked in memory)", stopwatch);

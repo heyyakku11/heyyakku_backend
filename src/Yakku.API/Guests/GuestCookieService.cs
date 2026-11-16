@@ -32,7 +32,9 @@ namespace Yakku.API.Guests
             // keeps its token in app storage is recognised and not issued a second identity.
             var rawToken = MediaCallerResolver.ReadGuestToken(httpContext);
             LogStep("read guest token from request", stopwatch);
-            var result = await _guestIdentityService.EstablishAsync(rawToken, cancellationToken);
+            var client = GuestClientInfoReader.From(httpContext);
+            LogStep("read client info from headers", stopwatch);
+            var result = await _guestIdentityService.EstablishAsync(rawToken, client, cancellationToken);
             LogStep("establish guest identity (total)", stopwatch);
 
             if (result.RawTokenToSet is not null)

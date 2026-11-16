@@ -6,6 +6,7 @@ namespace Yakku.Application.Guests.Interfaces
     {
         Task<GuestEstablishResult> EstablishAsync(
             string? rawToken,
+            GuestClientInfo? client = null,
             CancellationToken cancellationToken = default);
     }
 }
