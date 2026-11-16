@@ -95,7 +95,7 @@ public sealed class GuestAtomicityIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var user = await AddUserAsync(context);
-        var (guest, raw) = await AddGuestAsync(context, sessions: 1, createdDaysAgo: 20);
+        var (guest, raw) = await AddGuestAsync(context, sessions: 1, createdDaysAgo: 30);
 
         var result = await NewClaimService(context).ClaimAndDeleteGuestAsync(raw, user.Id);
 
@@ -155,9 +155,9 @@ public sealed class GuestAtomicityIntegrationTests
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
-        var (expired, _) = await AddGuestAsync(context, sessions: 3, createdDaysAgo: 20);
+        var (expired, _) = await AddGuestAsync(context, sessions: 3, createdDaysAgo: 30);
         var (active, _) = await AddGuestAsync(context, sessions: 1);
-        var (insideGrace, _) = await AddGuestAsync(context, sessions: 1, createdDaysAgo: 10);
+        var (insideGrace, _) = await AddGuestAsync(context, sessions: 1, createdDaysAgo: 18);
         var storage = new FakeObjectStorage();
         var expiredKeys = await context.MediaUploadSessions
             .Where(s => s.GuestId == expired.Id)
@@ -184,7 +184,7 @@ public sealed class GuestAtomicityIntegrationTests
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
-        var (guest, _) = await AddGuestAsync(context, sessions: 2, createdDaysAgo: 20);
+        var (guest, _) = await AddGuestAsync(context, sessions: 2, createdDaysAgo: 30);
         var storage = new FakeObjectStorage { FailDeletes = true };
 
         var first = await NewCleanupService(context, storage).CleanupAsync();

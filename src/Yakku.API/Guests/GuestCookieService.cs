@@ -2,14 +2,13 @@ using System.Diagnostics;
 using Yakku.API.Media;
 using Yakku.Application.Guests.DTOs;
 using Yakku.Application.Guests.Interfaces;
+using Yakku.Domain.Entities;
 
 namespace Yakku.API.Guests
 {
     public class GuestCookieService
     {
         public const string CookieName = "yakku_guest";
-
-        private static readonly TimeSpan Lifetime = TimeSpan.FromDays(30);
 
         private readonly IGuestIdentityService _guestIdentityService;
 
@@ -75,7 +74,7 @@ namespace Yakku.API.Guests
                 HttpOnly = true,
                 Secure = request.IsHttps,
                 SameSite = SameSiteMode.Lax,
-                MaxAge = Lifetime,
+                MaxAge = Guest.Lifetime,
                 Path = "/",
                 IsEssential = true
             };

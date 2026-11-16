@@ -56,7 +56,7 @@ public class GuestLifecycleTests
     public async Task Establish_NeverRevivesAnExpiredGuest()
     {
         var h = new Harness();
-        var expired = h.SeedGuest(createdDaysAgo: 20);
+        var expired = h.SeedGuest(createdDaysAgo: 30);
 
         var result = await h.Identity.EstablishAsync(h.RawToken);
 
@@ -105,7 +105,7 @@ public class GuestLifecycleTests
     public async Task Claim_NeverClaimsAnExpiredGuest()
     {
         var h = new Harness();
-        var guest = h.SeedGuest(createdDaysAgo: 20);
+        var guest = h.SeedGuest(createdDaysAgo: 30);
         var session = await h.AddGuestSessionAsync(guest);
 
         var result = await h.Claim.ClaimAndDeleteGuestAsync(h.RawToken, h.UserId);
@@ -197,7 +197,7 @@ public class GuestLifecycleTests
     public async Task Cleanup_PurgesGuestsPastTheGracePeriod_InvalidatingSessionsFirst()
     {
         var h = new Harness();
-        var guest = h.SeedGuest(createdDaysAgo: 20);
+        var guest = h.SeedGuest(createdDaysAgo: 30);
         var pending = await h.AddGuestSessionAsync(guest);
         var uploaded = await h.AddGuestSessionAsync(guest);
         h.Storage.Put(uploaded.ObjectKey, [1, 2, 3], "image/jpeg");
@@ -219,7 +219,7 @@ public class GuestLifecycleTests
     {
         var h = new Harness();
         // Expired 3 days ago, grace is 7 days: not eligible yet.
-        var guest = h.SeedGuest(createdDaysAgo: 10);
+        var guest = h.SeedGuest(createdDaysAgo: 18);
         var session = await h.AddGuestSessionAsync(guest);
 
         var result = await h.Cleanup.CleanupAsync();
@@ -246,7 +246,7 @@ public class GuestLifecycleTests
     public async Task Cleanup_DefersTheGuestWhileStorageCannotBePurged_ThenFinishesLater()
     {
         var h = new Harness();
-        var guest = h.SeedGuest(createdDaysAgo: 20);
+        var guest = h.SeedGuest(createdDaysAgo: 30);
         var session = await h.AddGuestSessionAsync(guest);
         h.Storage.FailDeletes = true;
 

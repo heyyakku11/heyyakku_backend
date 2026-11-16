@@ -612,7 +612,7 @@ public sealed class DeviceManagementIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var user = await AddUserAsync(context);
-        var (guest, raw) = await AddGuestWithTokenAsync(context, createdDaysAgo: 20);
+        var (guest, raw) = await AddGuestWithTokenAsync(context, createdDaysAgo: 30);
         var request = NewRequest();
         context.Devices.Add(NewGuestDevice(guest.Id, request));
         await context.SaveChangesAsync();
@@ -682,7 +682,7 @@ public sealed class DeviceManagementIntegrationTests
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
-        var (guest, _) = await AddGuestWithTokenAsync(context, createdDaysAgo: 20);
+        var (guest, _) = await AddGuestWithTokenAsync(context, createdDaysAgo: 30);
         var request = NewRequest();
         context.Devices.Add(NewGuestDevice(guest.Id, request));
         await context.SaveChangesAsync();

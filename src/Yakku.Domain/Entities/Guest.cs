@@ -33,6 +33,12 @@ namespace Yakku.Domain.Entities
         /// <summary>What the client reported about cookie support; null when it did not say.</summary>
         public bool? CookiesEnabled { get; private set; }
 
+        /// <summary>
+        /// How long a guest identity lives from creation. The one place this is defined: the expiry date stored on the
+        /// guest and the lifetime of the <c>yakku_guest</c> cookie both use it.
+        /// </summary>
+        public static readonly TimeSpan Lifetime = TimeSpan.FromDays(15);
+
         public const int MaxUserAgentLength = 512;
         public const int MaxBrowserNameLength = 64;
         public const int MaxBrowserVersionLength = 32;
@@ -55,7 +61,7 @@ namespace Yakku.Domain.Entities
             SessionTokenHash = sessionTokenHash;
             CreatedAt = createdAtUtc;
             LastSeenAt = CreatedAt;
-            ExpiresAt = CreatedAt.AddDays(30);
+            ExpiresAt = CreatedAt.Add(Lifetime);
         }
 
         public bool IsExpired(DateTime utcNow)
