@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Yakku.API.Auth;
@@ -171,8 +171,8 @@ namespace Yakku.API.Controllers
 
         [HttpGet("{id:guid}/options/{optionId:guid}/reasons")]
         [EndpointSummary("List Reasons For An Option")]
-        [EndpointDescription("Lists the reasons voters gave for one option of a poll the signed-in user owns, newest first. Anonymous: no author is returned. Empty until the results are unlocked. Returns 404 when the poll is not yours or the option is not on it.")]
-        [ProducesResponseType(typeof(ApiResponse<List<ReasonResponse>>), StatusCodes.Status200OK)]
+        [EndpointDescription("Lists the reasons voters gave for one option of a poll the signed-in user owns, newest first. Anonymous: no author is returned. Empty until the results are unlocked. Data is { items, blockedCount }: blockedCount is how many reasons an admin blocked after a report (their text is never sent), and a reason reported but not yet decided stays in items with reportStatus pending (or rejected once an admin dismissed it). Returns 404 when the poll is not yours or the option is not on it.")]
+        [ProducesResponseType(typeof(ApiResponse<ReasonListResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetOptionReasons(Guid id, Guid optionId, CancellationToken cancellationToken)
         {
@@ -187,8 +187,8 @@ namespace Yakku.API.Controllers
 
         [HttpGet("{id:guid}/custom-answers")]
         [EndpointSummary("List Custom Answers")]
-        [EndpointDescription("Lists the custom answers (\"their own options\") voters wrote in on a poll the signed-in user owns, newest first, each with the reason the voter gave, if any. Anonymous: no author is returned. The asker's own answer is never included. Empty until the results are unlocked. Returns 404 when the poll is not yours.")]
-        [ProducesResponseType(typeof(ApiResponse<List<CustomAnswerResponse>>), StatusCodes.Status200OK)]
+        [EndpointDescription("Lists the custom answers (\"their own options\") voters wrote in on a poll the signed-in user owns, newest first, each with the reason the voter gave, if any. Anonymous: no author is returned. The asker's own answer is never included. Empty until the results are unlocked. Data is { items, blockedCount }: blockedCount is how many reasons an admin blocked after a report (their text is never sent), and a reason reported but not yet decided stays in items with reportStatus pending (or rejected once an admin dismissed it). Returns 404 when the poll is not yours.")]
+        [ProducesResponseType(typeof(ApiResponse<CustomAnswerListResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetCustomAnswers(Guid id, CancellationToken cancellationToken)
         {
@@ -198,12 +198,17 @@ namespace Yakku.API.Controllers
 
         [HttpPost("{id:guid}/reasons/{reasonId:guid}/report")]
         [EndpointSummary("Report A Reason")]
-        [EndpointDescription("Reports a reason on a poll the signed-in user owns as abuse. The reason is removed from the vote so it is no longer shown or counted, and a report is logged for moderation. Returns the reason counts as they are now (optionWhyCount, totalWhyCount). Returns 404 when the poll is not yours or the reason does not exist (or was already removed).")]
+        [EndpointDescription("Reports a reason on a poll the signed-in user owns as abuse, whether it came from a user or a guest. The body must give a reason (free text the client chooses, up to 300 characters) saying why it is reported; the backend defines no list of reasons. The report is pending: the reason stays visible and counted, flagged as reported (reportStatus pending), until an admin decides. If an admin approves it the reason is removed and only counted in blockedCount; if an admin rejects it the reason stays and cannot be reported again. Reporting the same reason again changes nothing. Returns the report status and the reason counts (optionWhyCount, totalWhyCount). Returns 400 for a missing or too long reason, and 404 when the poll is not yours or the reason does not exist (or was already blocked).")]
         [ProducesResponseType(typeof(ApiResponse<ReasonReportResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> ReportReason(Guid id, Guid reasonId, CancellationToken cancellationToken)
+        public async Task<IActionResult> ReportReason(
+            Guid id,
+            Guid reasonId,
+            [FromBody] ReportReasonRequest? request,
+            CancellationToken cancellationToken)
         {
-            var result = await _reasonService.ReportPollReasonAsync(id, User.GetRequiredUserId(), reasonId, cancellationToken);
+            var result = await _reasonService.ReportPollReasonAsync(id, User.GetRequiredUserId(), reasonId, request, cancellationToken);
             return Ok(ApiResponse.Ok(result, "Reason reported"));
         }
     }

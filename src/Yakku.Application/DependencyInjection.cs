@@ -66,6 +66,7 @@ namespace Yakku.Application
             services.AddScoped<Yakku.Application.Checks.Themes.ICheckThemeService, CheckThemeService>();
             services.AddScoped<Yakku.Application.AdminUsers.Interfaces.IAdminUserService, Yakku.Application.AdminUsers.Services.AdminUserService>();
             services.AddScoped<Yakku.Application.AdminPolls.Interfaces.IAdminPollService, Yakku.Application.AdminPolls.Services.AdminPollService>();
+            services.AddScoped<Yakku.Application.AdminReasonReports.Interfaces.IAdminReasonReportService, Yakku.Application.AdminReasonReports.Services.AdminReasonReportService>();
             services.AddScoped<Yakku.Application.Plans.Interfaces.IPlanService, Yakku.Application.Plans.Services.PlanService>();
             services.AddScoped<IDeviceService, DeviceService>();
             services.AddScoped<IDeviceSessionBinder>(provider => (DeviceService)provider.GetRequiredService<IDeviceService>());

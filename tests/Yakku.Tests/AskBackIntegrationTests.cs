@@ -734,13 +734,20 @@ public sealed class AskBackIntegrationTests
     }
 
     [SkippableFact]
-    public async Task ReportingTheReason_ClosesTheConversation()
+    public async Task ReportingTheReason_KeepsTheConversationOpen_UntilAnAdminApproves()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var (scene, conversationId) = await StartedAsync(context);
 
-        await new ReasonRepository(context).ReportPollReasonAsync(scene.Poll.Id, scene.Asker.Id, scene.Vote.Id);
+        var report = await new ReasonRepository(context).ReportPollReasonAsync(
+            scene.Poll.Id, scene.Asker.Id, scene.Vote.Id, "Mean or bullying");
+        Assert.NotNull(report);
+        var pending = await ServiceFor(context).GetConversationAsync(scene.Asker.Id, conversationId);
+        Assert.Equal("active", pending.Status);
+
+        var reportId = (await context.ReasonReports.SingleAsync(r => r.VoteId == scene.Vote.Id)).Id;
+        await new AdminReasonReportRepository(context).ApproveAsync(reportId, DateTime.UtcNow);
 
         var details = await ServiceFor(context).GetConversationAsync(scene.Asker.Id, conversationId);
         Assert.Equal("closed", details.Status);

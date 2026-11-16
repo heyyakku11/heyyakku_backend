@@ -1883,6 +1883,22 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("reporter_id");
 
+                    b.Property<string>("ReporterReason")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("reporter_reason");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
                     b.Property<Guid>("VoteId")
                         .HasColumnType("uuid")
                         .HasColumnName("vote_id");
@@ -1902,9 +1918,14 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("ContentType", "ContentId")
                         .HasDatabaseName("IX_reason_reports_content");
 
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("IX_reason_reports_status_created_at");
+
                     b.ToTable("reason_reports", null, t =>
                         {
                             t.HasCheckConstraint("CK_reason_reports_content_type", "\"content_type\" IN ('POLL', 'CHECK')");
+
+                            t.HasCheckConstraint("CK_reason_reports_status", "\"status\" IN ('PENDING', 'APPROVED', 'REJECTED')");
                         });
                 });
 
