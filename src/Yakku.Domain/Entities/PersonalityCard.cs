@@ -29,6 +29,12 @@ namespace Yakku.Domain.Entities
         public DateTime UpdatedAt { get; private set; }
         public DateTime? CompletedAt { get; private set; }
 
+        /// <summary>
+        /// Whether the owner wants the card's final result (the traits the crowd picked) shared in the community.
+        /// On by default; the owner can only change it once the card is Completed.
+        /// </summary>
+        public bool ShareToCommunity { get; private set; } = true;
+
         public User User { get; private set; } = null!;
         public ICollection<PersonalityCardSelfTrait> SelfTraits { get; private set; } = new List<PersonalityCardSelfTrait>();
         public ICollection<PersonalityVote> Votes { get; private set; } = new List<PersonalityVote>();
@@ -84,6 +90,23 @@ namespace Yakku.Domain.Entities
                 Status = PersonalityCardStatus.Completed;
                 CompletedAt = UpdatedAt;
             }
+        }
+
+        /// <summary>Turns community sharing of the final result on or off. Only valid once the card is Completed.</summary>
+        public void SetCommunitySharing(bool share)
+        {
+            if (Status != PersonalityCardStatus.Completed)
+            {
+                throw new InvalidOperationException("Community sharing can only be changed once the card is completed.");
+            }
+
+            if (ShareToCommunity == share)
+            {
+                return;
+            }
+
+            ShareToCommunity = share;
+            UpdatedAt = DateTime.UtcNow;
         }
     }
 }

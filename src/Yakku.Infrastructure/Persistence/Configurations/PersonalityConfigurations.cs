@@ -64,6 +64,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired().HasDefaultValueSql("now()");
             builder.Property(x => x.CompletedAt).HasColumnName("completed_at");
+            builder.Property(x => x.ShareToCommunity).HasColumnName("share_to_community").IsRequired().HasDefaultValue(true);
 
             // One card per user, enforced by the database.
             builder.HasIndex(x => x.UserId).IsUnique().HasDatabaseName(OneCardPerUserIndex);

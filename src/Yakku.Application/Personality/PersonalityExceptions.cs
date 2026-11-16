@@ -26,6 +26,12 @@ namespace Yakku.Application.Personality
         public static AppException ResultsNotAvailable() =>
             new(409, ApiErrorCodes.Conflict, "Results are available once the card has received all its votes.");
 
+        public static AppException CommunitySharingChoiceRequired() =>
+            new(400, ApiErrorCodes.ValidationError, "Say whether to share your card in the community.", "shareToCommunity");
+
+        public static AppException CommunitySharingNotAvailable() =>
+            new(409, ApiErrorCodes.Conflict, "You can choose to share your card in the community once it has received all its votes.");
+
         public static AppException OnlyOwnerCanSeeResults() =>
             new(403, ApiErrorCodes.Forbidden, "Only the card owner can see the results.");
     }

@@ -442,6 +442,58 @@ public sealed class PersonalityIntegrationTests
         Assert.Equal(1, await setup.PersonalityCards.AsNoTracking().Where(c => c.Id == cardId).Select(c => c.TotalVotes).SingleAsync());
     }
 
+    // ---- community sharing ------------------------------------------------------------------------------------
+
+    [SkippableFact]
+    public async Task CommunitySharing_IsOnByDefault_AndOnlyChangeableOnceTheCardCompletes()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        var (owner, cardId) = await CollectingCardAsync(2);
+        await using var context = _fixture.CreateContext();
+
+        var mine = await ServiceFor(context).GetMyCardAsync(owner.Id);
+        var early = await ExpectErrorAsync(() => ServiceFor(context).SetCommunitySharingAsync(
+            owner.Id, new UpdateCommunitySharingRequest { ShareToCommunity = false }));
+
+        Assert.True(mine.ShareToCommunity);
+        Assert.Equal(409, early.StatusCode);
+        Assert.True(await context.PersonalityCards.AsNoTracking().Where(c => c.Id == cardId).Select(c => c.ShareToCommunity).SingleAsync());
+    }
+
+    [SkippableFact]
+    public async Task CommunitySharing_CanBeToggled_AndSharesTheCrowdsFinalTraits()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        var (owner, cardId) = await CollectingCardAsync(5 - 1);
+        await using var context = _fixture.CreateContext();
+        var fifth = await AddUserAsync(context);
+        await ServiceFor(context).VoteAsync(Code(cardId), Yakku.Application.Sharing.VoterIdentity.ForUser(fifth.Id), Traits(1, 4, 8));
+
+        var off = await ServiceFor(context).SetCommunitySharingAsync(owner.Id, new UpdateCommunitySharingRequest { ShareToCommunity = false });
+        var offCard = await ServiceFor(context).GetMyCardAsync(owner.Id);
+        var results = await ServiceFor(context).GetResultsAsync(Code(cardId), owner.Id);
+        var on = await ServiceFor(context).SetCommunitySharingAsync(owner.Id, new UpdateCommunitySharingRequest { ShareToCommunity = true });
+
+        Assert.False(off.ShareToCommunity);
+        Assert.False(offCard.ShareToCommunity);
+        Assert.False(results.ShareToCommunity);
+        Assert.True(on.ShareToCommunity);
+        // The final result is what the crowd picked, not the owner's own guess (1, 2, 3).
+        Assert.Equal(new[] { T(1), T(4), T(8) }.OrderBy(id => id), on.FinalTraits.Select(t => t.Id).OrderBy(id => id));
+    }
+
+    [SkippableFact]
+    public async Task CommunitySharing_NeedsAnExplicitChoice()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        var (owner, _) = await CollectingCardAsync(0);
+        await using var context = _fixture.CreateContext();
+
+        var error = await ExpectErrorAsync(() => ServiceFor(context).SetCommunitySharingAsync(owner.Id, new UpdateCommunitySharingRequest()));
+
+        Assert.Equal(400, error.StatusCode);
+    }
+
     // ---- results ----------------------------------------------------------------------------------------------
 
     [SkippableFact]

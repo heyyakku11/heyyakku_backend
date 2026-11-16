@@ -8,6 +8,12 @@ namespace Yakku.Application.Personality.Interfaces
 
         Task<PersonalityCardResponse> GetMyCardAsync(Guid userId, CancellationToken cancellationToken = default);
 
+        /// <summary>Saves whether the owner shares the completed card's final result in the community.</summary>
+        Task<PersonalityCommunitySharingResponse> SetCommunitySharingAsync(
+            Guid userId,
+            UpdateCommunitySharingRequest? request,
+            CancellationToken cancellationToken = default);
+
         Task<PersonalitySelfAssessmentResponse> SubmitSelfAssessmentAsync(
             Guid userId,
             SubmitTraitsRequest request,

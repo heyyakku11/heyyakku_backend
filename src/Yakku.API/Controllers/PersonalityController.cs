@@ -58,6 +58,21 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Self-assessment submitted successfully"));
         }
 
+        [ServiceFilter(typeof(LiveSessionFilter))]
+        [HttpPut("personality-cards/me/community-sharing")]
+        [EndpointSummary("Share Personality Card In Community")]
+        [EndpointDescription("Turns sharing your card in the community on or off. On by default, and only changeable once the card is completed (409 before that). What is shared is the final result: the traits the crowd picked most, not your own guess. Returns the saved choice and those final traits.")]
+        [ProducesResponseType(typeof(ApiResponse<PersonalityCommunitySharingResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> SetCommunitySharing(
+            [FromBody] UpdateCommunitySharingRequest? request,
+            CancellationToken cancellationToken)
+        {
+            var result = await _service.SetCommunitySharingAsync(User.GetRequiredUserId(), request, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Community sharing updated successfully"));
+        }
+
         [AllowAnonymous]
         [HttpGet("personality-cards/{shareCode}")]
         [EndpointSummary("Get A Shared Personality Card")]

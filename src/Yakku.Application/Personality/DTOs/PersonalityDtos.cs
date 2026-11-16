@@ -30,6 +30,30 @@ namespace Yakku.Application.Personality.DTOs
         public int TotalVotes { get; set; }
         public int RequiredVotes { get; set; }
         public DateTime? CompletedAt { get; set; }
+
+        /// <summary>
+        /// Whether the final result is shared in the community. True by default; the owner can change it once
+        /// the card is Completed (PUT /personality-cards/me/community-sharing).
+        /// </summary>
+        public bool ShareToCommunity { get; set; }
+    }
+
+    /// <summary>Turns sharing the card's final result in the community on or off.</summary>
+    public class UpdateCommunitySharingRequest
+    {
+        public bool? ShareToCommunity { get; set; }
+    }
+
+    /// <summary>The saved community sharing choice, with the final result it applies to.</summary>
+    public class PersonalityCommunitySharingResponse
+    {
+        public bool ShareToCommunity { get; set; }
+
+        /// <summary>
+        /// What is shared: the final result, the traits the crowd picked most (not the owner's own guess),
+        /// most-picked first.
+        /// </summary>
+        public List<PersonalityTraitCountResponse> FinalTraits { get; set; } = new();
     }
 
     /// <summary>What submitting the self-assessment returns: just enough to build the share link and show the new state.</summary>
@@ -82,6 +106,7 @@ namespace Yakku.Application.Personality.DTOs
         public Guid CardId { get; set; }
         public string ShareCode { get; set; } = string.Empty;
         public int TotalVotes { get; set; }
+        public bool ShareToCommunity { get; set; }
         public List<PersonalityTraitSummary> SelfSelectedTraits { get; set; } = new();
         public List<PersonalityTraitCountResponse> CrowdTopTraits { get; set; } = new();
         public List<PersonalityTraitSummary> CommonTraits { get; set; } = new();

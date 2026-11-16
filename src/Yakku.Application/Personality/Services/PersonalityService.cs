@@ -89,6 +89,48 @@ namespace Yakku.Application.Personality.Services
             return response!;
         }
 
+        public async Task<PersonalityCommunitySharingResponse> SetCommunitySharingAsync(
+            Guid userId,
+            UpdateCommunitySharingRequest? request,
+            CancellationToken cancellationToken = default)
+        {
+            if (request?.ShareToCommunity is not bool share)
+            {
+                throw PersonalityExceptions.CommunitySharingChoiceRequired();
+            }
+
+            await _repository.EnsureCardAsync(userId, cancellationToken);
+
+            Guid cardId = Guid.Empty;
+            var shared = true;
+            await _repository.ExecuteInTransactionAsync(async token =>
+            {
+                var card = await _repository.LockCardByUserIdAsync(userId, token)
+                    ?? throw PersonalityExceptions.CardNotFound();
+
+                if (card.Status != PersonalityCardStatus.Completed)
+                {
+                    throw PersonalityExceptions.CommunitySharingNotAvailable();
+                }
+
+                card.SetCommunitySharing(share);
+                await _repository.SaveChangesAsync(token);
+                cardId = card.Id;
+                shared = card.ShareToCommunity;
+            }, cancellationToken);
+
+            var tallies = await _repository.GetTraitTalliesAsync(cardId, cancellationToken);
+            var comparison = PersonalityResultCalculator.Compare(Array.Empty<SelfTraitRef>(), tallies);
+
+            return new PersonalityCommunitySharingResponse
+            {
+                ShareToCommunity = shared,
+                FinalTraits = comparison.CrowdTop
+                    .Select(tally => new PersonalityTraitCountResponse { Id = tally.TraitId, Name = tally.Name, Votes = tally.Votes })
+                    .ToList()
+            };
+        }
+
         public async Task<SharedPersonalityCardResponse> GetSharedCardAsync(
             string shareCode,
             Yakku.Application.Sharing.VoterIdentity? viewer,
@@ -237,6 +279,7 @@ namespace Yakku.Application.Personality.Services
                 CardId = card.Id,
                 ShareCode = card.ShareCode,
                 TotalVotes = card.TotalVotes,
+                ShareToCommunity = card.ShareToCommunity,
                 SelfSelectedTraits = comparison.SelfTraits.Select(Summary).ToList(),
                 CrowdTopTraits = comparison.CrowdTop
                     .Select(tally => new PersonalityTraitCountResponse { Id = tally.TraitId, Name = tally.Name, Votes = tally.Votes })
@@ -287,7 +330,8 @@ namespace Yakku.Application.Personality.Services
                     .ToList(),
                 TotalVotes = card.TotalVotes,
                 RequiredVotes = card.RequiredVotes,
-                CompletedAt = card.CompletedAt
+                CompletedAt = card.CompletedAt,
+                ShareToCommunity = card.ShareToCommunity
             };
         }
     }
