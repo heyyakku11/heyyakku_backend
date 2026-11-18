@@ -1,13 +1,15 @@
-using Yakku.Application.Auth;
+using Microsoft.Extensions.Configuration;
 
 namespace Yakku.Infrastructure.Sms
 {
     /// <summary>
-    /// MSG91 settings, read from environment variables (Render's dashboard in production, a git-ignored .env locally).
+    /// MSG91 settings bound from the <c>Msg91</c> configuration section (appsettings + flat env bridge).
     /// There are no defaults for credentials. The AuthKey never appears in <see cref="ToString"/>, logs or errors.
     /// </summary>
     public sealed class Msg91Options
     {
+        public const string SectionName = "Msg91";
+
         public const string EnabledVariable = "MSG91_ENABLED";
         public const string AuthKeyVariable = "MSG91_AUTH_KEY";
         public const string FlowIdVariable = "MSG91_FLOW_ID";
@@ -22,7 +24,7 @@ namespace Yakku.Infrastructure.Sms
         {
         }
 
-        public bool Enabled { get; private init; } = true;
+        public bool Enabled { get; private init; }
 
         /// <summary>The secret. Server-side only.</summary>
         public string AuthKey { get; private init; } = string.Empty;
@@ -38,12 +40,52 @@ namespace Yakku.Infrastructure.Sms
 
         public IReadOnlyList<string> Errors => _errors;
 
+        /// <summary>Reads nested <c>Msg91:*</c> keys from configuration (after the flat-env bridge).</summary>
+        public static Msg91Options FromConfiguration(IConfiguration configuration)
+        {
+            var section = configuration.GetSection(SectionName);
+            return FromReaders(
+                () => Clean(section["Enabled"]),
+                () => Clean(section["AuthKey"]),
+                () => Clean(section["FlowId"]),
+                () => Clean(section["SenderId"]),
+                enabledLabel: $"{SectionName}:Enabled",
+                authKeyLabel: $"{SectionName}:AuthKey",
+                flowIdLabel: $"{SectionName}:FlowId",
+                senderIdLabel: $"{SectionName}:SenderId",
+                defaultEnabled: false);
+        }
+
+        /// <summary>Reads flat MSG91_* environment-style keys (used by unit tests and legacy callers).</summary>
         public static Msg91Options FromEnvironment(Func<string, string?> read)
+        {
+            return FromReaders(
+                () => Clean(read(EnabledVariable)),
+                () => Clean(read(AuthKeyVariable)),
+                () => Clean(read(FlowIdVariable)),
+                () => Clean(read(SenderIdVariable)),
+                enabledLabel: EnabledVariable,
+                authKeyLabel: AuthKeyVariable,
+                flowIdLabel: FlowIdVariable,
+                senderIdLabel: SenderIdVariable,
+                defaultEnabled: true);
+        }
+
+        private static Msg91Options FromReaders(
+            Func<string?> readEnabled,
+            Func<string?> readAuthKey,
+            Func<string?> readFlowId,
+            Func<string?> readSenderId,
+            string enabledLabel,
+            string authKeyLabel,
+            string flowIdLabel,
+            string senderIdLabel,
+            bool defaultEnabled)
         {
             var errors = new List<string>();
 
-            var enabled = true;
-            var enabledRaw = Clean(read(EnabledVariable));
+            var enabled = defaultEnabled;
+            var enabledRaw = readEnabled();
             if (enabledRaw is not null)
             {
                 switch (enabledRaw.ToLowerInvariant())
@@ -55,26 +97,26 @@ namespace Yakku.Infrastructure.Sms
                         enabled = false;
                         break;
                     default:
-                        errors.Add($"{EnabledVariable} must be true or false.");
+                        errors.Add($"{enabledLabel} must be true or false.");
                         break;
                 }
             }
 
-            var authKey = Clean(read(AuthKeyVariable)) ?? string.Empty;
-            var flowId = Clean(read(FlowIdVariable)) ?? string.Empty;
-            var senderId = Clean(read(SenderIdVariable)) ?? string.Empty;
+            var authKey = readAuthKey() ?? string.Empty;
+            var flowId = readFlowId() ?? string.Empty;
+            var senderId = readSenderId() ?? string.Empty;
 
             if (enabled)
             {
                 var missing = new List<string>();
                 if (authKey.Length == 0)
                 {
-                    missing.Add(AuthKeyVariable);
+                    missing.Add(authKeyLabel);
                 }
 
                 if (flowId.Length == 0)
                 {
-                    missing.Add(FlowIdVariable);
+                    missing.Add(flowIdLabel);
                 }
 
                 if (missing.Count > 0)
@@ -84,7 +126,7 @@ namespace Yakku.Infrastructure.Sms
 
                 if (senderId.Length > 0 && !IsValidSenderId(senderId))
                 {
-                    errors.Add($"{SenderIdVariable} must be 3 to 11 letters or digits.");
+                    errors.Add($"{senderIdLabel} must be 3 to 11 letters or digits.");
                 }
             }
 
@@ -109,8 +151,8 @@ namespace Yakku.Infrastructure.Sms
 
             throw new InvalidOperationException(
                 "Invalid MSG91 configuration. " + string.Join(" ", _errors)
-                + " Set the variables in the environment (Render dashboard) or in your local .env file,"
-                + $" or set {EnabledVariable}=false to turn SMS delivery off.");
+                + " Set credentials in the environment (Render dashboard) or in your local .env file,"
+                + $" or set {SectionName}:Enabled=false in appsettings to turn SMS delivery off.");
         }
 
         public override string ToString()

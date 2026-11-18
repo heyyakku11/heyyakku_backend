@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -407,6 +408,25 @@ public class AdminHttpSecurityTests
         Assert.Equal(TimeSpan.FromHours(12), settings.Session.AbsoluteTimeout);
         Assert.Equal(32, settings.Session.CsrfKey.Length);
         Assert.Contains(Trusted, settings.TrustedOrigins);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void BlankCookieSameSite_DefaultsToStrict(string? sameSite)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Admin:WebBaseUrl"] = Trusted,
+                ["Admin:CookieSameSite"] = sameSite
+            })
+            .Build();
+
+        var settings = AdminSecuritySettings.Load(true, JwtSecret, configuration);
+
+        Assert.Equal(SameSiteMode.Strict, settings.CookieSameSite);
     }
 
     [Fact]

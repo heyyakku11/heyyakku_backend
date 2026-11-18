@@ -16,14 +16,17 @@ using Yakku.Application;
 using Yakku.Application.Audit;
 using Yakku.Application.Auth;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Domain.Enums;
 using Yakku.Infrastructure;
 using Yakku.Application.Common;
+using Yakku.Infrastructure.Configuration;
 using Yakku.Infrastructure.Persistence;
 
 EnvLoader.Load();
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddFlatEnvironmentBridge();
 
 var port = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrWhiteSpace(port))
@@ -31,26 +34,36 @@ if (!string.IsNullOrWhiteSpace(port))
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 }
 
-var jwtSecret = EnvLoader.GetRequired("JWT_SECRET").Trim().Trim('"');
-if (Encoding.UTF8.GetByteCount(jwtSecret) < 32)
+var jwtSecret = builder.Configuration.GetSection(JwtSettings.SectionName)["Secret"]?.Trim().Trim('"');
+if (string.IsNullOrWhiteSpace(jwtSecret))
 {
-    throw new InvalidOperationException("JWT_SECRET must be at least 32 characters.");
+    throw new InvalidOperationException("Jwt:Secret is not set. Add JWT_SECRET to your .env file or environment variables.");
 }
 
-var corsOrigins = ParseCorsOrigins(Environment.GetEnvironmentVariable("CORS_ORIGINS"));
+if (Encoding.UTF8.GetByteCount(jwtSecret) < 32)
+{
+    throw new InvalidOperationException("JWT_SECRET / Jwt:Secret must be at least 32 characters.");
+}
+
+var corsOrigins = ParseCorsOrigins(builder.Configuration.GetSection(CorsSettings.SectionName)["Origins"]);
 
 // Admin cookie, CSRF and session settings. Anything outside Development is treated as production, and an
 // insecure combination stops the app from starting.
 var adminSecurity = AdminSecuritySettings.Load(
     !builder.Environment.IsDevelopment(),
     jwtSecret,
-    name => name == "CORS_ORIGINS" ? string.Join(",", corsOrigins) : Environment.GetEnvironmentVariable(name));
+    builder.Configuration);
 builder.Services.AddAdminSecurity(adminSecurity);
 
-// Behind Render (and the Vercel proxy) the socket address is a proxy. TRUSTED_PROXY_HOPS is how many proxies
-// append to X-Forwarded-For before the request reaches us; the client address is taken from that many entries
-// from the right, so an attacker-supplied leading entry is never believed.
-var proxyHops = int.TryParse(Environment.GetEnvironmentVariable("TRUSTED_PROXY_HOPS"), out var hops) && hops > 0 ? hops : 1;
+// Behind Render (and the Vercel proxy) the socket address is a proxy. ForwardedHeaders:ProxyHopCount is how many
+// proxies append to X-Forwarded-For before the request reaches us; the client address is taken from that many
+// entries from the right, so an attacker-supplied leading entry is never believed.
+var proxyHops = builder.Configuration.GetValue("ForwardedHeaders:ProxyHopCount", 1);
+if (proxyHops < 1)
+{
+    proxyHops = 1;
+}
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -131,8 +144,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddSingleton<PollAuditInterceptor>();
 builder.Services.AddDbContext<YakkuDbContext>((serviceProvider, options) =>
-    options.UseNpgsql(PostgresConnection.Normalize(EnvLoader.GetRequired("DB_CONNECTION_STRING")))
-        .AddInterceptors(serviceProvider.GetRequiredService<PollAuditInterceptor>()));
+{
+    var connectionString = serviceProvider.GetRequiredService<IConfiguration>()
+        .GetSection(DatabaseOptions.SectionName)["ConnectionString"];
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException(
+            "Database:ConnectionString is not set. Add DB_CONNECTION_STRING to your .env file or environment variables.");
+    }
+
+    options.UseNpgsql(PostgresConnection.Normalize(connectionString))
+        .AddInterceptors(serviceProvider.GetRequiredService<PollAuditInterceptor>());
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -200,7 +223,7 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, Yakku.API.AskBack.YakkuUserIdProvider>();
 builder.Services.AddSingleton<Yakku.API.AskBack.AskBackPresence>();
@@ -256,8 +279,9 @@ app.MapHub<Yakku.API.AskBack.AskBackHub>("/hubs/ask-back");
 
 // Keep the database schema at the same version as the code: apply any pending migrations before serving.
 // If a migration fails the app does not start, so a deploy can never serve code against an older schema.
-// Set DB_AUTO_MIGRATE=false to apply migrations yourself (dotnet ef database update) instead.
-if (!string.Equals(Environment.GetEnvironmentVariable("DB_AUTO_MIGRATE"), "false", StringComparison.OrdinalIgnoreCase))
+// Set Database:AutoMigrate=false (or DB_AUTO_MIGRATE=false) to apply migrations yourself instead.
+var autoMigrate = app.Configuration.GetValue("Database:AutoMigrate", true);
+if (autoMigrate)
 {
     using var migrationScope = app.Services.CreateScope();
     var migrationDb = migrationScope.ServiceProvider.GetRequiredService<YakkuDbContext>();

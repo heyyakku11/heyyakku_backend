@@ -1,79 +1,62 @@
-using Yakku.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
+using Yakku.Application.Configuration;
 
 namespace Yakku.Infrastructure.Storage
 {
     internal static class MediaUploadPolicyFactory
     {
-        public static Application.Polls.MediaUploadPolicy Create()
+        public static Application.Polls.MediaUploadPolicy Create(MediaUploadOptions options)
         {
-            EnvFile.Load();
             return new Application.Polls.MediaUploadPolicy(
-                ReadLong("POLL_MEDIA_IMAGE_MAX_BYTES", Application.Polls.MediaUploadPolicy.DefaultImageMaxBytes),
-                ReadLong("POLL_MEDIA_AUDIO_MAX_BYTES", Application.Polls.MediaUploadPolicy.DefaultAudioMaxBytes),
-                ReadLong("POLL_MEDIA_VIDEO_MAX_BYTES", Application.Polls.MediaUploadPolicy.DefaultVideoMaxBytes),
-                ReadSeconds(
-                    "POLL_MEDIA_VIDEO_MAX_DURATION_SECONDS",
-                    Application.Polls.MediaUploadPolicy.DefaultVideoMaxDurationSeconds),
-                ReadSeconds(
-                    "POLL_MEDIA_AUDIO_MAX_DURATION_SECONDS",
-                    Application.Polls.MediaUploadPolicy.DefaultAudioMaxDurationSeconds),
-                ReadInt("POLL_MEDIA_MAX_PENDING_PER_USER", Application.Polls.MediaUploadPolicy.DefaultMaxPendingPerUser),
-                ReadInt(
-                    "POLL_MEDIA_MAX_CONCURRENT_INCOMPLETE_PER_USER",
+                PositiveOrDefault(options.ImageMaxBytes, Application.Polls.MediaUploadPolicy.DefaultImageMaxBytes),
+                PositiveOrDefault(options.AudioMaxBytes, Application.Polls.MediaUploadPolicy.DefaultAudioMaxBytes),
+                PositiveOrDefault(options.VideoMaxBytes, Application.Polls.MediaUploadPolicy.DefaultVideoMaxBytes),
+                TimeSpan.FromSeconds(PositiveOrDefault(
+                    options.VideoMaxDurationSeconds,
+                    Application.Polls.MediaUploadPolicy.DefaultVideoMaxDurationSeconds)),
+                TimeSpan.FromSeconds(PositiveOrDefault(
+                    options.AudioMaxDurationSeconds,
+                    Application.Polls.MediaUploadPolicy.DefaultAudioMaxDurationSeconds)),
+                PositiveOrDefault(options.MaxPendingPerUser, Application.Polls.MediaUploadPolicy.DefaultMaxPendingPerUser),
+                PositiveOrDefault(
+                    options.MaxConcurrentIncompletePerUser,
                     Application.Polls.MediaUploadPolicy.DefaultMaxConcurrentIncompletePerUser),
-                ReadLong(
-                    "POLL_MEDIA_MAX_STORAGE_BYTES_PER_USER",
+                PositiveOrDefault(
+                    options.MaxStorageBytesPerUser,
                     Application.Polls.MediaUploadPolicy.DefaultMaxStorageBytesPerUser),
-                ReadSeconds("POLL_MEDIA_UPLOAD_URL_TTL_SECONDS", 900),
-                ReadSeconds("POLL_MEDIA_DOWNLOAD_URL_TTL_SECONDS", 900),
-                ReadHours("POLL_MEDIA_SESSION_TTL_HOURS", 24));
+                TimeSpan.FromSeconds(PositiveOrDefault(options.UploadUrlTtlSeconds, 900)),
+                TimeSpan.FromSeconds(PositiveOrDefault(options.DownloadUrlTtlSeconds, 900)),
+                TimeSpan.FromHours(PositiveOrDefault(options.SessionTtlHours, 24)));
         }
 
-        public static void ValidateStorageConfiguration()
+        public static void ValidateStorageConfiguration(IConfiguration configuration)
         {
-            EnvFile.Load();
-            _ = EnvFile.GetRequired("AWS_ENDPOINT_URL_S3");
-            _ = EnvFile.GetRequired("AWS_REGION");
-            _ = EnvFile.GetRequired("AWS_ACCESS_KEY_ID");
-            _ = EnvFile.GetRequired("AWS_SECRET_ACCESS_KEY");
-            _ = ResolveBucket("POLL_MEDIA_IMAGE_BUCKET", "images");
-            _ = ResolveBucket("POLL_MEDIA_VIDEO_BUCKET", "videos");
-            _ = ResolveBucket("POLL_MEDIA_AUDIO_BUCKET", "audio");
+            var storage = configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>() ?? new StorageOptions();
+            Require(storage.S3.Endpoint, "Storage:S3:Endpoint", "AWS_ENDPOINT_URL_S3");
+            Require(storage.S3.Region, "Storage:S3:Region", "AWS_REGION");
+            Require(storage.S3.AccessKeyId, "Storage:S3:AccessKeyId", "AWS_ACCESS_KEY_ID");
+            Require(storage.S3.SecretAccessKey, "Storage:S3:SecretAccessKey", "AWS_SECRET_ACCESS_KEY");
+            _ = ResolveBucket(storage.Buckets.Image, "images");
+            _ = ResolveBucket(storage.Buckets.Video, "videos");
+            _ = ResolveBucket(storage.Buckets.Audio, "audio");
         }
 
-        internal static string ResolveBucket(string key, string fallback)
+        internal static string ResolveBucket(string? configured, string fallback)
         {
-            EnvFile.Load();
-            var raw = Environment.GetEnvironmentVariable(key)?.Trim().Trim('"').Trim('\'');
-            return string.IsNullOrWhiteSpace(raw) ? fallback : raw;
+            return string.IsNullOrWhiteSpace(configured) ? fallback : configured.Trim();
         }
 
-        private static long ReadLong(string key, long fallback)
-        {
-            var raw = Environment.GetEnvironmentVariable(key);
-            return long.TryParse(raw, out var value) && value > 0 ? value : fallback;
-        }
+        private static long PositiveOrDefault(long value, long fallback) => value > 0 ? value : fallback;
 
-        private static int ReadInt(string key, int fallback)
-        {
-            var raw = Environment.GetEnvironmentVariable(key);
-            return int.TryParse(raw, out var value) && value > 0 ? value : fallback;
-        }
+        private static int PositiveOrDefault(int value, int fallback) => value > 0 ? value : fallback;
 
-        private static TimeSpan ReadSeconds(string key, int fallbackSeconds)
+        private static void Require(string? value, string configKey, string envName)
         {
-            var raw = Environment.GetEnvironmentVariable(key);
-            return int.TryParse(raw, out var seconds) && seconds > 0
-                ? TimeSpan.FromSeconds(seconds)
-                : TimeSpan.FromSeconds(fallbackSeconds);
-        }
-
-        private static TimeSpan ReadHours(string key, int fallbackHours)
-        {
-            var raw = Environment.GetEnvironmentVariable(key);
-            return int.TryParse(raw, out var hours) && hours > 0
-                ? TimeSpan.FromHours(hours)
-                : TimeSpan.FromHours(fallbackHours);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new InvalidOperationException(
+                    $"{configKey} is not set. Add {envName} to your .env file or environment variables.");
+            }
         }
     }
 }

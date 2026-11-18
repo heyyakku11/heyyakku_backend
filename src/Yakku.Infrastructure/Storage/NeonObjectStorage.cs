@@ -1,14 +1,22 @@
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
+using Microsoft.Extensions.Options;
+using Yakku.Application.Configuration;
 using Yakku.Application.Storage;
-using Yakku.Infrastructure.Configuration;
 
 namespace Yakku.Infrastructure.Storage
 {
     public sealed class NeonObjectStorage : IObjectStorage, IDisposable
     {
-        private readonly Lazy<AmazonS3Client> _client = new(CreateClient);
+        private readonly StorageS3Options _s3;
+        private readonly Lazy<AmazonS3Client> _client;
+
+        public NeonObjectStorage(IOptions<StorageOptions> storageOptions)
+        {
+            _s3 = storageOptions.Value.S3;
+            _client = new Lazy<AmazonS3Client>(CreateClient);
+        }
 
         public Task<PresignedUpload> CreateUploadUrlAsync(
             string bucketName,
@@ -170,13 +178,12 @@ namespace Yakku.Infrastructure.Storage
             }
         }
 
-        private static AmazonS3Client CreateClient()
+        private AmazonS3Client CreateClient()
         {
-            EnvFile.Load();
-            var endpoint = EnvFile.GetRequired("AWS_ENDPOINT_URL_S3");
-            var region = EnvFile.GetRequired("AWS_REGION");
-            var accessKey = EnvFile.GetRequired("AWS_ACCESS_KEY_ID");
-            var secret = EnvFile.GetRequired("AWS_SECRET_ACCESS_KEY");
+            var endpoint = Require(_s3.Endpoint, "Storage:S3:Endpoint", "AWS_ENDPOINT_URL_S3");
+            var region = Require(_s3.Region, "Storage:S3:Region", "AWS_REGION");
+            var accessKey = Require(_s3.AccessKeyId, "Storage:S3:AccessKeyId", "AWS_ACCESS_KEY_ID");
+            var secret = Require(_s3.SecretAccessKey, "Storage:S3:SecretAccessKey", "AWS_SECRET_ACCESS_KEY");
             var config = new AmazonS3Config
             {
                 ServiceURL = endpoint,
@@ -186,6 +193,17 @@ namespace Yakku.Infrastructure.Storage
             };
 
             return new AmazonS3Client(new BasicAWSCredentials(accessKey, secret), config);
+        }
+
+        private static string Require(string? value, string configKey, string envName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new InvalidOperationException(
+                    $"{configKey} is not set. Add {envName} to your .env file or environment variables.");
+            }
+
+            return value;
         }
 
         private static async Task<byte[]> ReadExactlyAsync(

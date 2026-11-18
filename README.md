@@ -45,7 +45,7 @@ Fill in `.env`. Never commit that file; `.env.example` is the template that stay
 | `UPSTASH_REDIS_REST_URL` | Yes | Redis REST base URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes | Redis REST token |
 | `JWT_SECRET` | Yes | Access-token signing key (at least 32 characters) |
-| `MSG91_AUTH_KEY`, `MSG91_FLOW_ID` | Yes (unless `MSG91_ENABLED=false`) | OTP SMS delivery; see [MSG91 configuration](#msg91-configuration). `MSG91_SENDER_ID`, `MSG91_ENABLED` are optional. |
+| `MSG91_AUTH_KEY`, `MSG91_FLOW_ID` | Yes when `Msg91:Enabled` is true (Staging/Production) | OTP SMS delivery; see [MSG91 configuration](#msg91-configuration). `MSG91_SENDER_ID` is optional. Enablement is set in appsettings, not `.env`. |
 | `ADMIN_*`, `TRUSTED_PROXY_HOPS` | No | Admin cookie-session, CSRF and login-throttle settings with secure defaults; see [docs/admin-auth.md](docs/admin-auth.md). |
 | `CORS_ORIGINS` | No | Comma-separated browser origins allowed to send credentials (`yakku_guest` cookie). Leave empty when the API and web app share the same origin. |
 | `AWS_ENDPOINT_URL_S3` | Yes | Neon Object Storage S3 endpoint (path-style) |
@@ -99,14 +99,14 @@ If the code is never verified, the Redis key expires. No unverified user is left
 
 ### MSG91 configuration
 
-Read from environment variables (the Render dashboard in production; a git-ignored `.env` locally). The app **refuses to start** if `MSG91_ENABLED` is true and a required value is missing.
+Credentials come from environment variables (the Render dashboard in production; a git-ignored `.env` locally). **Enablement is appsettings-only** (`Msg91:Enabled`): `false` in Development, `true` in Staging and Production. Do not set `MSG91_ENABLED` in `.env`. When enabled, the app **refuses to start** if a required credential is missing. When disabled, OTP is still issued and stored in plaintext in Redis (no SMS).
 
-| Variable | Required | Purpose |
+| Variable / setting | Required | Purpose |
 |---|---|---|
+| `Msg91:Enabled` (appsettings) | Yes | Per-environment flag in `appsettings.{Environment}.json`. |
 | `MSG91_AUTH_KEY` | When enabled | MSG91 AuthKey. Server-side only. |
 | `MSG91_FLOW_ID` | When enabled | Flow (template) id sent as `template_id`. |
 | `MSG91_SENDER_ID` | No | DLT sender header (3–11 letters/digits). Bound to the flow in MSG91, so it is validated but not sent. |
-| `MSG91_ENABLED` | No (true) | `false` turns SMS off; OTP requests then fail with 503. |
 
 The OTP validity is not configurable by environment: it is the constant `OtpOptions.ExpiryMinutes` (5) in `src/Yakku.Application/Auth/OtpOptions.cs`. It drives the Redis TTL and `expiresInSeconds`. If you change it, update the "valid for N minutes" text of the MSG91 and DLT templates to match, because the SMS no longer carries it.
 

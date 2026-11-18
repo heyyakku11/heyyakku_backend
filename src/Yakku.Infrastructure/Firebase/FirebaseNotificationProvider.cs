@@ -3,11 +3,12 @@ using FirebaseAdmin;
 using FirebaseAdmin.Messaging;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Application.PushNotifications.DTOs;
 using Yakku.Application.PushNotifications.Interfaces;
-using Yakku.Infrastructure.Configuration;
 
 namespace Yakku.Infrastructure.Firebase
 {
@@ -19,10 +20,12 @@ namespace Yakku.Infrastructure.Firebase
         private readonly FirebaseMessaging _messaging;
         private readonly ILogger<FirebaseNotificationProvider> _logger;
 
-        public FirebaseNotificationProvider(ILogger<FirebaseNotificationProvider> logger)
+        public FirebaseNotificationProvider(
+            ILogger<FirebaseNotificationProvider> logger,
+            IOptions<FirebaseOptions> firebaseOptions)
         {
             _logger = logger;
-            EnsureFirebaseApp();
+            EnsureFirebaseApp(firebaseOptions.Value);
             _messaging = FirebaseMessaging.DefaultInstance;
         }
 
@@ -234,7 +237,7 @@ namespace Yakku.Infrastructure.Firebase
             return $"{token[..4]}…{token[^4..]}(len:{token.Length})";
         }
 
-        private static void EnsureFirebaseApp()
+        private static void EnsureFirebaseApp(FirebaseOptions options)
         {
             if (FirebaseApp.DefaultInstance is not null)
             {
@@ -248,7 +251,7 @@ namespace Yakku.Infrastructure.Firebase
                     return;
                 }
 
-                var credential = LoadCredential();
+                var credential = LoadCredential(options);
                 FirebaseApp.Create(new AppOptions
                 {
                     Credential = credential
@@ -256,30 +259,28 @@ namespace Yakku.Infrastructure.Firebase
             }
         }
 
-        private static GoogleCredential LoadCredential()
+        private static GoogleCredential LoadCredential(FirebaseOptions options)
         {
-            EnvFile.Load();
-
-            var type = GetEnv("FIREBASE_TYPE") ?? "service_account";
-            var projectId = GetEnv("FIREBASE_PROJECT_ID");
-            var privateKeyId = GetEnv("FIREBASE_PRIVATE_KEY_ID");
-            var privateKey = GetEnv("FIREBASE_PRIVATE_KEY");
-            var clientEmail = GetEnv("FIREBASE_CLIENT_EMAIL");
-            var clientId = GetEnv("FIREBASE_CLIENT_ID");
-            var authUri = GetEnv("FIREBASE_AUTH_URI") ?? "https://accounts.google.com/o/oauth2/auth";
-            var tokenUri = GetEnv("FIREBASE_TOKEN_URI") ?? "https://oauth2.googleapis.com/token";
-            var authProviderCertUrl = GetEnv("FIREBASE_AUTH_PROVIDER_X509_CERT_URL")
+            var type = Clean(options.Type) ?? "service_account";
+            var projectId = Clean(options.ProjectId);
+            var privateKeyId = Clean(options.PrivateKeyId);
+            var privateKey = Clean(options.PrivateKey);
+            var clientEmail = Clean(options.ClientEmail);
+            var clientId = Clean(options.ClientId);
+            var authUri = Clean(options.AuthUri) ?? "https://accounts.google.com/o/oauth2/auth";
+            var tokenUri = Clean(options.TokenUri) ?? "https://oauth2.googleapis.com/token";
+            var authProviderCertUrl = Clean(options.AuthProviderX509CertUrl)
                 ?? "https://www.googleapis.com/oauth2/v1/certs";
-            var clientCertUrl = GetEnv("FIREBASE_CLIENT_X509_CERT_URL");
-            var universeDomain = GetEnv("FIREBASE_UNIVERSE_DOMAIN") ?? "googleapis.com";
+            var clientCertUrl = Clean(options.ClientX509CertUrl);
+            var universeDomain = Clean(options.UniverseDomain) ?? "googleapis.com";
 
             var missing = new List<string>();
-            if (string.IsNullOrWhiteSpace(projectId)) missing.Add("FIREBASE_PROJECT_ID");
-            if (string.IsNullOrWhiteSpace(privateKeyId)) missing.Add("FIREBASE_PRIVATE_KEY_ID");
-            if (string.IsNullOrWhiteSpace(privateKey)) missing.Add("FIREBASE_PRIVATE_KEY");
-            if (string.IsNullOrWhiteSpace(clientEmail)) missing.Add("FIREBASE_CLIENT_EMAIL");
-            if (string.IsNullOrWhiteSpace(clientId)) missing.Add("FIREBASE_CLIENT_ID");
-            if (string.IsNullOrWhiteSpace(clientCertUrl)) missing.Add("FIREBASE_CLIENT_X509_CERT_URL");
+            if (string.IsNullOrWhiteSpace(projectId)) missing.Add("FIREBASE_PROJECT_ID / Firebase:ProjectId");
+            if (string.IsNullOrWhiteSpace(privateKeyId)) missing.Add("FIREBASE_PRIVATE_KEY_ID / Firebase:PrivateKeyId");
+            if (string.IsNullOrWhiteSpace(privateKey)) missing.Add("FIREBASE_PRIVATE_KEY / Firebase:PrivateKey");
+            if (string.IsNullOrWhiteSpace(clientEmail)) missing.Add("FIREBASE_CLIENT_EMAIL / Firebase:ClientEmail");
+            if (string.IsNullOrWhiteSpace(clientId)) missing.Add("FIREBASE_CLIENT_ID / Firebase:ClientId");
+            if (string.IsNullOrWhiteSpace(clientCertUrl)) missing.Add("FIREBASE_CLIENT_X509_CERT_URL / Firebase:ClientX509CertUrl");
 
             if (missing.Count > 0)
             {
@@ -309,9 +310,10 @@ namespace Yakku.Infrastructure.Firebase
             return CredentialFactory.FromJson<ServiceAccountCredential>(credentialJson).ToGoogleCredential();
         }
 
-        private static string? GetEnv(string key)
+        private static string? Clean(string? value)
         {
-            return Environment.GetEnvironmentVariable(key)?.Trim().Trim('"').Trim('\'');
+            var trimmed = value?.Trim().Trim('"').Trim('\'');
+            return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
         }
     }
 }

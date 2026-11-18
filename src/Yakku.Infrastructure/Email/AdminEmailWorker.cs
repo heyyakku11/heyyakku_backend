@@ -2,8 +2,10 @@ using System.Diagnostics;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Yakku.Application.Audit;
 using Yakku.Application.Auth.Interfaces;
+using Yakku.Application.Configuration;
 using Yakku.Application.Email;
 using Yakku.Domain.Enums;
 
@@ -16,17 +18,20 @@ namespace Yakku.Infrastructure.Email
         private readonly IEmailSender _emailSender;
         private readonly ILogger<AdminEmailWorker> _logger;
         private readonly IAuditLogWriter _audit;
+        private readonly ResendOptions _resend;
 
         public AdminEmailWorker(
             Channel<AdminEmailJob> channel,
             IEmailSender emailSender,
             ILogger<AdminEmailWorker> logger,
-            IAuditLogWriter audit)
+            IAuditLogWriter audit,
+            IOptions<ResendOptions> resendOptions)
         {
             _reader = channel.Reader;
             _emailSender = emailSender;
             _logger = logger;
             _audit = audit;
+            _resend = resendOptions.Value;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -60,13 +65,13 @@ namespace Yakku.Infrastructure.Email
 
         private async Task ProcessJobAsync(AdminEmailJob job, CancellationToken stoppingToken)
         {
-            var templateId = AdminEmailTemplateCatalog.TemplateId(job.Template);
+            var templateId = AdminEmailTemplateCatalog.TemplateId(job.Template, _resend);
             if (templateId is null)
             {
                 _logger.LogWarning(
-                    "Admin email {Template} not sent: {EnvName} is not configured.",
+                    "Admin email {Template} not sent: {ConfigKey} is not configured.",
                     job.Template,
-                    AdminEmailTemplateCatalog.EnvName(job.Template));
+                    AdminEmailTemplateCatalog.ConfigKey(job.Template));
                 await AuditAttemptAsync(job, 1, NotificationAuditStatus.Failed, null, "TemplateNotConfigured", null, null, false);
                 return;
             }

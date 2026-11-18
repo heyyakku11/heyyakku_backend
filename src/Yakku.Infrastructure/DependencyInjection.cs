@@ -11,6 +11,7 @@ using Yakku.Application.Auth;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Sms;
 using Yakku.Application.Checks.Interfaces;
+using Yakku.Application.Configuration;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Email;
 using Yakku.Application.Email.Interfaces;
@@ -43,12 +44,12 @@ namespace Yakku.Infrastructure
     {
         /// <summary>
         /// OTP SMS delivery through MSG91, plus the OTP policy (its validity is the <see cref="OtpOptions.ExpiryMinutes"/> constant).
-        /// Bad or missing settings stop the app from starting. The AuthKey is read from the environment only
-        /// (Render's dashboard in production) and goes nowhere but the MSG91 request header.
+        /// Bad or missing settings stop the app from starting. The AuthKey is read from configuration only
+        /// (Render's dashboard / .env via the flat-env bridge) and goes nowhere but the MSG91 request header.
         /// </summary>
-        public static IServiceCollection AddSmsDelivery(this IServiceCollection services, Func<string, string?> readSetting)
+        public static IServiceCollection AddSmsDelivery(this IServiceCollection services, IConfiguration configuration)
         {
-            var msg91 = Msg91Options.FromEnvironment(readSetting);
+            var msg91 = Msg91Options.FromConfiguration(configuration);
             msg91.ThrowIfInvalid();
             services.AddSingleton(msg91);
             services.AddSingleton(OtpPolicy.Default);
@@ -71,18 +72,46 @@ namespace Yakku.Infrastructure
             return services;
         }
 
-        public static IServiceCollection AddInfrastructure(this IServiceCollection services)
+        /// <summary>Test helper: builds SMS delivery from a flat MSG91_* key map.</summary>
+        public static IServiceCollection AddSmsDelivery(
+            this IServiceCollection services,
+            Func<string, string?> readSetting)
         {
-            EnvFile.Load();
-            MediaUploadPolicyFactory.ValidateStorageConfiguration();
+            var msg91 = Msg91Options.FromEnvironment(readSetting);
+            msg91.ThrowIfInvalid();
+            services.AddSingleton(msg91);
+            services.AddSingleton(OtpPolicy.Default);
 
-            services.AddSmsDelivery(Environment.GetEnvironmentVariable);
+            if (msg91.Enabled)
+            {
+                services.AddHttpClient<ISmsService, Msg91SmsService>(client =>
+                {
+                    client.BaseAddress = new Uri("https://control.msg91.com/");
+                    client.Timeout = TimeSpan.FromSeconds(10);
+                    client.MaxResponseContentBufferSize = 64 * 1024;
+                });
+            }
+            else
+            {
+                services.AddSingleton<ISmsService, DisabledSmsService>();
+            }
+
+            return services;
+        }
+
+        public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+        {
+            BindAppOptions(services, configuration);
+
+            MediaUploadPolicyFactory.ValidateStorageConfiguration(configuration);
+            services.AddSmsDelivery(configuration);
 
             services.AddHttpContextAccessor();
             services.AddScoped<IPollRepository, PollRepository>();
             services.AddScoped<IMediaUploadSessionRepository, MediaUploadSessionRepository>();
             services.AddSingleton<IPollMediaBucketResolver, PollMediaBucketResolver>();
-            services.AddSingleton<IMediaUploadPolicy>(_ => MediaUploadPolicyFactory.Create());
+            services.AddSingleton<IMediaUploadPolicy>(sp =>
+                MediaUploadPolicyFactory.Create(sp.GetRequiredService<IOptions<MediaUploadOptions>>().Value));
             services.AddSingleton<IObjectStorage, NeonObjectStorage>();
             services.AddSingleton<IMediaInspector, TagLibMediaInspector>();
             services.AddHostedService<MediaUploadCleanupWorker>();
@@ -128,17 +157,22 @@ namespace Yakku.Infrastructure
             services.AddSingleton<IFirebaseNotificationProvider, FirebaseNotificationProvider>();
             services.AddSingleton<IEmailSender>(sp =>
             {
+                var resend = sp.GetRequiredService<IOptions<ResendOptions>>().Value;
+                Require(resend.ApiKey, "Resend:ApiKey", "RESEND_API_KEY");
+                if (string.IsNullOrWhiteSpace(resend.OtpTemplateId))
+                {
+                    throw new InvalidOperationException(
+                        "Resend:OtpTemplateId is not set. Define it in appsettings.json under Resend:OtpTemplateId.");
+                }
                 var logger = sp.GetRequiredService<ILogger<ResendEmailSender>>();
-                return ResendEmailSender.Create(
-                    EnvFile.GetRequired("RESEND_API_KEY"),
-                    EnvFile.GetRequired("RESEND_OTP_TEMPLATE_ID"),
-                    logger);
+                return ResendEmailSender.Create(resend.ApiKey, resend.OtpTemplateId, logger);
             });
             services.AddSingleton(_ =>
             {
-                var url = EnvFile.GetRequired("UPSTASH_REDIS_REST_URL");
-                var token = EnvFile.GetRequired("UPSTASH_REDIS_REST_TOKEN");
-                return UpstashRedisClient.Create(url, token);
+                var redis = _.GetRequiredService<IOptions<RedisOptions>>().Value;
+                Require(redis.Url, "Redis:Url", "UPSTASH_REDIS_REST_URL");
+                Require(redis.Token, "Redis:Token", "UPSTASH_REDIS_REST_TOKEN");
+                return UpstashRedisClient.Create(redis.Url, redis.Token);
             });
 
             var emailChannel = Channel.CreateBounded<EmailJob>(new BoundedChannelOptions(OtpEmailQueueOptions.Capacity)
@@ -166,13 +200,9 @@ namespace Yakku.Infrastructure
             // counts too) and are validated when the host starts.
             services.AddSingleton<IValidateOptions<VoteNotificationBatchingOptions>, VoteNotificationBatchingOptionsValidator>();
             services.AddOptions<VoteNotificationBatchingOptions>()
-                .Configure<IConfiguration>((options, configuration) =>
+                .Configure<IConfiguration>((options, config) =>
                 {
-                    var merged = new ConfigurationBuilder()
-                        .AddConfiguration(configuration)
-                        .AddEnvironmentVariables()
-                        .Build();
-                    merged.GetSection(VoteNotificationBatchingOptions.SectionName).Bind(options);
+                    config.GetSection(VoteNotificationBatchingOptions.SectionName).Bind(options);
                 })
                 .ValidateOnStart();
             services.AddSingleton(sp => sp.GetRequiredService<IOptions<VoteNotificationBatchingOptions>>().Value);
@@ -198,6 +228,30 @@ namespace Yakku.Infrastructure
             services.AddHostedService<AskBackPushWorker>();
 
             return services;
+        }
+
+        private static void BindAppOptions(IServiceCollection services, IConfiguration configuration)
+        {
+            services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
+            services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
+            services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+            services.Configure<CorsSettings>(configuration.GetSection(CorsSettings.SectionName));
+            services.Configure<ResendOptions>(configuration.GetSection(ResendOptions.SectionName));
+            services.Configure<FirebaseOptions>(configuration.GetSection(FirebaseOptions.SectionName));
+            services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
+            services.Configure<MediaUploadOptions>(configuration.GetSection(MediaUploadOptions.SectionName));
+            services.Configure<WebOptions>(configuration.GetSection(WebOptions.SectionName));
+            services.Configure<AdminOptions>(configuration.GetSection(AdminOptions.SectionName));
+            services.Configure<ForwardedHeadersAppOptions>(configuration.GetSection(ForwardedHeadersAppOptions.SectionName));
+        }
+
+        private static void Require(string? value, string configKey, string envName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new InvalidOperationException(
+                    $"{configKey} is not set. Add {envName} to your .env file or environment variables.");
+            }
         }
     }
 }

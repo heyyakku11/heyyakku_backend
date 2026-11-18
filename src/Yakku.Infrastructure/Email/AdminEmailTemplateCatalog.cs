@@ -1,22 +1,38 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Yakku.Application.Configuration;
 using Yakku.Application.Email;
 
 namespace Yakku.Infrastructure.Email
 {
-    /// <summary>Maps an admin email to its Resend template id (from the environment, read on use).</summary>
+    /// <summary>Maps an admin email to its Resend template id from bound <see cref="ResendOptions"/>.</summary>
     public static class AdminEmailTemplateCatalog
     {
-        public static string? TemplateId(AdminEmailTemplate template)
+        public static string? TemplateId(AdminEmailTemplate template, IServiceProvider services)
         {
-            var value = Environment.GetEnvironmentVariable(EnvName(template))?.Trim().Trim('"');
+            var options = services.GetRequiredService<IOptions<ResendOptions>>().Value;
+            return TemplateId(template, options);
+        }
+
+        public static string? TemplateId(AdminEmailTemplate template, ResendOptions options)
+        {
+            var value = template switch
+            {
+                AdminEmailTemplate.Registration => options.AdminTemplates.Register,
+                AdminEmailTemplate.ForgotPassword => options.AdminTemplates.ForgotPassword,
+                _ => throw new ArgumentOutOfRangeException(nameof(template), template, null)
+            };
+
+            value = value?.Trim().Trim('"');
             return string.IsNullOrWhiteSpace(value) ? null : value;
         }
 
-        public static string EnvName(AdminEmailTemplate template)
+        public static string ConfigKey(AdminEmailTemplate template)
         {
             return template switch
             {
-                AdminEmailTemplate.Registration => "RESEND_ADMIN_REGISTER_TEMPLATE_ID",
-                AdminEmailTemplate.ForgotPassword => "RESEND_ADMIN_FORGOT_PASSWORD_TEMPLATE_ID",
+                AdminEmailTemplate.Registration => "Resend:AdminTemplates:Register",
+                AdminEmailTemplate.ForgotPassword => "Resend:AdminTemplates:ForgotPassword",
                 _ => throw new ArgumentOutOfRangeException(nameof(template), template, null)
             };
         }

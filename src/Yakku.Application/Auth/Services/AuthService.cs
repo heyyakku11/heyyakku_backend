@@ -99,7 +99,6 @@ namespace Yakku.Application.Auth.Services
             await _requestOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
-            EnsureSmsAvailable();
 
             var user = await _userRepository.GetByPhoneNumberAsync(phoneNumber, cancellationToken);
             var purpose = user is null ? OtpPurpose.Registration : OtpPurpose.Login;
@@ -137,10 +136,12 @@ namespace Yakku.Application.Auth.Services
             CancellationToken cancellationToken)
         {
             var otp = _otpGenerator.Generate();
+            // When SMS is off (Development), store plaintext so the code can be read from Redis.
+            // When SMS is on, store only the hash.
             var challenge = new OtpChallenge
             {
                 ChallengeId = Guid.NewGuid(),
-                OtpHash = OtpHasher.Hash(phoneNumber, otp),
+                OtpHash = _sms.IsEnabled ? OtpHasher.Hash(phoneNumber, otp) : otp,
                 Purpose = purpose,
                 AnonymousName = anonymousName,
                 AttemptCount = 0,
@@ -167,6 +168,15 @@ namespace Yakku.Application.Auth.Services
             if (!string.IsNullOrWhiteSpace(anonymousName))
             {
                 await _anonymousNames.RefreshAsync(anonymousName, _nameHold, cancellationToken);
+            }
+
+            if (!_sms.IsEnabled)
+            {
+                _logger.LogInformation(
+                    "SMS delivery disabled; OTP for {PhoneNumber} stored in plaintext in Redis (challenge {ChallengeId}).",
+                    phoneNumber,
+                    challenge.ChallengeId);
+                return;
             }
 
             SmsSendResult result;
@@ -228,15 +238,6 @@ namespace Yakku.Application.Auth.Services
             }
         }
 
-        private void EnsureSmsAvailable()
-        {
-            if (!_sms.IsEnabled)
-            {
-                _logger.LogWarning("OTP requested while SMS delivery is disabled (MSG91_ENABLED=false).");
-                throw ToDeliveryFailure(SmsFailureCategory.Disabled);
-            }
-        }
-
         /// <summary>The client learns that delivery failed, never why: provider details stay in the logs.</summary>
         private static AppException ToDeliveryFailure(SmsFailureCategory failure)
         {
@@ -259,7 +260,6 @@ namespace Yakku.Application.Auth.Services
             await _resendOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
-            EnsureSmsAvailable();
 
             var existing = await _otpChallengeStore.GetAsync(phoneNumber, cancellationToken);
             if (existing is null)
@@ -316,9 +316,14 @@ namespace Yakku.Application.Auth.Services
 
             // One atomic step: check the attempt limit, compare, count a miss, and consume on a match. A correct OTP
             // therefore works exactly once, and parallel guesses all count towards the limit.
+            // When SMS is disabled the challenge stores plaintext; when enabled it stores a hash.
+            var submitted = request.Otp.Trim();
+            var comparisonValue = _sms.IsEnabled
+                ? OtpHasher.Hash(phoneNumber, submitted)
+                : submitted;
             var verification = await _otpChallengeStore.VerifyAndConsumeAsync(
                 phoneNumber,
-                OtpHasher.Hash(phoneNumber, request.Otp.Trim()),
+                comparisonValue,
                 _policy.MaxVerificationAttempts,
                 cancellationToken);
 

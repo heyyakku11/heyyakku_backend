@@ -1,10 +1,12 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Yakku.Application.AdminAuth;
 using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.AdminAuth.Services;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Services;
+using Yakku.Application.Configuration;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Checks.Services;
 using Yakku.Application.Devices.Interfaces;
@@ -43,7 +45,7 @@ namespace Yakku.Application
             services.AddScoped<Yakku.Application.AdminAuth.Security.AdminLoginThrottle>();
             services.AddSingleton<Yakku.Application.AdminAuth.Security.AdminCsrfTokens>();
             services.AddSingleton(TimeProvider.System);
-            services.AddSingleton<IAdminAuthSettings, EnvAdminAuthSettings>();
+            services.AddSingleton<IAdminAuthSettings, ConfigurationAdminAuthSettings>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IAccountDeletionService, AccountDeletionService>();
             services.AddScoped<IAnonymousNameAllocator, AnonymousNameAllocator>();
@@ -80,13 +82,13 @@ namespace Yakku.Application
             services.AddSingleton<IDisplayNameGenerator, DisplayNameGenerator>();
             services.AddSingleton<IGuestTokenGenerator, GuestTokenGenerator>();
             services.AddSingleton<IGuestTokenHasher, GuestTokenHasher>();
-            services.AddSingleton<ITokenService>(_ =>
+            services.AddSingleton<ITokenService>(sp =>
             {
-                var secret = Environment.GetEnvironmentVariable("JWT_SECRET")?.Trim().Trim('"');
+                var secret = sp.GetRequiredService<IOptions<JwtSettings>>().Value.Secret?.Trim().Trim('"');
                 if (string.IsNullOrWhiteSpace(secret))
                 {
                     throw new InvalidOperationException(
-                        "JWT_SECRET is not set. Add it to your .env file or environment variables.");
+                        "Jwt:Secret is not set. Add JWT_SECRET to your .env file or environment variables.");
                 }
 
                 return new TokenService(secret);

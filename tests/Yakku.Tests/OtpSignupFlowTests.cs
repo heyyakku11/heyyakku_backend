@@ -318,16 +318,29 @@ public sealed class OtpSignupFlowTests
     }
 
     [SkippableFact]
-    public async Task WhenSmsIsDisabled_RequestsFailCleanly_WithoutTouchingRedis()
+    public async Task WhenSmsIsDisabled_OtpIsStoredInPlaintext_AndVerifyWorksWithoutSending()
     {
         var h = await StartAsync();
         h.Sms.IsEnabled = false;
 
-        await AssertFailsAsync(h.NewAuth().RequestOtpAsync(Request()), 503, ApiErrorCodes.ServiceUnavailable);
+        var response = await h.NewAuth().RequestOtpAsync(Request());
 
+        Assert.Equal("Registration", response.Purpose);
         Assert.Empty(h.Sms.Sent);
-        Assert.False(await _redis.Database.KeyExistsAsync(ChallengeKey));
-        Assert.False(await _redis.Database.KeyExistsAsync(SendCountKey));
+        Assert.True(await _redis.Database.KeyExistsAsync(ChallengeKey));
+
+        var raw = await _redis.Database.StringGetAsync(ChallengeKey);
+        Assert.False(raw.IsNullOrEmpty);
+        // Plaintext 6-digit OTP is stored in the otpHash JSON field when SMS is disabled.
+        Assert.Matches(@"""otpHash""\s*:\s*""\d{6}""", raw.ToString());
+
+        var match = System.Text.RegularExpressions.Regex.Match(raw.ToString()!, @"""otpHash""\s*:\s*""(\d{6})""");
+        Assert.True(match.Success);
+        var otp = match.Groups[1].Value;
+
+        var verified = await h.NewAuth().VerifyOtpAsync(Verify(otp));
+        Assert.Equal("Registration", verified.Purpose);
+        Assert.Contains("stored in plaintext", h.Log.AllText, StringComparison.OrdinalIgnoreCase);
     }
 
     // ---- resend cooldown, rate limiting, concurrent requests ------------------------------------------------

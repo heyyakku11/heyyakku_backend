@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Yakku.Application.Auth;
 using Yakku.Infrastructure.Sms;
 
@@ -10,6 +11,14 @@ public class Msg91OptionsTests
     {
         var map = variables.ToDictionary(pair => pair.Name, pair => pair.Value);
         return Msg91Options.FromEnvironment(name => map.GetValueOrDefault(name));
+    }
+
+    private static Msg91Options LoadConfiguration(params (string Key, string? Value)[] values)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)))
+            .Build();
+        return Msg91Options.FromConfiguration(configuration);
     }
 
     [Fact]
@@ -35,7 +44,7 @@ public class Msg91OptionsTests
 
         Assert.Contains("MSG91_AUTH_KEY", exception.Message);
         Assert.Contains("MSG91_FLOW_ID", exception.Message);
-        Assert.Contains("MSG91_ENABLED=false", exception.Message);
+        Assert.Contains("Msg91:Enabled=false", exception.Message);
     }
 
     [Theory]
@@ -72,6 +81,31 @@ public class Msg91OptionsTests
 
         Assert.False(options.Enabled);
         Assert.Empty(options.AuthKey);
+    }
+
+    [Fact]
+    public void FromConfiguration_DefaultsToDisabled_AndReadsNestedKeys()
+    {
+        var options = LoadConfiguration(
+            ("Msg91:Enabled", "true"),
+            ("Msg91:AuthKey", "cfg-key"),
+            ("Msg91:FlowId", "cfg-flow"));
+
+        options.ThrowIfInvalid();
+
+        Assert.True(options.Enabled);
+        Assert.Equal("cfg-key", options.AuthKey);
+        Assert.Equal("cfg-flow", options.FlowId);
+    }
+
+    [Fact]
+    public void FromConfiguration_WithNothingSet_IsDisabledAndValid()
+    {
+        var options = LoadConfiguration();
+
+        options.ThrowIfInvalid();
+
+        Assert.False(options.Enabled);
     }
 
     [Theory]

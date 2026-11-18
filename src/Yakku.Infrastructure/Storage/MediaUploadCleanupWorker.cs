@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Yakku.Application.Audit;
+using Yakku.Application.Configuration;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Domain.Enums;
 
@@ -15,11 +17,13 @@ namespace Yakku.Infrastructure.Storage
 
         public MediaUploadCleanupWorker(
             IServiceScopeFactory scopeFactory,
-            ILogger<MediaUploadCleanupWorker> logger)
+            ILogger<MediaUploadCleanupWorker> logger,
+            IOptions<MediaUploadOptions> mediaUploadOptions)
         {
             _scopeFactory = scopeFactory;
             _logger = logger;
-            _interval = ReadInterval();
+            var minutes = mediaUploadOptions.Value.CleanupIntervalMinutes;
+            _interval = minutes > 0 ? TimeSpan.FromMinutes(minutes) : TimeSpan.FromMinutes(15);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -63,12 +67,5 @@ namespace Yakku.Infrastructure.Storage
             }
         }
 
-        private static TimeSpan ReadInterval()
-        {
-            var raw = Environment.GetEnvironmentVariable("POLL_MEDIA_CLEANUP_INTERVAL_MINUTES");
-            return int.TryParse(raw, out var minutes) && minutes > 0
-                ? TimeSpan.FromMinutes(minutes)
-                : TimeSpan.FromMinutes(15);
-        }
     }
 }

@@ -1,11 +1,14 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using Yakku.Application.AdminAuth.Security;
+using Yakku.Application.Configuration;
+using Yakku.Infrastructure.Configuration;
 
 namespace Yakku.API.AdminSecurity
 {
     /// <summary>
-    /// Admin cookie, CSRF and session settings, read from ADMIN_* environment variables with secure defaults.
+    /// Admin cookie, CSRF and session settings, read from the Admin configuration section with secure defaults.
     /// <see cref="Load"/> validates everything at startup so a misconfigured production deploy fails to start
     /// instead of running with weakened security.
     /// </summary>
@@ -22,86 +25,89 @@ namespace Yakku.API.AdminSecurity
         public IReadOnlySet<string> TrustedOrigins { get; init; } = new HashSet<string>();
         public AdminSessionOptions Session { get; init; } = new();
 
+        /// <summary>Builds nested configuration from flat ADMIN_* / CORS_* keys (used by tests).</summary>
         public static AdminSecuritySettings Load(
             bool isProduction,
             string jwtSecret,
             Func<string, string?> env)
         {
-            var secure = ParseBool(env("ADMIN_COOKIE_SECURE"), "ADMIN_COOKIE_SECURE") ?? isProduction;
-            var csrf = ParseBool(env("ADMIN_CSRF_ENABLED"), "ADMIN_CSRF_ENABLED") ?? true;
-            var sameSite = ParseSameSite(env("ADMIN_COOKIE_SAME_SITE"));
-            var name = string.IsNullOrWhiteSpace(env("ADMIN_COOKIE_NAME"))
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(FlatEnvConfigurationBridge.Build(env))
+                .Build();
+            return Load(isProduction, jwtSecret, configuration);
+        }
+
+        public static AdminSecuritySettings Load(
+            bool isProduction,
+            string jwtSecret,
+            IConfiguration configuration)
+        {
+            var admin = configuration.GetSection(AdminOptions.SectionName).Get<AdminOptions>() ?? new AdminOptions();
+            var corsOrigins = configuration.GetSection(CorsSettings.SectionName)["Origins"];
+
+            var secure = admin.CookieSecure
+                ?? ParseBool(configuration["Admin:CookieSecure"], "Admin:CookieSecure")
+                ?? isProduction;
+            var csrf = admin.CsrfEnabled
+                ?? ParseBool(configuration["Admin:CsrfEnabled"], "Admin:CsrfEnabled")
+                ?? true;
+            var sameSite = ParseSameSite(
+                string.IsNullOrWhiteSpace(admin.CookieSameSite)
+                    ? configuration["Admin:CookieSameSite"]
+                    : admin.CookieSameSite);
+            var name = string.IsNullOrWhiteSpace(admin.CookieName)
                 ? (isProduction ? "__Host-yakku_admin" : "yakku_admin")
-                : env("ADMIN_COOKIE_NAME")!.Trim();
+                : admin.CookieName.Trim();
 
             if (isProduction && !secure)
             {
-                throw new InvalidOperationException("ADMIN_COOKIE_SECURE must be true in production.");
+                throw new InvalidOperationException("Admin:CookieSecure / ADMIN_COOKIE_SECURE must be true in production.");
             }
 
             if (isProduction && !csrf)
             {
-                throw new InvalidOperationException("ADMIN_CSRF_ENABLED cannot be turned off in production.");
+                throw new InvalidOperationException("Admin:CsrfEnabled / ADMIN_CSRF_ENABLED cannot be turned off in production.");
             }
 
             if (sameSite == SameSiteMode.None && !secure)
             {
-                throw new InvalidOperationException("ADMIN_COOKIE_SAME_SITE=None requires ADMIN_COOKIE_SECURE=true.");
+                throw new InvalidOperationException("Admin:CookieSameSite=None requires Admin:CookieSecure=true.");
             }
 
             if (name.StartsWith("__Host-", StringComparison.Ordinal) && !secure)
             {
-                throw new InvalidOperationException("A __Host- cookie name requires ADMIN_COOKIE_SECURE=true.");
+                throw new InvalidOperationException("A __Host- cookie name requires Admin:CookieSecure=true.");
             }
 
             if (name.Any(c => c <= ' ' || c == ';' || c == '=' || c == ','))
             {
-                throw new InvalidOperationException("ADMIN_COOKIE_NAME contains characters that are not allowed in a cookie name.");
+                throw new InvalidOperationException("Admin:CookieName contains characters that are not allowed in a cookie name.");
             }
 
-            var idle = ParseSpan(env("ADMIN_SESSION_IDLE_TIMEOUT"), "ADMIN_SESSION_IDLE_TIMEOUT") ?? TimeSpan.FromMinutes(30);
-            var absolute = ParseSpan(env("ADMIN_SESSION_ABSOLUTE_TIMEOUT"), "ADMIN_SESSION_ABSOLUTE_TIMEOUT") ?? TimeSpan.FromHours(12);
-            var rotation = ParseSpan(env("ADMIN_SESSION_ROTATION_INTERVAL"), "ADMIN_SESSION_ROTATION_INTERVAL") ?? TimeSpan.FromMinutes(15);
+            var idle = ParseSpan(admin.Session.IdleTimeout, "Admin:Session:IdleTimeout") ?? TimeSpan.FromMinutes(30);
+            var absolute = ParseSpan(admin.Session.AbsoluteTimeout, "Admin:Session:AbsoluteTimeout") ?? TimeSpan.FromHours(12);
+            var rotation = ParseSpan(admin.Session.RotationInterval, "Admin:Session:RotationInterval") ?? TimeSpan.FromMinutes(15);
             if (idle < TimeSpan.FromMinutes(1) || absolute < idle || rotation < TimeSpan.FromMinutes(1) || absolute > TimeSpan.FromDays(30))
             {
                 throw new InvalidOperationException(
                     "Admin session timeouts are invalid: idle and rotation must be at least 1 minute, absolute must be at least the idle timeout and at most 30 days.");
             }
 
-            var rateLimit = 10;
-            var rateLimitRaw = env("ADMIN_LOGIN_RATE_LIMIT");
-            if (!string.IsNullOrWhiteSpace(rateLimitRaw)
-                && (!int.TryParse(rateLimitRaw, out rateLimit) || rateLimit < 1 || rateLimit > 1000))
+            var rateLimit = admin.LoginRateLimit ?? 10;
+            if (rateLimit < 1 || rateLimit > 1000)
             {
-                throw new InvalidOperationException("ADMIN_LOGIN_RATE_LIMIT must be a number from 1 to 1000 (requests per minute).");
+                throw new InvalidOperationException("Admin:LoginRateLimit must be a number from 1 to 1000 (requests per minute).");
             }
 
             var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var key in new[] { "ADMIN_WEB_BASE_URL", "ADMIN_TRUSTED_ORIGINS", "CORS_ORIGINS" })
-            {
-                foreach (var raw in (env(key) ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    var cleaned = raw.Trim('"').TrimEnd('/');
-                    if (cleaned.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    if (cleaned == "*" || !Uri.TryCreate(cleaned, UriKind.Absolute, out var uri)
-                        || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
-                    {
-                        throw new InvalidOperationException(
-                            $"{key} contains an invalid origin \"{cleaned}\". Use full origins such as https://admin.example.com.");
-                    }
-
-                    origins.Add($"{uri.Scheme}://{uri.Authority}");
-                }
-            }
+            AddOrigins(origins, admin.WebBaseUrl, "Admin:WebBaseUrl");
+            AddOrigins(origins, admin.TrustedOrigins, "Admin:TrustedOrigins");
+            AddOrigins(origins, corsOrigins, "Cors:Origins");
 
             if (isProduction && origins.Count == 0)
             {
                 throw new InvalidOperationException(
-                    "ADMIN_WEB_BASE_URL (or ADMIN_TRUSTED_ORIGINS) must be set in production so admin requests can be origin-checked.");
+                    "Admin:WebBaseUrl (or Admin:TrustedOrigins) must be set in production so admin requests can be origin-checked.");
             }
 
             // HKDF keeps CSRF tokens independent of the signing secret itself: leaking one does not expose the other.
@@ -130,6 +136,27 @@ namespace Yakku.API.AdminSecurity
             };
         }
 
+        private static void AddOrigins(HashSet<string> origins, string? rawList, string key)
+        {
+            foreach (var raw in (rawList ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var cleaned = raw.Trim('"').TrimEnd('/');
+                if (cleaned.Length == 0)
+                {
+                    continue;
+                }
+
+                if (cleaned == "*" || !Uri.TryCreate(cleaned, UriKind.Absolute, out var uri)
+                    || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+                {
+                    throw new InvalidOperationException(
+                        $"{key} contains an invalid origin \"{cleaned}\". Use full origins such as https://admin.example.com.");
+                }
+
+                origins.Add($"{uri.Scheme}://{uri.Authority}");
+            }
+        }
+
         private static bool? ParseBool(string? value, string name)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -147,12 +174,18 @@ namespace Yakku.API.AdminSecurity
 
         private static SameSiteMode ParseSameSite(string? value)
         {
-            return (value ?? "Strict").Trim().ToLowerInvariant() switch
+            // appsettings placeholders use "" — treat blank the same as unset (default Strict).
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return SameSiteMode.Strict;
+            }
+
+            return value.Trim().ToLowerInvariant() switch
             {
                 "strict" => SameSiteMode.Strict,
                 "lax" => SameSiteMode.Lax,
                 "none" => SameSiteMode.None,
-                _ => throw new InvalidOperationException("ADMIN_COOKIE_SAME_SITE must be Strict, Lax or None.")
+                _ => throw new InvalidOperationException("Admin:CookieSameSite must be Strict, Lax or None.")
             };
         }
 
