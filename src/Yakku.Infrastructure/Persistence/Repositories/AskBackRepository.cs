@@ -282,15 +282,24 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     select new { ConversationId = grouped.Key, Count = grouped.Count() })
                 .ToDictionaryAsync(item => item.ConversationId, item => item.Count, cancellationToken);
 
+            var contexts = await LoadListContextsAsync(rows, cancellationToken);
+
             var items = rows.Select(row =>
             {
                 lastMessages.TryGetValue(row.Id, out var last);
+                contexts.TryGetValue(row.Id, out var context);
                 return new AskBackConversationListItemResponse
                 {
                     Id = row.Id,
                     Status = StatusName(row.Status),
                     MyRole = row.CreatorUserId == userId ? "asker" : "voter",
                     Other = ToParticipant(row.OtherParticipant(userId), names),
+                    Context = context ?? new AskBackContextResponse
+                    {
+                        ContentType = row.ContentType == ShareContentType.Poll ? "poll" : "check",
+                        ContentId = row.ContentId,
+                        Title = row.ContentType == ShareContentType.Poll ? "Question" : null
+                    },
                     LastMessage = last is null
                         ? null
                         : new AskBackMessagePreviewResponse
@@ -315,6 +324,116 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 HasMore = hasMore,
                 NextCursor = next
             };
+        }
+
+        /// <summary>Titles and picked options for a page of conversations, in a few queries.</summary>
+        private async Task<Dictionary<Guid, AskBackContextResponse>> LoadListContextsAsync(
+            List<AskBackConversation> rows,
+            CancellationToken cancellationToken)
+        {
+            var result = new Dictionary<Guid, AskBackContextResponse>();
+            if (rows.Count == 0)
+            {
+                return result;
+            }
+
+            var pollIds = rows
+                .Where(row => row.ContentType == ShareContentType.Poll)
+                .Select(row => row.ContentId)
+                .Distinct()
+                .ToArray();
+            var checkIds = rows
+                .Where(row => row.ContentType == ShareContentType.Check)
+                .Select(row => row.ContentId)
+                .Distinct()
+                .ToArray();
+            var pollVoteIds = rows
+                .Where(row => row.ContentType == ShareContentType.Poll)
+                .Select(row => row.VoteId)
+                .ToArray();
+            var checkVoteIds = rows
+                .Where(row => row.ContentType == ShareContentType.Check)
+                .Select(row => row.VoteId)
+                .ToArray();
+
+            var pollQuestions = pollIds.Length == 0
+                ? new Dictionary<Guid, string?>()
+                : await _context.Polls.AsNoTracking()
+                    .Where(poll => pollIds.Contains(poll.Id))
+                    .ToDictionaryAsync(poll => poll.Id, poll => (string?)poll.Question, cancellationToken);
+            var checkMeta = checkIds.Length == 0
+                ? new Dictionary<Guid, (string? Title, string? Question)>()
+                : (await _context.UserChecks.AsNoTracking()
+                        .Where(item => checkIds.Contains(item.Id))
+                        .Select(item => new { item.Id, item.Check.Title, item.Check.Question })
+                        .ToListAsync(cancellationToken))
+                    .ToDictionary(
+                        item => item.Id,
+                        item => (Title: (string?)item.Title, Question: (string?)item.Question));
+            var pollVotes = pollVoteIds.Length == 0
+                ? new Dictionary<Guid, (string? Option, string? Custom)>()
+                : (await _context.PollVotes.AsNoTracking()
+                        .Where(vote => pollVoteIds.Contains(vote.Id))
+                        .Select(vote => new
+                        {
+                            vote.Id,
+                            Option = vote.PollOption != null ? vote.PollOption.Text : null,
+                            vote.CustomAnswer
+                        })
+                        .ToListAsync(cancellationToken))
+                    .ToDictionary(
+                        vote => vote.Id,
+                        vote => (Option: vote.Option, Custom: vote.CustomAnswer));
+            var checkVotes = checkVoteIds.Length == 0
+                ? new Dictionary<Guid, (string? Option, string? Custom)>()
+                : (await _context.UserCheckVotes.AsNoTracking()
+                        .Where(vote => checkVoteIds.Contains(vote.Id))
+                        .Select(vote => new
+                        {
+                            vote.Id,
+                            Option = vote.CheckOption != null ? vote.CheckOption.Text : null,
+                            vote.CustomAnswer
+                        })
+                        .ToListAsync(cancellationToken))
+                    .ToDictionary(
+                        vote => vote.Id,
+                        vote => (Option: vote.Option, Custom: vote.CustomAnswer));
+
+            foreach (var row in rows)
+            {
+                var context = new AskBackContextResponse
+                {
+                    ContentType = row.ContentType == ShareContentType.Poll ? "poll" : "check",
+                    ContentId = row.ContentId
+                };
+                if (row.ContentType == ShareContentType.Poll)
+                {
+                    context.Title = "Question";
+                    pollQuestions.TryGetValue(row.ContentId, out var question);
+                    context.Question = question;
+                    if (pollVotes.TryGetValue(row.VoteId, out var vote))
+                    {
+                        context.SelectedOption = vote.Option ?? vote.Custom;
+                    }
+                }
+                else
+                {
+                    if (checkMeta.TryGetValue(row.ContentId, out var meta))
+                    {
+                        context.Title = meta.Title;
+                        context.Question = meta.Question;
+                    }
+
+                    if (checkVotes.TryGetValue(row.VoteId, out var vote))
+                    {
+                        context.SelectedOption = vote.Option ?? vote.Custom;
+                    }
+                }
+
+                result[row.Id] = context;
+            }
+
+            return result;
         }
 
         public async Task<AskBackPage<AskBackMessageResponse>?> ListMessagesAsync(
@@ -615,6 +734,47 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
+        public async Task<int> CountReasonsOnCardAsync(
+            ShareContentType contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default)
+        {
+            if (contentType == ShareContentType.Poll)
+            {
+                var ownerId = await _context.Polls.AsNoTracking()
+                    .Where(poll => poll.Id == contentId)
+                    .Select(poll => (Guid?)poll.CreatorId)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (ownerId is null)
+                {
+                    return 0;
+                }
+
+                return await _context.PollVotes.AsNoTracking()
+                    .CountAsync(
+                        vote => vote.PollId == contentId
+                                && vote.VoterId != ownerId
+                                && vote.Reason != null,
+                        cancellationToken);
+            }
+
+            var checkOwnerId = await _context.UserChecks.AsNoTracking()
+                .Where(item => item.Id == contentId)
+                .Select(item => (Guid?)item.UserId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (checkOwnerId is null)
+            {
+                return 0;
+            }
+
+            return await _context.UserCheckVotes.AsNoTracking()
+                .CountAsync(
+                    vote => vote.UserCheckId == contentId
+                            && vote.VoterId != checkOwnerId
+                            && vote.Reason != null,
+                    cancellationToken);
+        }
+
         public async Task<(FreeAskOutcome Outcome, Guid? ConversationId)> AddFreeAskConversationAsync(
             AskBackConversation conversation,
             CancellationToken cancellationToken = default)
@@ -713,12 +873,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             var context = new AskBackContextResponse
             {
-                ContentType = conversation.ContentType == ShareContentType.Poll ? "poll" : "check"
+                ContentType = conversation.ContentType == ShareContentType.Poll ? "poll" : "check",
+                ContentId = conversation.ContentId
             };
 
             // Read live from the vote so a removed (reported) reason disappears here too. Gone content stays null.
             if (conversation.ContentType == ShareContentType.Poll)
             {
+                context.Title = "Question";
                 context.Question = await _context.Polls
                     .AsNoTracking()
                     .Where(poll => poll.Id == conversation.ContentId)
@@ -734,11 +896,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             }
             else
             {
-                context.Question = await _context.UserChecks
+                var check = await _context.UserChecks
                     .AsNoTracking()
                     .Where(item => item.Id == conversation.ContentId)
-                    .Select(item => item.Check.Question)
+                    .Select(item => new { item.Check.Title, item.Check.Question })
                     .FirstOrDefaultAsync(cancellationToken);
+                context.Title = check?.Title;
+                context.Question = check?.Question;
                 var vote = await _context.UserCheckVotes
                     .AsNoTracking()
                     .Where(item => item.Id == conversation.VoteId)

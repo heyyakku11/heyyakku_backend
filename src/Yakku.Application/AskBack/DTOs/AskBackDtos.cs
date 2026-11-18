@@ -38,6 +38,15 @@ namespace Yakku.Application.AskBack.DTOs
     {
         /// <summary>poll or check.</summary>
         public string ContentType { get; set; } = string.Empty;
+
+        /// <summary>The card id (poll or made check) for unlocks and card-access.</summary>
+        public Guid ContentId { get; set; }
+
+        /// <summary>
+        /// Short label for the list tag: a check's title (e.g. Mirror Check), or "Question" for a poll.
+        /// </summary>
+        public string? Title { get; set; }
+
         public string? Question { get; set; }
 
         /// <summary>The option the voter picked, or their custom answer. Null when the vote no longer exists.</summary>
@@ -91,6 +100,11 @@ namespace Yakku.Application.AskBack.DTOs
 
         /// <summary>The caller can lift the block (blocked, and the caller blocked).</summary>
         public bool CanUnblock { get; set; }
+
+        /// <summary>
+        /// Reasons still waiting on this card (for the "free ask back is used" unlock CTA). Null when not needed.
+        /// </summary>
+        public int? WaitingReplies { get; set; }
     }
 
     public class AskBackConversationListItemResponse
@@ -99,11 +113,24 @@ namespace Yakku.Application.AskBack.DTOs
         public string Status { get; set; } = string.Empty;
         public string MyRole { get; set; } = string.Empty;
         public AskBackParticipantResponse Other { get; set; } = new();
+        public AskBackContextResponse Context { get; set; } = new();
         public AskBackMessagePreviewResponse? LastMessage { get; set; }
         public DateTime? LastMessageAt { get; set; }
         public DateTime LastActivityAt { get; set; }
         public int UnreadCount { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>me, them or done, as the caller sees it.</summary>
+        public string Turn { get; set; } = "them";
+
+        /// <summary>Active, not paused and the caller's turn.</summary>
+        public bool CanSend { get; set; }
+
+        /// <summary>Read-only because the asker's plan expired.</summary>
+        public bool IsPaused { get; set; }
+
+        /// <summary>Messages the caller can still send; null when unlimited.</summary>
+        public int? MessagesLeft { get; set; }
     }
 
     public class AskBackMessageResponse

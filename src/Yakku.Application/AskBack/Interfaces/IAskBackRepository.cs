@@ -134,6 +134,15 @@ namespace Yakku.Application.AskBack.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// How many reasons are still on the card (option reasons and custom answers with a reason). Used for the
+        /// unlock CTA when the free ask back is used up.
+        /// </summary>
+        Task<int> CountReasonsOnCardAsync(
+            ShareContentType contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Creates the conversation only if the card has none yet, so a card gets one free ask back in all. The check
         /// and the insert run in one transaction under a lock on the card, so two simultaneous taps on different
         /// reasons cannot both create one.

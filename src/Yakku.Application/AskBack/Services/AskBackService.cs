@@ -186,17 +186,36 @@ namespace Yakku.Application.AskBack.Services
             return (details, created);
         }
 
-        public Task<AskBackPage<AskBackConversationListItemResponse>> ListConversationsAsync(
+        public async Task<AskBackPage<AskBackConversationListItemResponse>> ListConversationsAsync(
             Guid userId,
             string? cursor,
             int? limit,
             CancellationToken cancellationToken = default)
         {
-            return _repository.ListAsync(
+            var page = await _repository.ListAsync(
                 userId,
                 AskBackCursor.TryDecode(cursor),
                 ClampPageSize(limit, AskBackOptions.ConversationPageSize),
                 cancellationToken);
+
+            // Whose turn it is depends on the asker's plan for that card; fill it in for the tabs.
+            foreach (var item in page.Items)
+            {
+                var snapshot = await _repository.GetSnapshotAsync(item.Id, userId, cancellationToken);
+                if (snapshot is null)
+                {
+                    continue;
+                }
+
+                var (messageLimit, paused) = await ResolveAccessAsync(snapshot, cancellationToken);
+                var turn = snapshot.TurnFor(userId, messageLimit);
+                item.Turn = turn.ToString().ToLowerInvariant();
+                item.MessagesLeft = snapshot.MessagesLeft(userId, messageLimit);
+                item.IsPaused = paused;
+                item.CanSend = snapshot.CanSend && !paused && turn == AskBackTurn.Me;
+            }
+
+            return page;
         }
 
         public async Task<AskBackConversationResponse> GetConversationAsync(
@@ -518,6 +537,12 @@ namespace Yakku.Application.AskBack.Services
             response.MessagesLeft = snapshot.MessagesLeft(userId, limit);
             response.IsPaused = paused;
             response.CanSend = response.CanSend && !paused && turn == AskBackTurn.Me;
+            if (turn == AskBackTurn.Done && response.MyRole == "asker")
+            {
+                response.WaitingReplies = await _repository.CountReasonsOnCardAsync(
+                    snapshot.ContentType, snapshot.ContentId, cancellationToken);
+            }
+
             return response;
         }
 
