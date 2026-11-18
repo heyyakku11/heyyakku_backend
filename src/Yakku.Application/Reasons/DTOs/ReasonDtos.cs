@@ -70,6 +70,12 @@ namespace Yakku.Application.Reasons.DTOs
         public bool AskBackLocked { get; set; }
 
         /// <summary>
+        /// True when the owner cannot read this answer yet (free plan, not the one answer left open): <see cref="Answer"/>
+        /// is empty and <see cref="Reason"/> is null. The text is never sent.
+        /// </summary>
+        public bool IsHidden { get; set; }
+
+        /// <summary>
         /// One of <see cref="ReasonReportState"/> for the answer's <see cref="Reason"/>: none, pending or rejected.
         /// Always none when there is no reason.
         /// </summary>
@@ -80,6 +86,9 @@ namespace Yakku.Application.Reasons.DTOs
     public class CustomAnswerListResponse
     {
         public List<CustomAnswerResponse> Items { get; set; } = [];
+
+        /// <summary>How many of <see cref="Items"/> are hidden (<see cref="CustomAnswerResponse.IsHidden"/>).</summary>
+        public int HiddenCount { get; set; }
 
         /// <summary>Reasons on custom answers an admin approved a report on. Their text is never sent.</summary>
         public int BlockedCount { get; set; }

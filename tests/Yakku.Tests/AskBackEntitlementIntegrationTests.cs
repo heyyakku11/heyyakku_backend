@@ -351,6 +351,73 @@ public sealed class AskBackEntitlementIntegrationTests
     }
 
     [SkippableTheory]
+    [InlineData(null)]
+    [InlineData(Plan.YakkuLiteCode)]
+    [InlineData(Plan.YakkuLoveCode)]
+    public async Task CustomAnswers_FollowTheSameRule_OneOpenOnFree_AllOpenOnAPaidPlan(string? planCode)
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var owner = await AskBackIntegrationTests.AddUserAsync(context);
+        if (planCode is not null)
+        {
+            await AskBackIntegrationTests.ActivatePlanAsync(context, owner.Id, planCode);
+        }
+
+        // Oldest to newest: no reason, a reason, a reason.
+        var poll = await AskBackIntegrationTests.AddPollAsync(context, owner.Id);
+        var plain = await AddCustomAnswerAsync(context, poll, "Plain answer", reason: null);
+        var second = await AddCustomAnswerAsync(context, poll, "Second answer", "Because two");
+        var third = await AddCustomAnswerAsync(context, poll, "Third answer", "Because three");
+
+        var list = await new ReasonRepository(context).GetPollCustomAnswersAsync(poll.Id, owner.Id);
+
+        Assert.Equal(3, list!.Items.Count);
+        if (planCode is not null)
+        {
+            Assert.Equal(0, list.HiddenCount);
+            Assert.All(list.Items, item => Assert.False(item.IsHidden));
+            Assert.Contains(list.Items, item => item.Answer == "Plain answer" && item.Reason is null);
+            Assert.Contains(list.Items, item => item.Answer == "Second answer" && item.Reason == "Because two");
+            return;
+        }
+
+        // Free: the newest answer that has a reason stays open; the others lose answer and reason.
+        Assert.Equal(2, list.HiddenCount);
+        var open = Assert.Single(list.Items, item => !item.IsHidden);
+        Assert.Equal(third, open.Id);
+        Assert.Equal("Third answer", open.Answer);
+        Assert.Equal("Because three", open.Reason);
+        foreach (var hidden in list.Items.Where(item => item.IsHidden))
+        {
+            Assert.Equal(string.Empty, hidden.Answer);
+            Assert.Null(hidden.Reason);
+            Assert.Contains(hidden.Id, new[] { plain, second });
+        }
+    }
+
+    [SkippableFact]
+    public async Task CustomAnswers_OpenWhenTheCardIsBought()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var owner = await AskBackIntegrationTests.AddUserAsync(context);
+        var poll = await AskBackIntegrationTests.AddPollAsync(context, owner.Id);
+        await AddCustomAnswerAsync(context, poll, "One", "Because one");
+        await AddCustomAnswerAsync(context, poll, "Two", "Because two");
+        await AddCustomAnswerAsync(context, poll, "Three", "Because three");
+
+        var before = await new ReasonRepository(context).GetPollCustomAnswersAsync(poll.Id, owner.Id);
+        Assert.Equal(2, before!.HiddenCount);
+
+        await AskBackIntegrationTests.EntitlementsFor(context).GrantCardUnlockAsync(owner.Id, "poll", poll.Id);
+
+        var after = await new ReasonRepository(context).GetPollCustomAnswersAsync(poll.Id, owner.Id);
+        Assert.Equal(0, after!.HiddenCount);
+        Assert.Contains(after.Items, item => item.Answer == "One" && item.Reason == "Because one");
+    }
+
+    [SkippableTheory]
     [InlineData(Plan.YakkuLiteCode)]
     [InlineData(Plan.YakkuLoveCode)]
     public async Task APaidPlan_RevealsEveryReason(string planCode)
@@ -605,6 +672,16 @@ public sealed class AskBackEntitlementIntegrationTests
         context.PollVotes.Add(vote);
         await context.SaveChangesAsync();
         return (vote, voter ?? await context.Users.FirstAsync(user => user.Id == voterId));
+    }
+
+    /// <summary>A registered user writes their own answer ("Something else") on a poll, with a reason if given.</summary>
+    private static async Task<Guid> AddCustomAnswerAsync(YakkuDbContext context, Poll poll, string answer, string? reason)
+    {
+        var voter = await AskBackIntegrationTests.AddUserAsync(context);
+        var vote = PollVote.ForCustomAnswer(voter.Id, poll.Id, answer, reason);
+        context.PollVotes.Add(vote);
+        await context.SaveChangesAsync();
+        return vote.Id;
     }
 
     /// <summary>

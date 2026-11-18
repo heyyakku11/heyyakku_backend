@@ -167,9 +167,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
 
             var lockState = await GetLockStateAsync(ownerId, ShareContentType.Poll, pollId, cancellationToken);
+            var items = ToCustomAnswers(rows, lockState);
             return new CustomAnswerListResponse
             {
-                Items = rows.Select(row => ToCustomAnswer(row, lockState)).ToList(),
+                Items = items,
+                HiddenCount = items.Count(item => item.IsHidden),
                 BlockedCount = await BlockedCountAsync(ShareContentType.Poll, pollId, null, cancellationToken)
             };
         }
@@ -213,9 +215,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
 
             var lockState = await GetLockStateAsync(ownerId, ShareContentType.Check, userCheckId, cancellationToken);
+            var items = ToCustomAnswers(rows, lockState);
             return new CustomAnswerListResponse
             {
-                Items = rows.Select(row => ToCustomAnswer(row, lockState)).ToList(),
+                Items = items,
+                HiddenCount = items.Count(item => item.IsHidden),
                 BlockedCount = await BlockedCountAsync(ShareContentType.Check, userCheckId, null, cancellationToken)
             };
         }
@@ -459,16 +463,33 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             };
         }
 
-        private static CustomAnswerResponse ToCustomAnswer(CustomAnswerRow row, LockState state)
+        /// <summary>
+        /// Rows come newest first. When the card is not revealed, only one custom answer keeps its text and reason:
+        /// the first registered user's answer that has a reason, else the first registered user's, else the newest.
+        /// The others are hidden: neither the answer nor the reason is sent.
+        /// </summary>
+        private static List<CustomAnswerResponse> ToCustomAnswers(List<CustomAnswerRow> rows, LockState state)
+        {
+            var free = rows.FirstOrDefault(row => row.CanAskBack && row.Reason is not null)
+                ?? rows.FirstOrDefault(row => row.CanAskBack)
+                ?? rows.FirstOrDefault();
+
+            return rows
+                .Select(row => ToCustomAnswer(row, state, hidden: !state.Revealed && !ReferenceEquals(row, free)))
+                .ToList();
+        }
+
+        private static CustomAnswerResponse ToCustomAnswer(CustomAnswerRow row, LockState state, bool hidden)
         {
             return new CustomAnswerResponse
             {
                 Id = row.Id,
-                Answer = row.Answer,
-                Reason = row.Reason,
+                Answer = hidden ? string.Empty : row.Answer,
+                Reason = hidden ? null : row.Reason,
                 CreatedAt = row.CreatedAt,
                 CanAskBack = row.CanAskBack,
                 AskBackLocked = IsLocked(row.CanAskBack, isTop: true, row.Id, state),
+                IsHidden = hidden,
                 ReasonReportStatus = row.Reason is null ? ReasonReportState.None : StateOf(row.Report)
             };
         }

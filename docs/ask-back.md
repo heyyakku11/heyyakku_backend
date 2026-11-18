@@ -226,6 +226,18 @@ who did not block; `409` for reopening or closing a blocked conversation.
 unlock (the card is not unlocked, the reason is not the one free top reason, and no conversation exists for it). The
 app opens the unlock sheet instead of a chat.
 
+On the free plan only each option's top reason is readable. Every other reason of the option comes with
+`isHidden: true` and an empty `text` (the real text is never sent), and the list has `hiddenCount`. A reason is
+revealed for the whole card when the card was bought, or while a paid plan is active. Hidden reasons still carry
+`canAskBack`, `askBackLocked` and `reportStatus`.
+
+Custom answers ("Something else") follow the same rule. On the free plan one answer stays open: the newest
+registered user's answer that has a reason, else the newest registered user's, else the newest. Every other one
+comes with `isHidden: true`, an empty `answer` and a null `reason` (never sent), and the list has `hiddenCount`.
+
+`GET /api/v1/ask-back/card-access?contentType=&contentId=` returns the owner's access for a card (same body as
+`/access`, with `reasonsRevealed`). The results screen uses it to show the "Unlock now" bar on the free plan only.
+
 ## SignalR hub: `/hubs/ask-back`
 
 Authenticate with the same access token. Mobile/WebSocket clients pass it as `?access_token=<jwt>` (only accepted
