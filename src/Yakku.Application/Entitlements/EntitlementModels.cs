@@ -49,5 +49,12 @@ namespace Yakku.Application.Entitlements
         int? TicketsLeft,
         bool CanUnlockWithPlan,
         bool CanAutoUnlock,
-        EffectivePlan Plan);
+        EffectivePlan Plan)
+    {
+        /// <summary>
+        /// The owner can read every reason on the card: it was bought on its own, or an active paid plan covers the
+        /// owner. Otherwise only the free top reason of each option is readable and the rest are hidden.
+        /// </summary>
+        public bool ReasonsRevealed => Source == CardUnlockSource.Purchase || Plan.IsPaid;
+    }
 }

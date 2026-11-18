@@ -30,6 +30,13 @@ namespace Yakku.Application.Reasons.DTOs
         /// </summary>
         public bool AskBackLocked { get; set; }
 
+        /// <summary>
+        /// True when the owner cannot read this reason yet: the card is not revealed (no plan, no card purchase) and
+        /// this is not the option's free top reason. <see cref="Text"/> is then empty; the app shows a blurred
+        /// placeholder and the plans sheet. The text is never sent, so it cannot be read from the response.
+        /// </summary>
+        public bool IsHidden { get; set; }
+
         /// <summary>One of <see cref="ReasonReportState"/>: none, pending or rejected.</summary>
         public string ReportStatus { get; set; } = ReasonReportState.None;
     }
@@ -39,6 +46,9 @@ namespace Yakku.Application.Reasons.DTOs
     {
         /// <summary>The reasons still visible, newest first. A reported reason waiting for an admin is included, flagged.</summary>
         public List<ReasonResponse> Items { get; set; } = [];
+
+        /// <summary>How many of <see cref="Items"/> are hidden (<see cref="ReasonResponse.IsHidden"/>).</summary>
+        public int HiddenCount { get; set; }
 
         /// <summary>Reasons for this option an admin approved a report on. Their text is never sent.</summary>
         public int BlockedCount { get; set; }

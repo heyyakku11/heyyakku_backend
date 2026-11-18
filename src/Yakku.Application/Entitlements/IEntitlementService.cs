@@ -33,6 +33,16 @@ namespace Yakku.Application.Entitlements
             CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// The same as <see cref="GetAccessAsync"/> but for the card itself (poll or check id), so the results screen
+        /// can tell whether reasons are hidden before it opens any. 404 unless the caller owns the card.
+        /// </summary>
+        Task<AskBackAccessResponse> GetOwnedCardAccessAsync(
+            Guid userId,
+            string? contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Unlocks the card the vote belongs to with a plan ticket. Idempotent: an unlocked card is returned as it is.
         /// 403 <c>ASK_BACK_UNLOCK_REQUIRED</c> when the plan cannot unlock it.
         /// </summary>

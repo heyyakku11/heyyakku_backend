@@ -117,6 +117,21 @@ namespace Yakku.Application.Entitlements
             return ToResponse(access);
         }
 
+        public async Task<AskBackAccessResponse> GetOwnedCardAccessAsync(
+            Guid userId,
+            string? contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default)
+        {
+            var type = ParseContentType(contentType);
+            if (!await _repository.OwnsCardAsync(userId, type, contentId, cancellationToken))
+            {
+                throw new AppException(404, ApiErrorCodes.NotFound, "Card not found");
+            }
+
+            return ToResponse(await GetCardAccessAsync(userId, type, contentId, cancellationToken));
+        }
+
         public async Task<AskBackAccessResponse> UnlockAsync(
             Guid userId,
             Guid voteId,
@@ -262,6 +277,7 @@ namespace Yakku.Application.Entitlements
             return new AskBackAccessResponse
             {
                 Unlocked = access.Unlocked,
+                ReasonsRevealed = access.ReasonsRevealed,
                 UnlockSource = access.Source?.ToString().ToLowerInvariant(),
                 Paused = access.Paused,
                 PlanCode = access.Plan.Plan.Code,

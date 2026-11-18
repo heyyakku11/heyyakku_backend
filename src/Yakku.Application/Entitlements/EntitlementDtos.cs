@@ -12,6 +12,13 @@ namespace Yakku.Application.Entitlements
         /// <summary>The card is unlocked: every reason on it can be asked back.</summary>
         public bool Unlocked { get; set; }
 
+        /// <summary>
+        /// The owner can read every reason on the card (bought on its own, or an active paid plan). False on the free
+        /// plan, where only each option's top reason is readable and the others are hidden; the app then shows the
+        /// "unlock" call to action and the plans sheet.
+        /// </summary>
+        public bool ReasonsRevealed { get; set; }
+
         /// <summary>plan or purchase when unlocked; null otherwise.</summary>
         public string? UnlockSource { get; set; }
 

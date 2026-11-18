@@ -35,6 +35,23 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result, "Access retrieved successfully"));
         }
 
+        [HttpGet("card-access")]
+        [EnableRateLimiting("ask-back-read")]
+        [EndpointSummary("Ask Back access for a card, by card id")]
+        [EndpointDescription("Same data as GET /access, named by the card instead of one of its votes: contentType is poll or check, contentId the poll id or the made check's id. reasonsRevealed false means the free plan: only each option's top reason is readable and the rest come back hidden. Returns 400 for another contentType and 404 unless the card is the caller's.")]
+        [ProducesResponseType(typeof(ApiResponse<AskBackAccessResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetCardAccess(
+            [FromQuery] string? contentType,
+            [FromQuery] Guid contentId,
+            CancellationToken cancellationToken)
+        {
+            var result = await _entitlements.GetOwnedCardAccessAsync(
+                User.GetRequiredUserId(), contentType, contentId, cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Access retrieved successfully"));
+        }
+
         [HttpPost("unlocks")]
         [EnableRateLimiting("ask-back-write")]
         [EndpointSummary("Unlock a card with a plan ticket")]

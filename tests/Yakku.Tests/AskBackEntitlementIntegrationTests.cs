@@ -324,6 +324,110 @@ public sealed class AskBackEntitlementIntegrationTests
         Assert.Equal(10, await context.AskBackMessages.CountAsync(m => m.ConversationId == conversationId));
     }
 
+    // ---- reading reasons ----
+
+    [SkippableFact]
+    public async Task Free_ShowsOnlyTheTopReason_AndNeverSendsTheTextOfTheRest()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var owner = await AskBackIntegrationTests.AddUserAsync(context);
+        var (poll, optionA, newest) = await ThreeReasonsAsync(context, owner.Id);
+
+        var reasons = await new ReasonRepository(context).GetPollOptionReasonsAsync(poll.Id, owner.Id, optionA);
+
+        Assert.Equal(3, reasons!.Items.Count);
+        Assert.Equal(2, reasons.HiddenCount);
+        var top = Assert.Single(reasons.Items, item => !item.IsHidden);
+        Assert.Equal(newest, top.Id);
+        Assert.Equal("The newest reason", top.Text);
+        Assert.All(reasons.Items.Where(item => item.IsHidden), item => Assert.Equal(string.Empty, item.Text));
+        Assert.DoesNotContain(reasons.Items, item => item.Text.Contains("older", StringComparison.Ordinal));
+
+        var access = await AskBackIntegrationTests.EntitlementsFor(context)
+            .GetOwnedCardAccessAsync(owner.Id, "poll", poll.Id);
+        Assert.False(access.ReasonsRevealed);
+        Assert.Equal("free", access.PlanCode);
+    }
+
+    [SkippableTheory]
+    [InlineData(Plan.YakkuLiteCode)]
+    [InlineData(Plan.YakkuLoveCode)]
+    public async Task APaidPlan_RevealsEveryReason(string planCode)
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var owner = await AskBackIntegrationTests.AddUserAsync(context);
+        await AskBackIntegrationTests.ActivatePlanAsync(context, owner.Id, planCode);
+        var (poll, optionA, _) = await ThreeReasonsAsync(context, owner.Id);
+
+        var reasons = await new ReasonRepository(context).GetPollOptionReasonsAsync(poll.Id, owner.Id, optionA);
+
+        Assert.Equal(0, reasons!.HiddenCount);
+        Assert.All(reasons.Items, item => Assert.False(item.IsHidden));
+        Assert.DoesNotContain(reasons.Items, item => item.Text.Length == 0);
+        Assert.True((await AskBackIntegrationTests.EntitlementsFor(context)
+            .GetOwnedCardAccessAsync(owner.Id, "poll", poll.Id)).ReasonsRevealed);
+    }
+
+    [SkippableFact]
+    public async Task BuyingTheCard_RevealsItsReasons_ButNotTheOnesOnAnotherCard()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var owner = await AskBackIntegrationTests.AddUserAsync(context);
+        var (bought, boughtOption, _) = await ThreeReasonsAsync(context, owner.Id);
+        var (other, otherOption, _) = await ThreeReasonsAsync(context, owner.Id);
+        var entitlements = AskBackIntegrationTests.EntitlementsFor(context);
+        await entitlements.GrantCardUnlockAsync(owner.Id, "poll", bought.Id);
+
+        var repository = new ReasonRepository(context);
+        Assert.Equal(0, (await repository.GetPollOptionReasonsAsync(bought.Id, owner.Id, boughtOption))!.HiddenCount);
+        Assert.Equal(2, (await repository.GetPollOptionReasonsAsync(other.Id, owner.Id, otherOption))!.HiddenCount);
+        Assert.True((await entitlements.GetOwnedCardAccessAsync(owner.Id, "poll", bought.Id)).ReasonsRevealed);
+        Assert.False((await entitlements.GetOwnedCardAccessAsync(owner.Id, "poll", other.Id)).ReasonsRevealed);
+    }
+
+    [SkippableFact]
+    public async Task WhenThePlanEnds_ReasonsAreHiddenAgain_ButABoughtCardStaysOpen()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var owner = await AskBackIntegrationTests.AddUserAsync(context);
+        await AskBackIntegrationTests.ActivatePlanAsync(context, owner.Id, Plan.YakkuLiteCode);
+        var (viaPlan, planOption, _) = await ThreeReasonsAsync(context, owner.Id);
+        var (bought, boughtOption, _) = await ThreeReasonsAsync(context, owner.Id);
+        var entitlements = AskBackIntegrationTests.EntitlementsFor(context);
+        await entitlements.GrantCardUnlockAsync(owner.Id, "poll", bought.Id);
+
+        await context.Users.Where(u => u.Id == owner.Id).ExecuteUpdateAsync(set => set
+            .SetProperty(u => u.PlanActivatedAt, DateTime.UtcNow.AddDays(-8))
+            .SetProperty(u => u.PlanExpiresAt, DateTime.UtcNow.AddDays(-1)));
+
+        var repository = new ReasonRepository(context);
+        Assert.Equal(2, (await repository.GetPollOptionReasonsAsync(viaPlan.Id, owner.Id, planOption))!.HiddenCount);
+        Assert.Equal(0, (await repository.GetPollOptionReasonsAsync(bought.Id, owner.Id, boughtOption))!.HiddenCount);
+        Assert.False((await entitlements.GetOwnedCardAccessAsync(owner.Id, "poll", viaPlan.Id)).ReasonsRevealed);
+    }
+
+    [SkippableFact]
+    public async Task CardAccess_IsOnlyForTheOwner_AndNeedsAKnownContentType()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var owner = await AskBackIntegrationTests.AddUserAsync(context);
+        var stranger = await AskBackIntegrationTests.AddUserAsync(context);
+        var (poll, _, _) = await ThreeReasonsAsync(context, owner.Id);
+        var entitlements = AskBackIntegrationTests.EntitlementsFor(context);
+
+        var notOwner = await Assert.ThrowsAsync<AppException>(
+            () => entitlements.GetOwnedCardAccessAsync(stranger.Id, "poll", poll.Id));
+        Assert.Equal(404, notOwner.StatusCode);
+        var badType = await Assert.ThrowsAsync<AppException>(
+            () => entitlements.GetOwnedCardAccessAsync(owner.Id, "survey", poll.Id));
+        Assert.Equal(400, badType.StatusCode);
+    }
+
     // ---- plan expiry ----
 
     [SkippableFact]
@@ -501,6 +605,22 @@ public sealed class AskBackEntitlementIntegrationTests
         context.PollVotes.Add(vote);
         await context.SaveChangesAsync();
         return (vote, voter ?? await context.Users.FirstAsync(user => user.Id == voterId));
+    }
+
+    /// <summary>
+    /// A poll with three reasons on its first option, oldest first, from three registered users: enough votes to
+    /// reveal reasons. Returns the poll, that option and the id of the newest reason (the option's top reason).
+    /// </summary>
+    private static async Task<(Poll Poll, Guid OptionId, Guid NewestVoteId)> ThreeReasonsAsync(
+        YakkuDbContext context,
+        Guid ownerId)
+    {
+        var poll = await AskBackIntegrationTests.AddPollAsync(context, ownerId);
+        var option = poll.Options.First().Id;
+        await AddVoteAsync(context, poll, option, "The oldest reason");
+        await AddVoteAsync(context, poll, option, "An older reason");
+        var newest = await AddVoteAsync(context, poll, option, "The newest reason");
+        return (poll, option, newest.Vote.Id);
     }
 
     /// <summary>A poll owned by <paramref name="ownerId"/> with enough votes to reveal reasons, one with a reason.</summary>

@@ -171,7 +171,7 @@ namespace Yakku.API.Controllers
 
         [HttpGet("{id:guid}/options/{optionId:guid}/reasons")]
         [EndpointSummary("List Reasons For An Option")]
-        [EndpointDescription("Lists the reasons voters gave for one option of a poll the signed-in user owns, newest first. Anonymous: no author is returned. Empty until the results are unlocked. Data is { items, blockedCount }: blockedCount is how many reasons an admin blocked after a report (their text is never sent), and a reason reported but not yet decided stays in items with reportStatus pending (or rejected once an admin dismissed it). Returns 404 when the poll is not yours or the option is not on it.")]
+        [EndpointDescription("Lists the reasons voters gave for one option of a poll the signed-in user owns, newest first. Anonymous: no author is returned. Empty until the results are unlocked. On the free plan only the option's top reason is readable: the others come back with isHidden true and empty text (hiddenCount says how many) until the card is bought or a paid plan is active. Data is { items, hiddenCount, blockedCount }: blockedCount is how many reasons an admin blocked after a report (their text is never sent), and a reason reported but not yet decided stays in items with reportStatus pending (or rejected once an admin dismissed it). Returns 404 when the poll is not yours or the option is not on it.")]
         [ProducesResponseType(typeof(ApiResponse<ReasonListResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetOptionReasons(Guid id, Guid optionId, CancellationToken cancellationToken)
