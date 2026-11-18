@@ -23,6 +23,12 @@ namespace Yakku.Domain.Entities
         public Guid PlanId { get; private set; } = Plan.FreeId;
 
         public Plan Plan { get; private set; } = null!;
+
+        /// <summary>When the current paid plan was activated. Null on the free plan.</summary>
+        public DateTime? PlanActivatedAt { get; private set; }
+
+        /// <summary>When the current paid plan ends. Null on the free plan. After it, the user counts as free.</summary>
+        public DateTime? PlanExpiresAt { get; private set; }
         public UserProfile Profile { get; private set; } = null!;
 
         /// <summary>The user's personality card, created together with the account.</summary>
@@ -49,6 +55,36 @@ namespace Yakku.Domain.Entities
             LoginAt = DateTime.UtcNow;
             Profile = new UserProfile(Id, anonymousName);
             PersonalityCard = new PersonalityCard(Id);
+        }
+
+        /// <summary>
+        /// Puts the user on <paramref name="plan"/> from <paramref name="utcNow"/>. A plan with a duration ends that many
+        /// days later; activating again restarts the period (and the tickets that count from the activation time).
+        /// </summary>
+        public void ActivatePlan(Plan plan, DateTime utcNow)
+        {
+            PlanId = plan.Id;
+            if (plan.DurationDays is { } days)
+            {
+                PlanActivatedAt = utcNow;
+                PlanExpiresAt = utcNow.AddDays(days);
+            }
+            else
+            {
+                PlanActivatedAt = null;
+                PlanExpiresAt = null;
+            }
+
+            UpdatedAt = utcNow;
+        }
+
+        /// <summary>
+        /// False once a paid plan's end has passed. The free plan never expires, and neither does a paid plan that
+        /// has no duration. Callers treat an inactive paid plan as the free plan.
+        /// </summary>
+        public bool IsPlanActive(DateTime utcNow)
+        {
+            return PlanId == Plan.FreeId || PlanExpiresAt is null || PlanExpiresAt > utcNow;
         }
 
         public void RecordLogin()

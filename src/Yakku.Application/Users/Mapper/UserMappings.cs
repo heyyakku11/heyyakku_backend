@@ -27,7 +27,10 @@ namespace Yakku.Application.Users.Mapper
                     CurrentPlan = new UserPlanResponse
                     {
                         Id = user.PlanId,
-                        Name = user.Plan?.Name ?? "Free"
+                        Name = user.Plan?.Name ?? "Free",
+                        ActivatedAt = user.PlanActivatedAt,
+                        ExpiresAt = user.PlanExpiresAt,
+                        IsExpired = !user.IsPlanActive(DateTime.UtcNow)
                     }
                 }
             };

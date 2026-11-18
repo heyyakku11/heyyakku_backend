@@ -36,6 +36,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     user.PhoneNumber,
                     PlanCode = user.Plan.Code,
                     PlanName = user.Plan.Name,
+                    user.PlanActivatedAt,
+                    user.PlanExpiresAt,
                     user.Status,
                     user.LoginAt,
                     user.CreatedAt
@@ -50,7 +52,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     Id = row.Id,
                     AnonymousName = row.AnonymousName,
                     PhoneNumber = row.PhoneNumber,
-                    Plan = new AdminUserPlanResponse { Code = row.PlanCode, Name = row.PlanName },
+                    Plan = new AdminUserPlanResponse
+                    {
+                        Code = row.PlanCode,
+                        Name = row.PlanName,
+                        ActivatedAt = row.PlanActivatedAt,
+                        ExpiresAt = row.PlanExpiresAt
+                    },
                     Status = row.Status.ToString().ToLowerInvariant(),
                     AvatarUrl = null,
                     LastLoginAt = row.LoginAt,

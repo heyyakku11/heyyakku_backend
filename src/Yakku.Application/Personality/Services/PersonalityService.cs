@@ -1,4 +1,5 @@
 using FluentValidation;
+using Yakku.Application.AskBack.Interfaces;
 using Yakku.Application.Personality.DTOs;
 using Yakku.Application.Personality.Interfaces;
 using Yakku.Application.PushNotifications.Interfaces;
@@ -17,13 +18,16 @@ namespace Yakku.Application.Personality.Services
         private readonly IValidator<SubmitTraitsRequest> _validator;
         private readonly ICardLifecycleNotifications _lifecycle;
         private readonly IVoteNotificationOutbox? _notifications;
+        private readonly IUserBlockLookup? _blocks;
 
         public PersonalityService(
             IPersonalityRepository repository,
             IValidator<SubmitTraitsRequest> validator,
             ICardLifecycleNotifications? lifecycle = null,
-            IVoteNotificationOutbox? notifications = null)
+            IVoteNotificationOutbox? notifications = null,
+            IUserBlockLookup? blocks = null)
         {
+            _blocks = blocks;
             _repository = repository;
             _validator = validator;
             _lifecycle = lifecycle ?? NullCardLifecycleNotifications.Instance;
@@ -150,6 +154,12 @@ namespace Yakku.Application.Personality.Services
             var hasVoted = !isOwner && viewer is not null
                 && await _repository.HasVotedAsync(card.Id, viewer.Id, !viewer.IsUser, cancellationToken);
 
+            // The owner blocked this person: the card reads as closed to them, with no hint of why.
+            var blocked = !isOwner
+                && viewer is { IsUser: true }
+                && _blocks is not null
+                && await _blocks.IsBlockedAsync(card.UserId, viewer.Id, cancellationToken);
+
             return new SharedPersonalityCardResponse
             {
                 CardId = card.Id,
@@ -158,7 +168,7 @@ namespace Yakku.Application.Personality.Services
                 Status = card.Status.ToString(),
                 IsOwner = isOwner,
                 HasVoted = hasVoted,
-                CanVote = !isOwner && !hasVoted && card.Status == PersonalityCardStatus.Collecting,
+                CanVote = !isOwner && !hasVoted && !blocked && card.Status == PersonalityCardStatus.Collecting,
                 TotalVotes = card.TotalVotes,
                 RequiredVotes = card.RequiredVotes
             };
@@ -189,7 +199,10 @@ namespace Yakku.Application.Personality.Services
                     throw PersonalityExceptions.CannotVoteOnOwnCard();
                 }
 
-                if (card.Status != PersonalityCardStatus.Collecting)
+                if (card.Status != PersonalityCardStatus.Collecting
+                    || (voter.IsUser
+                        && _blocks is not null
+                        && await _blocks.IsBlockedAsync(card.UserId, voter.Id, token)))
                 {
                     throw PersonalityExceptions.NotCollectingVotes();
                 }

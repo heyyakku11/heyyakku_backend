@@ -100,7 +100,7 @@ namespace Yakku.API.Controllers
         [HttpPost("{conversationId:guid}/messages")]
         [EnableRateLimiting("ask-back-write")]
         [EndpointSummary("Send a message")]
-        [EndpointDescription("Content is 1 to 2000 characters. clientMessageId makes a retry safe: sending the same one again returns the stored message instead of a second one. Returns 409 when the conversation is closed or blocked, 404 unless the caller is a participant.")]
+        [EndpointDescription("Content is 1 to 2000 characters. clientMessageId makes a retry safe: sending the same one again returns the stored message instead of a second one. The asker sends first, the voter replies once, then it is the asker's turn again; the number of questions comes from the asker's plan. Returns 409 when the conversation is closed or blocked (ASK_BACK_NOT_ACTIVE), when it is not the caller's turn (ASK_BACK_NOT_YOUR_TURN) or when every allowed question is answered (ASK_BACK_LIMIT_REACHED), 403 (ASK_BACK_PLAN_EXPIRED) when the plan that unlocked the card has expired, 404 unless the caller is a participant.")]
         [ProducesResponseType(typeof(ApiResponse<AskBackMessageResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -128,28 +128,6 @@ namespace Yakku.API.Controllers
         {
             var result = await _askBack.MarkReadAsync(User.GetRequiredUserId(), conversationId, request, cancellationToken);
             return Ok(ApiResponse.Ok(result, "Read position updated"));
-        }
-
-        [HttpPut("{conversationId:guid}/mute")]
-        [EnableRateLimiting("ask-back-write")]
-        [EndpointSummary("Mute a conversation")]
-        [EndpointDescription("Stops push notifications for this conversation for the caller. Messages still arrive. Idempotent.")]
-        [ProducesResponseType(typeof(ApiResponse<AskBackConversationResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Mute(Guid conversationId, CancellationToken cancellationToken)
-        {
-            var result = await _askBack.SetMutedAsync(User.GetRequiredUserId(), conversationId, true, cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Conversation muted"));
-        }
-
-        [HttpDelete("{conversationId:guid}/mute")]
-        [EnableRateLimiting("ask-back-write")]
-        [EndpointSummary("Unmute a conversation")]
-        [EndpointDescription("Turns push notifications for this conversation back on for the caller. Idempotent.")]
-        [ProducesResponseType(typeof(ApiResponse<AskBackConversationResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Unmute(Guid conversationId, CancellationToken cancellationToken)
-        {
-            var result = await _askBack.SetMutedAsync(User.GetRequiredUserId(), conversationId, false, cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Conversation unmuted"));
         }
 
         [HttpPost("{conversationId:guid}/close")]

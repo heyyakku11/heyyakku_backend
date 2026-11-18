@@ -24,6 +24,12 @@ namespace Yakku.Application.AdminUsers.DTOs
     {
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+
+        /// <summary>When the paid plan began or was last restarted; null on the free plan.</summary>
+        public DateTime? ActivatedAt { get; set; }
+
+        /// <summary>When the paid plan ends (or ended); null on the free plan.</summary>
+        public DateTime? ExpiresAt { get; set; }
     }
 
     public class AdminGuestResponse

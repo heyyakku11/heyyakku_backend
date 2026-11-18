@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using FluentValidation;
+using Yakku.Application.AskBack.Interfaces;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Themes;
 using Yakku.Application.Checks.Interfaces;
@@ -23,13 +24,16 @@ namespace Yakku.Application.Checks.Services
         private readonly IValidator<CastCheckVoteRequest> _voteValidator;
         private readonly IStreakService _streaks;
         private readonly ICardLifecycleNotifications _lifecycle;
+        private readonly IUserBlockLookup? _blocks;
 
         public CheckService(
             ICheckRepository repository,
             IValidator<CastCheckVoteRequest> voteValidator,
             IStreakService streaks,
-            ICardLifecycleNotifications? lifecycle = null)
+            ICardLifecycleNotifications? lifecycle = null,
+            IUserBlockLookup? blocks = null)
         {
+            _blocks = blocks;
             _repository = repository;
             _voteValidator = voteValidator;
             _streaks = streaks;
@@ -220,7 +224,11 @@ namespace Yakku.Application.Checks.Services
             var item = await _repository.GetUserCheckByShareCodeAsync(shareCode, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
 
-            if (item.IsClosed)
+            // A card whose owner blocked the voter reads exactly like a closed one.
+            if (item.IsClosed
+                || (item.UserId != userId
+                    && _blocks is not null
+                    && await _blocks.IsBlockedAsync(item.UserId, userId, cancellationToken)))
             {
                 throw new AppException(400, ApiErrorCodes.ValidationError, "This check is not accepting votes.");
             }

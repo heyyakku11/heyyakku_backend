@@ -1,6 +1,6 @@
 namespace Yakku.Domain.Entities
 {
-    /// <summary>One side of a conversation, with its own read position and mute switch.</summary>
+    /// <summary>One side of a conversation, with its own read position.</summary>
     public class AskBackParticipant
     {
         public Guid Id { get; private set; }
@@ -15,7 +15,6 @@ namespace Yakku.Domain.Entities
         /// <summary>Creation time of that message, so the read position orders without a lookup.</summary>
         public DateTime? LastReadMessageCreatedAt { get; private set; }
         public DateTime? LastReadAt { get; private set; }
-        public bool IsMuted { get; private set; }
         public DateTime JoinedAt { get; private set; }
 
         public AskBackConversation Conversation { get; private set; } = null!;
@@ -33,11 +32,6 @@ namespace Yakku.Domain.Entities
                 UserId = userId,
                 JoinedAt = utcNow
             };
-        }
-
-        public void SetMuted(bool muted)
-        {
-            IsMuted = muted;
         }
 
         /// <summary>

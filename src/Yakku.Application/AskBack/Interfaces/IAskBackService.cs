@@ -41,12 +41,6 @@ namespace Yakku.Application.AskBack.Interfaces
             MarkAskBackReadRequest request,
             CancellationToken cancellationToken = default);
 
-        Task<AskBackConversationResponse> SetMutedAsync(
-            Guid userId,
-            Guid conversationId,
-            bool muted,
-            CancellationToken cancellationToken = default);
-
         Task<AskBackConversationResponse> CloseAsync(
             Guid userId,
             Guid conversationId,

@@ -224,6 +224,8 @@ namespace Yakku.Infrastructure
             services.AddHostedService<CardCloseNotificationWorker>();
             services.AddHostedService<VoteNotificationRetentionWorker>();
             services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackRepository, AskBackRepository>();
+            services.AddScoped<Yakku.Application.AskBack.Interfaces.IUserBlockLookup, UserBlockRepository>();
+            services.AddScoped<Yakku.Application.Entitlements.IEntitlementRepository, EntitlementRepository>();
             services.AddScoped<AskBackPushDispatcher>();
             services.AddHostedService<AskBackPushWorker>();
 

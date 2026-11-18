@@ -228,8 +228,8 @@ public sealed class AskBackHubTests
 
         Assert.False(host.Presence.IsViewing(conversationId, voter.UserId));
 
-        // Offline: these two are only stored.
-        await host.SendAsync(asker, conversationId, "missed 1");
+        // Offline: these two are only stored (the people take turns: the voter answers, the asker follows up).
+        await host.SendAsync(voter, conversationId, "missed 1");
         await host.SendAsync(asker, conversationId, "missed 2");
 
         await using var second = host.Connect(voter);
@@ -243,7 +243,7 @@ public sealed class AskBackHubTests
         Assert.False(missed.HasMore);
 
         // A message arriving now is delivered live, and the client can drop it if it already fetched it.
-        var live = await host.SendAsync(asker, conversationId, "live again");
+        var live = await host.SendAsync(voter, conversationId, "live again");
         Assert.Equal(live.Id, (await Next(secondEvents)).Id);
     }
 
@@ -301,6 +301,7 @@ public sealed class AskBackHubTests
             builder.Services.AddDbContext<YakkuDbContext>(options => options.UseNpgsql(_fixture.ConnectionString));
             builder.Services.AddApplication();
             builder.Services.AddScoped<IAskBackRepository, AskBackRepository>();
+            builder.Services.AddScoped<Yakku.Application.Entitlements.IEntitlementRepository, EntitlementRepository>();
             builder.Services.AddSingleton<IUserSessionRepository>(Sessions);
             builder.Services.AddSingleton(TimeProvider.System);
             builder.Services.AddAuthentication("Bearer").AddJwtBearer("Bearer", options =>
@@ -386,6 +387,18 @@ public sealed class AskBackHubTests
             await context.SaveChangesAsync();
             var vote = PollVote.ForOption(voter.UserId, poll.Id, poll.Options.First().Id, "because");
             context.PollVotes.Add(vote);
+
+            // Reasons are revealed (and Ask Back opens) once three other people answered.
+            for (var i = 0; i < 2; i++)
+            {
+                var filler = await AddUserAsync();
+                context.PollVotes.Add(PollVote.ForOption(filler.UserId, poll.Id, poll.Options.Last().Id, reason: null));
+            }
+
+            // The asker is on yakku_love so the chat has no question limit.
+            var askerRow = await context.Users.FirstAsync(user => user.Id == asker.UserId);
+            var love = await context.Plans.FirstAsync(plan => plan.Code == Plan.YakkuLoveCode);
+            askerRow.ActivatePlan(love, DateTime.UtcNow);
             await context.SaveChangesAsync();
 
             var (conversation, _) = await WithService(service => service.CreateConversationAsync(

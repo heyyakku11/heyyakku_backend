@@ -67,11 +67,24 @@ namespace Yakku.Application.AskBack.DTOs
         public AskBackContextResponse Context { get; set; } = new();
         public DateTime CreatedAt { get; set; }
         public DateTime? ClosedAt { get; set; }
-        public bool IsMuted { get; set; }
         public int UnreadCount { get; set; }
 
-        /// <summary>The caller can send a message now.</summary>
+        /// <summary>
+        /// The caller can send a message now: the conversation is active, it is the caller's turn, and it is not paused.
+        /// </summary>
         public bool CanSend { get; set; }
+
+        /// <summary>me (the caller's turn), them (waiting for the other person) or done (every question was answered).</summary>
+        public string Turn { get; set; } = "them";
+
+        /// <summary>Messages the caller can still send; null when there is no limit.</summary>
+        public int? MessagesLeft { get; set; }
+
+        /// <summary>
+        /// Read-only for both people because the asker's plan expired. A paused conversation comes back to life when
+        /// the asker has an active plan again.
+        /// </summary>
+        public bool IsPaused { get; set; }
 
         /// <summary>The caller can reopen it (closed, and the caller is the asker).</summary>
         public bool CanReopen { get; set; }
@@ -90,7 +103,6 @@ namespace Yakku.Application.AskBack.DTOs
         public DateTime? LastMessageAt { get; set; }
         public DateTime LastActivityAt { get; set; }
         public int UnreadCount { get; set; }
-        public bool IsMuted { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 

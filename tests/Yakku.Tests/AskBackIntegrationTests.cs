@@ -8,6 +8,7 @@ using Yakku.Application.AskBack.Interfaces;
 using Yakku.Application.AskBack.Services;
 using Yakku.Application.AskBack.Validators;
 using Yakku.Application.Common.Exceptions;
+using Yakku.Application.Entitlements;
 using Yakku.Application.PushNotifications.DTOs;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Domain.Entities;
@@ -229,6 +230,13 @@ public sealed class AskBackIntegrationTests
         context.UserChecks.Add(userCheck);
         var vote = UserCheckVote.ForOption(userCheck.Id, check.Id, check.Options[0].Id, voter.Id, "check reason");
         context.UserCheckVotes.Add(vote);
+        for (var i = 0; i < 2; i++)
+        {
+            var filler = await AddUserAsync(context);
+            context.UserCheckVotes.Add(
+                UserCheckVote.ForOption(userCheck.Id, check.Id, check.Options[1].Id, filler.Id, reason: null));
+        }
+
         await context.SaveChangesAsync();
 
         var (conversation, created) = await ServiceFor(context)
@@ -504,23 +512,32 @@ public sealed class AskBackIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var asker = await AddUserAsync(context);
+        await ActivatePlanAsync(context, asker.Id, Plan.YakkuLoveCode);
         var poll = await AddPollAsync(context, asker.Id);
         var service = ServiceFor(context);
         var ids = new List<Guid>();
         var voters = new List<User>();
+        var votes = new List<PollVote>();
         for (var i = 0; i < 5; i++)
         {
             var voter = await AddUserAsync(context);
             voters.Add(voter);
             var vote = PollVote.ForOption(voter.Id, poll.Id, poll.Options.First().Id, $"reason {i}");
+            votes.Add(vote);
             context.PollVotes.Add(vote);
-            await context.SaveChangesAsync();
+        }
+
+        await context.SaveChangesAsync();
+        foreach (var vote in votes)
+        {
             var (conversation, _) = await service.CreateConversationAsync(
                 asker.Id, new CreateAskBackConversationRequest { VoteId = vote.Id });
             ids.Add(conversation.Id);
         }
 
-        // The voter of the oldest conversation writes last, so it jumps to the top with an unread message.
+        // The asker opens the oldest conversation and its voter answers last, so it jumps to the top with an unread
+        // message (the asker always speaks first).
+        await service.SendMessageAsync(asker.Id, ids[0], Send("What made you pick it?"));
         await service.SendMessageAsync(voters[0].Id, ids[0], Send(new string('x', 200)));
 
         var collected = new List<AskBackConversationListItemResponse>();
@@ -559,13 +576,15 @@ public sealed class AskBackIntegrationTests
         var realtime = new RecordingRealtime();
         var reading = ServiceFor(context, realtime);
 
+        // The two people take turns: asker, voter, asker, voter, asker.
         var m1 = await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("one"));
+        await service.SendMessageAsync(scene.Voter.Id, conversationId, Send("reply one"));
         var m2 = await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("two"));
+        await service.SendMessageAsync(scene.Voter.Id, conversationId, Send("reply two"));
         var m3 = await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("three"));
-        await service.SendMessageAsync(scene.Voter.Id, conversationId, Send("reply"));
 
         Assert.Equal(3, (await service.GetConversationAsync(scene.Voter.Id, conversationId)).UnreadCount);
-        Assert.Equal(1, (await service.GetConversationAsync(scene.Asker.Id, conversationId)).UnreadCount);
+        Assert.Equal(2, (await service.GetConversationAsync(scene.Asker.Id, conversationId)).UnreadCount);
 
         var afterTwo = await reading.MarkReadAsync(
             scene.Voter.Id, conversationId, new MarkAskBackReadRequest { LastReadMessageId = m2.Id });
@@ -587,7 +606,7 @@ public sealed class AskBackIntegrationTests
         Assert.Equal(0, all.UnreadCount);
 
         // The asker's own read state is independent.
-        Assert.Equal(1, (await service.GetConversationAsync(scene.Asker.Id, conversationId)).UnreadCount);
+        Assert.Equal(2, (await service.GetConversationAsync(scene.Asker.Id, conversationId)).UnreadCount);
     }
 
     [SkippableFact]
@@ -606,7 +625,7 @@ public sealed class AskBackIntegrationTests
         Assert.Equal(404, error.StatusCode);
     }
 
-    // ---- close, block, mute ----
+    // ---- close and block ----
 
     [SkippableFact]
     public async Task ClosedConversation_BlocksSending_UntilTheAskerReopens()
@@ -639,7 +658,10 @@ public sealed class AskBackIntegrationTests
 
         var reopened = await service.ReopenAsync(scene.Asker.Id, conversationId);
         Assert.Equal("active", reopened.Status);
-        Assert.True(reopened.CanSend);
+
+        // The asker already asked, so it is the voter's turn now.
+        Assert.Equal("them", reopened.Turn);
+        Assert.False(reopened.CanSend);
         await service.SendMessageAsync(scene.Voter.Id, conversationId, Send("back again"));
     }
 
@@ -662,6 +684,10 @@ public sealed class AskBackIntegrationTests
         Assert.Equal(scene.Voter.Id, report.ReporterUserId);
         Assert.Equal(scene.Asker.Id, report.ReportedUserId);
 
+        // Blocking is about the person, not just this chat.
+        Assert.True(await new UserBlockRepository(context).IsBlockedAsync(scene.Voter.Id, scene.Asker.Id));
+        Assert.False(await new UserBlockRepository(context).IsBlockedAsync(scene.Asker.Id, scene.Voter.Id));
+
         Assert.Equal(409, (await Assert.ThrowsAsync<AppException>(
             () => service.SendMessageAsync(scene.Asker.Id, conversationId, Send("hello?")))).StatusCode);
         Assert.Equal(409, (await Assert.ThrowsAsync<AppException>(
@@ -673,38 +699,21 @@ public sealed class AskBackIntegrationTests
 
         var lifted = await service.UnblockAsync(scene.Voter.Id, conversationId);
         Assert.Equal("active", lifted.Status);
+        Assert.False(await new UserBlockRepository(context).IsBlockedAsync(scene.Voter.Id, scene.Asker.Id));
         await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("thanks"));
     }
 
     [SkippableFact]
-    public async Task Block_WithoutAReason_RecordsNoReport()
+    public async Task Block_WithoutAReason_StillRecordsAReport()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var (scene, conversationId) = await StartedAsync(context);
 
-        await ServiceFor(context).BlockAsync(scene.Asker.Id, conversationId, new BlockAskBackRequest());
+        await ServiceFor(context).BlockAsync(scene.Voter.Id, conversationId, new BlockAskBackRequest());
 
-        Assert.Equal(0, await context.AskBackReports.CountAsync(r => r.ConversationId == conversationId));
-    }
-
-    [SkippableFact]
-    public async Task MutedRecipient_GetsNoPushRow_ButStillGetsTheMessage()
-    {
-        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
-        await using var context = _fixture.CreateContext();
-        var (scene, conversationId) = await StartedAsync(context);
-        var service = ServiceFor(context);
-
-        var muted = await service.SetMutedAsync(scene.Voter.Id, conversationId, true);
-        await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("quiet"));
-        await service.SetMutedAsync(scene.Voter.Id, conversationId, false);
-        await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("loud"));
-
-        Assert.True(muted.IsMuted);
-        Assert.Equal(1, await context.AskBackOutbox.CountAsync(o => o.ConversationId == conversationId));
-        Assert.Equal(2, (await service.ListMessagesAsync(scene.Voter.Id, conversationId, null, null, null)).Items.Count);
-        Assert.False((await service.GetConversationAsync(scene.Asker.Id, conversationId)).IsMuted);
+        var report = await context.AskBackReports.SingleAsync(r => r.ConversationId == conversationId);
+        Assert.Equal("Not specified", report.Reason);
     }
 
     // ---- account lifecycle and reports ----
@@ -716,6 +725,7 @@ public sealed class AskBackIntegrationTests
         await using var context = _fixture.CreateContext();
         var (scene, conversationId) = await StartedAsync(context);
         var service = ServiceFor(context);
+        await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("why?"));
         await service.SendMessageAsync(scene.Voter.Id, conversationId, Send("my last words"));
 
         await context.Users.Where(u => u.Id == scene.Voter.Id).ExecuteDeleteAsync();
@@ -724,7 +734,7 @@ public sealed class AskBackIntegrationTests
         Assert.Equal("Deleted user", details.Other.AnonymousName);
         Assert.True(details.Other.IsDeleted);
         Assert.False(details.CanSend);
-        var history = (await service.ListMessagesAsync(scene.Asker.Id, conversationId, null, null, null)).Items.Single();
+        var history = (await service.ListMessagesAsync(scene.Asker.Id, conversationId, null, null, null)).Items.Last();
         Assert.Equal("my last words", history.Content);
         Assert.Equal("Deleted user", history.SenderName);
         // A fresh context, as every request has: this one still caches the conversation from before the delete.
@@ -819,7 +829,6 @@ public sealed class AskBackIntegrationTests
         var (scene, conversationId) = await StartedAsync(context);
         var service = ServiceFor(context);
         await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("secret words"));
-        await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("more secret words"));
         await MakeDueAsync(context, conversationId);
 
         var push = new RecordingPush();
@@ -832,18 +841,26 @@ public sealed class AskBackIntegrationTests
             await context.AskBackOutbox.AsNoTracking().Where(o => o.ConversationId == conversationId).ToListAsync(),
             o => Assert.Equal(AskBackOutboxStatus.Skipped, o.Status));
 
-        // Not viewing: a generic push with the conversation id and no message text.
+        // Not viewing: a generic push with the conversation id and no message text. The voter's reply and the
+        // asker's next question each notify the other side.
+        await service.SendMessageAsync(scene.Voter.Id, conversationId, Send("secret reply"));
         await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("third secret"));
         await MakeDueAsync(context, conversationId);
         await DrainAsync(context, conversationId, push, new NullAskBackPresence());
 
-        var (userId, payload) = Assert.Single(push.For(conversationId));
-        Assert.Equal(scene.Voter.Id, userId);
-        Assert.Equal("AskBackMessage", payload.Data!["eventType"]);
-        var serialized = JsonSerializer.Serialize(payload);
-        Assert.DoesNotContain("secret", serialized);
-        Assert.DoesNotContain(scene.Asker.Profile.AnonymousName, serialized);
-        Assert.DoesNotContain(scene.Asker.PhoneNumber, serialized);
+        var sent = push.For(conversationId);
+        Assert.Equal(2, sent.Count);
+        Assert.Equal(
+            new[] { scene.Asker.Id, scene.Voter.Id }.OrderBy(id => id),
+            sent.Select(item => item.UserId).OrderBy(id => id));
+        foreach (var (_, payload) in sent)
+        {
+            Assert.Equal("AskBackMessage", payload.Data!["eventType"]);
+            var serialized = JsonSerializer.Serialize(payload);
+            Assert.DoesNotContain("secret", serialized);
+            Assert.DoesNotContain(scene.Asker.Profile.AnonymousName, serialized);
+            Assert.DoesNotContain(scene.Asker.PhoneNumber, serialized);
+        }
     }
 
     [SkippableFact]
@@ -910,14 +927,20 @@ public sealed class AskBackIntegrationTests
 
     // ---- helpers ----
 
-    private sealed record Scene(User Asker, User Voter, Poll Poll, PollVote Vote);
+    internal sealed record Scene(User Asker, User Voter, Poll Poll, PollVote Vote);
 
-    private static SendAskBackMessageRequest Send(string content)
+    internal static SendAskBackMessageRequest Send(string content)
     {
         return new SendAskBackMessageRequest { ClientMessageId = Guid.NewGuid(), Content = content };
     }
 
-    private static AskBackService ServiceFor(YakkuDbContext context, IAskBackRealtime? realtime = null)
+    internal static EntitlementService EntitlementsFor(YakkuDbContext context)
+    {
+        return new EntitlementService(
+            new EntitlementRepository(context), new AskBackRepository(context), TimeProvider.System);
+    }
+
+    internal static AskBackService ServiceFor(YakkuDbContext context, IAskBackRealtime? realtime = null)
     {
         return new AskBackService(
             new AskBackRepository(context),
@@ -926,31 +949,56 @@ public sealed class AskBackIntegrationTests
             new SendAskBackMessageRequestValidator(),
             new MarkAskBackReadRequestValidator(),
             new BlockAskBackRequestValidator(),
+            EntitlementsFor(context),
             TimeProvider.System,
             NullLogger<AskBackService>.Instance);
     }
 
-    /// <summary>An asker, a poll with two options, and one other user's vote with a reason.</summary>
-    private static async Task<Scene> SceneAsync(YakkuDbContext context)
+    /// <summary>Puts the user on a paid plan (yakku_lite or yakku_love) from now.</summary>
+    internal static async Task ActivatePlanAsync(YakkuDbContext context, Guid userId, string planCode)
+    {
+        await EntitlementsFor(context).ActivatePlanAsync(userId, planCode);
+        context.ChangeTracker.Clear();
+    }
+
+    /// <summary>
+    /// An asker, a poll with two options, and three other users' votes: the first on option A with a reason (the
+    /// vote under test, the top reason of option A), two more on option B without one, so the answers can be revealed.
+    /// </summary>
+    internal static async Task<Scene> SceneAsync(YakkuDbContext context)
     {
         var asker = await AddUserAsync(context);
         var voter = await AddUserAsync(context);
         var poll = await AddPollAsync(context, asker.Id);
         var vote = PollVote.ForOption(voter.Id, poll.Id, poll.Options.First().Id, "Because it is clearer");
         context.PollVotes.Add(vote);
+        for (var i = 0; i < 2; i++)
+        {
+            var filler = await AddUserAsync(context);
+            context.PollVotes.Add(PollVote.ForOption(filler.Id, poll.Id, poll.Options.Last().Id, reason: null));
+        }
+
         await context.SaveChangesAsync();
         return new Scene(asker, voter, poll, vote);
     }
 
-    private static async Task<(Scene Scene, Guid ConversationId)> StartedAsync(YakkuDbContext context)
+    /// <summary>A conversation about the scene's vote, started by an asker on yakku_love (no limits) unless told otherwise.</summary>
+    internal static async Task<(Scene Scene, Guid ConversationId)> StartedAsync(
+        YakkuDbContext context,
+        string? askerPlan = Plan.YakkuLoveCode)
     {
         var scene = await SceneAsync(context);
+        if (askerPlan is not null)
+        {
+            await ActivatePlanAsync(context, scene.Asker.Id, askerPlan);
+        }
+
         var (conversation, _) = await ServiceFor(context).CreateConversationAsync(
             scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = scene.Vote.Id });
         return (scene, conversation.Id);
     }
 
-    private static async Task<User> AddUserAsync(YakkuDbContext context)
+    internal static async Task<User> AddUserAsync(YakkuDbContext context)
     {
         var sequence = Interlocked.Increment(ref _sequence);
         var user = new User($"571{sequence:D10}", $"askback-anon-{sequence}");
@@ -959,7 +1007,7 @@ public sealed class AskBackIntegrationTests
         return user;
     }
 
-    private static async Task<Poll> AddPollAsync(YakkuDbContext context, Guid creatorId)
+    internal static async Task<Poll> AddPollAsync(YakkuDbContext context, Guid creatorId)
     {
         var poll = new Poll(creatorId, "Which presentation is better?", PollContentType.Question);
         poll.AddTextOption("Option A", 1);

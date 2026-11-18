@@ -5,6 +5,7 @@ using Yakku.Application.AskBack.Interfaces;
 using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Entitlements;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -23,6 +24,7 @@ namespace Yakku.Application.AskBack.Services
         private readonly IValidator<SendAskBackMessageRequest> _sendValidator;
         private readonly IValidator<MarkAskBackReadRequest> _readValidator;
         private readonly IValidator<BlockAskBackRequest> _blockValidator;
+        private readonly IEntitlementService _entitlements;
         private readonly TimeProvider _time;
         private readonly ILogger<AskBackService> _logger;
 
@@ -33,9 +35,11 @@ namespace Yakku.Application.AskBack.Services
             IValidator<SendAskBackMessageRequest> sendValidator,
             IValidator<MarkAskBackReadRequest> readValidator,
             IValidator<BlockAskBackRequest> blockValidator,
+            IEntitlementService entitlements,
             TimeProvider time,
             ILogger<AskBackService> logger)
         {
+            _entitlements = entitlements;
             _repository = repository;
             _realtime = realtime;
             _createValidator = createValidator;
@@ -80,9 +84,7 @@ namespace Yakku.Application.AskBack.Services
             var existingId = await _repository.FindConversationIdByVoteAsync(vote.VoteId, cancellationToken);
             if (existingId is { } found)
             {
-                var existing = await _repository.GetDetailsAsync(found, userId, cancellationToken)
-                    ?? throw NotFound("Conversation not found.");
-                return (existing, false);
+                return (await LoadDetailsAsync(found, userId, cancellationToken), false);
             }
 
             if (vote.VoterRole != VoterRole.User)
@@ -111,6 +113,44 @@ namespace Yakku.Application.AskBack.Services
                 throw NotAllowed("This voter cannot be asked back.");
             }
 
+            // Someone who blocked the other (either way) cannot start a new conversation with them, and is not told why.
+            if (await _repository.IsBlockedEitherWayAsync(userId, vote.VoterId, cancellationToken))
+            {
+                throw NotAllowed("This voter cannot be asked back.");
+            }
+
+            // Who may ask back: a card unlocked by a plan ticket (or automatically by an unlimited plan) or on its
+            // own, or, once per card, the top reason of any option for free.
+            var access = await _entitlements.GetCardAccessAsync(
+                userId, vote.ContentType, vote.ContentId, cancellationToken);
+            var useFreeAskBack = false;
+            if (!access.Unlocked)
+            {
+                if (access.CanAutoUnlock)
+                {
+                    if (!await _entitlements.TryAutoUnlockAsync(
+                            userId, vote.ContentType, vote.ContentId, cancellationToken))
+                    {
+                        throw Locked();
+                    }
+                }
+                else if (await _repository.IsTopAskableReasonAsync(vote, cancellationToken))
+                {
+                    useFreeAskBack = true;
+                }
+                else
+                {
+                    throw Locked();
+                }
+            }
+            else if (access.Paused)
+            {
+                throw new AppException(
+                    403,
+                    ApiErrorCodes.AskBackPlanExpired,
+                    "Your plan has expired. Choose a plan to keep asking back on this card.");
+            }
+
             var conversation = AskBackConversation.Create(
                 vote.ContentType,
                 vote.ContentId,
@@ -119,14 +159,30 @@ namespace Yakku.Application.AskBack.Services
                 vote.VoterId,
                 _time.GetUtcNow().UtcDateTime);
 
-            var (conversationId, created) = await _repository.AddOrGetAsync(conversation, cancellationToken);
+            Guid conversationId;
+            bool created;
+            if (useFreeAskBack)
+            {
+                var (outcome, freeId) = await _repository.AddFreeAskConversationAsync(conversation, cancellationToken);
+                if (outcome == FreeAskOutcome.CardAlreadyUsed)
+                {
+                    throw Locked();
+                }
+
+                conversationId = freeId!.Value;
+                created = outcome == FreeAskOutcome.Created;
+            }
+            else
+            {
+                (conversationId, created) = await _repository.AddOrGetAsync(conversation, cancellationToken);
+            }
+
             if (created)
             {
                 _logger.LogInformation("Ask Back conversation {ConversationId} created.", conversationId);
             }
 
-            var details = await _repository.GetDetailsAsync(conversationId, userId, cancellationToken)
-                ?? throw NotFound("Conversation not found.");
+            var details = await LoadDetailsAsync(conversationId, userId, cancellationToken);
             return (details, created);
         }
 
@@ -148,8 +204,7 @@ namespace Yakku.Application.AskBack.Services
             Guid conversationId,
             CancellationToken cancellationToken = default)
         {
-            return await _repository.GetDetailsAsync(conversationId, userId, cancellationToken)
-                ?? throw NotFound("Conversation not found.");
+            return await LoadDetailsAsync(conversationId, userId, cancellationToken);
         }
 
         public async Task<AskBackPage<AskBackMessageResponse>> ListMessagesAsync(
@@ -210,14 +265,37 @@ namespace Yakku.Application.AskBack.Services
                 throw NotAllowed("Your account cannot send messages.");
             }
 
+            // A conversation unlocked through a plan stops for both people when that plan has expired.
+            var access = await ResolveAccessAsync(conversation, cancellationToken);
+            if (access.Paused)
+            {
+                throw new AppException(
+                    403,
+                    ApiErrorCodes.AskBackPlanExpired,
+                    "This conversation is paused.");
+            }
+
+            // The asker sends first, the voter answers once, and the asker has a limited number of questions.
             var now = _time.GetUtcNow().UtcDateTime;
+            switch (conversation.TryRecordMessage(userId, access.MessageLimit, now))
+            {
+                case AskBackSendResult.NotYourTurn:
+                    throw new AppException(
+                        409,
+                        ApiErrorCodes.AskBackNotYourTurn,
+                        "It is not your turn to send a message.");
+                case AskBackSendResult.LimitReached:
+                    throw new AppException(
+                        409,
+                        ApiErrorCodes.AskBackLimitReached,
+                        "This conversation is finished.");
+            }
+
             var message = AskBackMessage.Create(
                 conversationId, userId, request.ClientMessageId, request.Content.Trim(), now);
-            conversation.RecordMessage(now);
 
             var recipientId = conversation.OtherParticipant(userId);
-            var recipientMuted = conversation.Participants.Any(p => p.UserId == recipientId && p.IsMuted);
-            var outbox = recipientId is { } recipient && !recipientMuted
+            var outbox = recipientId is { } recipient
                 ? AskBackOutboxEvent.ForMessage(conversationId, message.Id, recipient, now, AskBackOptions.PushDelay)
                 : null;
 
@@ -274,19 +352,6 @@ namespace Yakku.Application.AskBack.Services
                 Advanced = advanced,
                 UnreadCount = await _repository.CountUnreadAsync(conversationId, userId, cancellationToken)
             };
-        }
-
-        public async Task<AskBackConversationResponse> SetMutedAsync(
-            Guid userId,
-            Guid conversationId,
-            bool muted,
-            CancellationToken cancellationToken = default)
-        {
-            var conversation = await _repository.FindForParticipantAsync(conversationId, userId, cancellationToken)
-                ?? throw NotFound("Conversation not found.");
-            conversation.Participants.First(p => p.UserId == userId).SetMuted(muted);
-            await _repository.SaveAsync(cancellationToken);
-            return await GetConversationAsync(userId, conversationId, cancellationToken);
         }
 
         public async Task<AskBackConversationResponse> CloseAsync(
@@ -353,10 +418,14 @@ namespace Yakku.Application.AskBack.Services
             var now = _time.GetUtcNow().UtcDateTime;
             if (conversation.TryBlock(userId, now))
             {
-                if (!string.IsNullOrWhiteSpace(request.Reason))
+                // Blocking always files a report, and the person is blocked everywhere: they can no longer vote on
+                // this user's cards or ask them back. The reason is optional on the wire but the report is not.
+                var reason = string.IsNullOrWhiteSpace(request.Reason) ? "Not specified" : request.Reason.Trim();
+                var other = conversation.OtherParticipant(userId);
+                _repository.AddReport(AskBackReport.Create(conversationId, userId, other, reason, now));
+                if (other is { } otherUserId)
                 {
-                    _repository.AddReport(AskBackReport.Create(
-                        conversationId, userId, conversation.OtherParticipant(userId), request.Reason.Trim(), now));
+                    await _repository.AddUserBlockAsync(userId, otherUserId, conversationId, now, cancellationToken);
                 }
 
                 await _repository.SaveAsync(cancellationToken);
@@ -384,6 +453,11 @@ namespace Yakku.Application.AskBack.Services
                 throw NotAllowed("Only the person who blocked can lift the block.");
             }
 
+            if (conversation.OtherParticipant(userId) is { } blockedUserId)
+            {
+                await _repository.RemoveUserBlockAsync(userId, blockedUserId, cancellationToken);
+            }
+
             await _repository.SaveAsync(cancellationToken);
             await PublishStatusAsync(conversation, cancellationToken);
             return await GetConversationAsync(userId, conversationId, cancellationToken);
@@ -406,6 +480,53 @@ namespace Yakku.Application.AskBack.Services
 
             var usable = await _repository.GetUsableUserIdsAsync([userId], cancellationToken);
             return usable.Contains(userId);
+        }
+
+        /// <summary>
+        /// The message limit that applies to this conversation and whether it is paused. It is read live, so a plan
+        /// change shows up on conversations that already exist.
+        /// </summary>
+        private async Task<(int? MessageLimit, bool Paused)> ResolveAccessAsync(
+            AskBackConversation conversation,
+            CancellationToken cancellationToken)
+        {
+            if (conversation.CreatorUserId is not { } askerId)
+            {
+                // The asker's account is gone; nobody can send anyway.
+                return (await _entitlements.GetPurchaseMessageLimitAsync(cancellationToken), false);
+            }
+
+            var access = await _entitlements.GetCardAccessAsync(
+                askerId, conversation.ContentType, conversation.ContentId, cancellationToken);
+            return (access.MessageLimit, access.Paused);
+        }
+
+        /// <summary>The conversation as the caller sees it, with whose turn it is and how many messages are left.</summary>
+        private async Task<AskBackConversationResponse> LoadDetailsAsync(
+            Guid conversationId,
+            Guid userId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _repository.GetDetailsAsync(conversationId, userId, cancellationToken)
+                ?? throw NotFound("Conversation not found.");
+            var snapshot = await _repository.GetSnapshotAsync(conversationId, userId, cancellationToken)
+                ?? throw NotFound("Conversation not found.");
+
+            var (limit, paused) = await ResolveAccessAsync(snapshot, cancellationToken);
+            var turn = snapshot.TurnFor(userId, limit);
+            response.Turn = turn.ToString().ToLowerInvariant();
+            response.MessagesLeft = snapshot.MessagesLeft(userId, limit);
+            response.IsPaused = paused;
+            response.CanSend = response.CanSend && !paused && turn == AskBackTurn.Me;
+            return response;
+        }
+
+        private static AppException Locked()
+        {
+            return new AppException(
+                403,
+                ApiErrorCodes.AskBackLocked,
+                "Unlock this card to ask back on this reason. Every card has one free ask back, on the top reason of an option.");
         }
 
         private Task PublishStatusAsync(AskBackConversation conversation, CancellationToken cancellationToken)

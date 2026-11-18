@@ -25,5 +25,11 @@ namespace Yakku.Application.AskBack
         public const int BatchSize = 20;
 
         public const string DeletedUserName = "Deleted user";
+
+        /// <summary>
+        /// Questions per reason used only if the free plan's row cannot be read. The real values live on the plans
+        /// (<c>plans.ask_back_message_limit</c>) and are edited there.
+        /// </summary>
+        public const int FallbackMessageLimit = 1;
     }
 }

@@ -23,6 +23,13 @@ namespace Yakku.Application.Reasons.DTOs
         /// <summary>True when a registered user gave it, so the asker can chat back. False for a guest.</summary>
         public bool CanAskBack { get; set; }
 
+        /// <summary>
+        /// True when asking back on this reason needs the card to be unlocked first: the card is not unlocked, this
+        /// is not the option's one free (top) reason, and the card's free ask back is gone or belongs to another
+        /// reason. The app shows the unlock sheet instead of opening a chat.
+        /// </summary>
+        public bool AskBackLocked { get; set; }
+
         /// <summary>One of <see cref="ReasonReportState"/>: none, pending or rejected.</summary>
         public string ReportStatus { get; set; } = ReasonReportState.None;
     }
@@ -48,6 +55,9 @@ namespace Yakku.Application.Reasons.DTOs
 
         /// <summary>True when a registered user wrote it, so the asker can chat back. False for a guest.</summary>
         public bool CanAskBack { get; set; }
+
+        /// <summary>Same as <see cref="ReasonResponse.AskBackLocked"/>; a custom answer's reason is always its own top reason.</summary>
+        public bool AskBackLocked { get; set; }
 
         /// <summary>
         /// One of <see cref="ReasonReportState"/> for the answer's <see cref="Reason"/>: none, pending or rejected.

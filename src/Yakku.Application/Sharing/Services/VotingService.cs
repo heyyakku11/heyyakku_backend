@@ -1,4 +1,5 @@
 using FluentValidation;
+using Yakku.Application.AskBack.Interfaces;
 using Yakku.Application.Audit;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
@@ -24,6 +25,7 @@ namespace Yakku.Application.Sharing.Services
         private readonly IAuditLogWriter _audit;
         private readonly IStreakService _streaks;
         private readonly IVoteNotificationOutbox _notifications;
+        private readonly IUserBlockLookup? _blocks;
 
         public VotingService(
             IVotableContentRepository contents,
@@ -32,8 +34,10 @@ namespace Yakku.Application.Sharing.Services
             IValidator<VoteRequest> validator,
             IAuditLogWriter audit,
             IStreakService streaks,
-            IVoteNotificationOutbox notifications)
+            IVoteNotificationOutbox notifications,
+            IUserBlockLookup? blocks = null)
         {
+            _blocks = blocks;
             _streaks = streaks;
             _notifications = notifications;
             _contents = contents;
@@ -149,6 +153,18 @@ namespace Yakku.Application.Sharing.Services
                     });
             }
 
+            // The owner blocked this person: it reads exactly like a closed card, with no hint of why.
+            if (voter.IsUser
+                && !isOwner
+                && _blocks is not null
+                && await _blocks.IsBlockedAsync(content.OwnerId, voter.Id, cancellationToken))
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    $"This {Noun(content)} is not accepting votes.");
+            }
+
             if (request.OptionId is Guid optionId && content.Options.All(option => option.Id != optionId))
             {
                 throw new AppException(
@@ -200,7 +216,8 @@ namespace Yakku.Application.Sharing.Services
                 _contents,
                 _storage,
                 _policy,
-                cancellationToken);
+                cancellationToken,
+                _blocks);
             return new VoteOutcome(response, receipt);
         }
 

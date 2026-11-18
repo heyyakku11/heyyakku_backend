@@ -55,5 +55,14 @@ namespace Yakku.Application.Users.DTOs
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
+
+        /// <summary>When the current activation of a paid plan began; null on the free plan.</summary>
+        public DateTime? ActivatedAt { get; set; }
+
+        /// <summary>When the paid plan ends (or ended); null on the free plan.</summary>
+        public DateTime? ExpiresAt { get; set; }
+
+        /// <summary>A paid plan was bought and its period has ended, so the user is back on the free perks.</summary>
+        public bool IsExpired { get; set; }
     }
 }

@@ -3,6 +3,8 @@ using Npgsql;
 using Yakku.Application.AskBack;
 using Yakku.Application.AskBack.DTOs;
 using Yakku.Application.AskBack.Interfaces;
+using Yakku.Application.Common.Exceptions;
+using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -167,6 +169,19 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
+        public Task<AskBackConversation?> GetSnapshotAsync(
+            Guid conversationId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.AskBackConversations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    conversation => conversation.Id == conversationId
+                                    && (conversation.CreatorUserId == userId || conversation.VoterUserId == userId),
+                    cancellationToken);
+        }
+
         public async Task<AskBackConversationResponse?> GetDetailsAsync(
             Guid conversationId,
             Guid userId,
@@ -186,8 +201,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var isAsker = conversation.CreatorUserId == userId;
             var otherId = conversation.OtherParticipant(userId);
             var names = await LoadNamesAsync(otherId is { } id ? [id] : [], cancellationToken);
-            var mine = conversation.Participants.First(participant => participant.UserId == userId);
-
             return new AskBackConversationResponse
             {
                 Id = conversation.Id,
@@ -197,7 +210,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 Context = await LoadContextAsync(conversation, cancellationToken),
                 CreatedAt = conversation.CreatedAt,
                 ClosedAt = conversation.ClosedAt,
-                IsMuted = mine.IsMuted,
                 UnreadCount = await CountUnreadAsync(conversation.Id, userId, cancellationToken),
                 CanSend = conversation.CanSend,
                 CanReopen = conversation.Status == AskBackStatus.Closed && isAsker,
@@ -270,13 +282,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     select new { ConversationId = grouped.Key, Count = grouped.Count() })
                 .ToDictionaryAsync(item => item.ConversationId, item => item.Count, cancellationToken);
 
-            var muted = (await _context.AskBackParticipants
-                    .AsNoTracking()
-                    .Where(participant => participant.UserId == userId && ids.Contains(participant.ConversationId))
-                    .Select(participant => new { participant.ConversationId, participant.IsMuted })
-                    .ToListAsync(cancellationToken))
-                .ToDictionary(item => item.ConversationId, item => item.IsMuted);
-
             var items = rows.Select(row =>
             {
                 lastMessages.TryGetValue(row.Id, out var last);
@@ -297,7 +302,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     LastMessageAt = row.LastMessageAt,
                     LastActivityAt = row.LastActivityAt,
                     UnreadCount = unread.GetValueOrDefault(row.Id),
-                    IsMuted = muted.GetValueOrDefault(row.Id),
                     CreatedAt = row.CreatedAt
                 };
             }).ToList();
@@ -479,6 +483,30 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     .FirstAsync(cancellationToken);
                 return (existing, false);
             }
+            catch (DbUpdateConcurrencyException)
+            {
+                // The message counters moved under us: another send by this person (or the other person's reply)
+                // landed first, so by the turn rule this one no longer fits.
+                _context.ChangeTracker.Clear();
+
+                // A concurrent retry of this very message is not a second send: hand back the stored one.
+                var stored = await _context.AskBackMessages
+                    .AsNoTracking()
+                    .Where(item => item.ConversationId == message.ConversationId
+                                   && item.SenderUserId == message.SenderUserId
+                                   && item.ClientMessageId == message.ClientMessageId)
+                    .Select(item => (Guid?)item.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (stored is { } storedId)
+                {
+                    return (storedId, false);
+                }
+
+                throw new AppException(
+                    409,
+                    ApiErrorCodes.AskBackNotYourTurn,
+                    "It is not your turn to send a message.");
+            }
         }
 
         public async Task<int> CountUnreadAsync(
@@ -508,6 +536,149 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             }
 
             return await query.CountAsync(cancellationToken);
+        }
+
+        public async Task<bool> IsTopAskableReasonAsync(
+            AskBackVoteContext vote,
+            CancellationToken cancellationToken = default)
+        {
+            if (vote.ContentType == ShareContentType.Poll)
+            {
+                var own = await _context.PollVotes
+                    .AsNoTracking()
+                    .Where(item => item.Id == vote.VoteId)
+                    .Select(item => new { item.PollOptionId })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (own is null)
+                {
+                    return false;
+                }
+
+                // A custom answer is its own option, so its reason is always the top one.
+                if (own.PollOptionId is null)
+                {
+                    return true;
+                }
+
+                var topId = await _context.PollVotes
+                    .AsNoTracking()
+                    .Where(item => item.PollId == vote.ContentId
+                                   && item.VoterId != vote.OwnerId
+                                   && item.PollOptionId == own.PollOptionId
+                                   && item.Reason != null
+                                   && item.VoterRole == VoterRole.User)
+                    .OrderByDescending(item => item.CreatedAt)
+                    .ThenByDescending(item => item.Id)
+                    .Select(item => (Guid?)item.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+                return topId == vote.VoteId;
+            }
+
+            var checkVote = await _context.UserCheckVotes
+                .AsNoTracking()
+                .Where(item => item.Id == vote.VoteId)
+                .Select(item => new { item.CheckOptionId })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (checkVote is null)
+            {
+                return false;
+            }
+
+            if (checkVote.CheckOptionId is null)
+            {
+                return true;
+            }
+
+            var topCheckId = await _context.UserCheckVotes
+                .AsNoTracking()
+                .Where(item => item.UserCheckId == vote.ContentId
+                               && item.VoterId != vote.OwnerId
+                               && item.CheckOptionId == checkVote.CheckOptionId
+                               && item.Reason != null
+                               && item.VoterRole == VoterRole.User)
+                .OrderByDescending(item => item.CreatedAt)
+                .ThenByDescending(item => item.Id)
+                .Select(item => (Guid?)item.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            return topCheckId == vote.VoteId;
+        }
+
+        public Task<bool> HasConversationOnCardAsync(
+            ShareContentType contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.AskBackConversations
+                .AsNoTracking()
+                .AnyAsync(
+                    conversation => conversation.ContentType == contentType && conversation.ContentId == contentId,
+                    cancellationToken);
+        }
+
+        public async Task<(FreeAskOutcome Outcome, Guid? ConversationId)> AddFreeAskConversationAsync(
+            AskBackConversation conversation,
+            CancellationToken cancellationToken = default)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+            // One lock per card, held until the transaction ends: the check below and the insert are then one step.
+            var lockKey = $"ask-back-free:{(int)conversation.ContentType}:{conversation.ContentId}";
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))",
+                cancellationToken);
+
+            var existingForVote = await FindConversationIdByVoteAsync(conversation.VoteId, cancellationToken);
+            if (existingForVote is { } found)
+            {
+                return (FreeAskOutcome.AlreadyExists, found);
+            }
+
+            if (await HasConversationOnCardAsync(conversation.ContentType, conversation.ContentId, cancellationToken))
+            {
+                return (FreeAskOutcome.CardAlreadyUsed, null);
+            }
+
+            _context.AskBackConversations.Add(conversation);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return (FreeAskOutcome.Created, conversation.Id);
+        }
+
+        public Task<bool> IsBlockedEitherWayAsync(Guid userA, Guid userB, CancellationToken cancellationToken = default)
+        {
+            return _context.UserBlocks
+                .AsNoTracking()
+                .AnyAsync(
+                    block => (block.BlockerUserId == userA && block.BlockedUserId == userB)
+                             || (block.BlockerUserId == userB && block.BlockedUserId == userA),
+                    cancellationToken);
+        }
+
+        public async Task AddUserBlockAsync(
+            Guid blockerUserId,
+            Guid blockedUserId,
+            Guid sourceConversationId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var exists = await _context.UserBlocks.AnyAsync(
+                block => block.BlockerUserId == blockerUserId && block.BlockedUserId == blockedUserId,
+                cancellationToken);
+            if (!exists)
+            {
+                _context.UserBlocks.Add(UserBlock.Create(blockerUserId, blockedUserId, sourceConversationId, utcNow));
+            }
+        }
+
+        public async Task RemoveUserBlockAsync(
+            Guid blockerUserId,
+            Guid blockedUserId,
+            CancellationToken cancellationToken = default)
+        {
+            var existing = await _context.UserBlocks
+                .Where(block => block.BlockerUserId == blockerUserId && block.BlockedUserId == blockedUserId)
+                .ToListAsync(cancellationToken);
+            _context.UserBlocks.RemoveRange(existing);
         }
 
         public void AddReport(AskBackReport report)

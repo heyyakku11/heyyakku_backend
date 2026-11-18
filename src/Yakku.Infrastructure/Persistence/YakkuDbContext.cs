@@ -46,6 +46,8 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<AskBackMessage> AskBackMessages => Set<AskBackMessage>();
         public DbSet<AskBackOutboxEvent> AskBackOutbox => Set<AskBackOutboxEvent>();
         public DbSet<AskBackReport> AskBackReports => Set<AskBackReport>();
+        public DbSet<CardUnlock> CardUnlocks => Set<CardUnlock>();
+        public DbSet<UserBlock> UserBlocks => Set<UserBlock>();
 
         public DbSet<PersonalityTrait> PersonalityTraits => Set<PersonalityTrait>();
         public DbSet<PersonalityCard> PersonalityCards => Set<PersonalityCard>();

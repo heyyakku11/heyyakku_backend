@@ -133,6 +133,134 @@ public class AskBackDomainTests
     }
 
     [Fact]
+    public void Turns_AskerFirst_ThenVoterReplies_ThenTheAskerAgain()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+
+        Assert.Equal(AskBackTurn.Me, conversation.TurnFor(asker, 3));
+        Assert.Equal(AskBackTurn.Them, conversation.TurnFor(voter, 3));
+        Assert.Equal(AskBackSendResult.NotYourTurn, conversation.TryRecordMessage(voter, 3, Now));
+
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(asker, 3, Now));
+        Assert.Equal(AskBackTurn.Them, conversation.TurnFor(asker, 3));
+        Assert.Equal(AskBackTurn.Me, conversation.TurnFor(voter, 3));
+        Assert.Equal(AskBackSendResult.NotYourTurn, conversation.TryRecordMessage(asker, 3, Now));
+
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(voter, 3, Now));
+        Assert.Equal(AskBackTurn.Me, conversation.TurnFor(asker, 3));
+        Assert.Equal(AskBackTurn.Them, conversation.TurnFor(voter, 3));
+    }
+
+    [Fact]
+    public void Limit_EndsTheChat_AfterTheLastReply_AndCountsWhatIsLeft()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+
+        Assert.Equal(1, conversation.MessagesLeft(asker, 1));
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(asker, 1, Now));
+        Assert.Equal(0, conversation.MessagesLeft(asker, 1));
+
+        // The voter may still answer the last question; only then is the chat done.
+        Assert.Equal(AskBackTurn.Me, conversation.TurnFor(voter, 1));
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(voter, 1, Now));
+
+        Assert.Equal(AskBackTurn.Done, conversation.TurnFor(asker, 1));
+        Assert.Equal(AskBackTurn.Done, conversation.TurnFor(voter, 1));
+        Assert.Equal(AskBackSendResult.LimitReached, conversation.TryRecordMessage(asker, 1, Now));
+        Assert.Equal(AskBackSendResult.LimitReached, conversation.TryRecordMessage(voter, 1, Now));
+        Assert.Equal(0, conversation.MessagesLeft(voter, 1));
+    }
+
+    [Fact]
+    public void NoLimit_NeverEndsTheChat_AndHasNoMessagesLeftCount()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+
+        for (var round = 0; round < 20; round++)
+        {
+            Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(asker, null, Now));
+            Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(voter, null, Now));
+        }
+
+        Assert.Equal(AskBackTurn.Me, conversation.TurnFor(asker, null));
+        Assert.Null(conversation.MessagesLeft(asker, null));
+    }
+
+    [Fact]
+    public void RaisingTheLimit_ReopensAFinishedChat()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+        conversation.TryRecordMessage(asker, 1, Now);
+        conversation.TryRecordMessage(voter, 1, Now);
+        Assert.Equal(AskBackTurn.Done, conversation.TurnFor(asker, 1));
+
+        // The limit is read live, so a better plan (or a changed plan value) lets the conversation go on.
+        Assert.Equal(AskBackTurn.Me, conversation.TurnFor(asker, 3));
+        Assert.Equal(2, conversation.MessagesLeft(asker, 3));
+    }
+
+    [Fact]
+    public void ActivatePlan_SetsAnExpiry_ForAPlanWithADuration_AndClearsItForFree()
+    {
+        var user = new User("5710000000001", "plan-anon-1");
+        var lite = Plan.Create(Plan.YakkuLiteId, Plan.YakkuLiteCode, "Yakku Lite", durationDays: 7, unlockTickets: 3, askBackMessageLimit: 3);
+        var free = Plan.Create(Plan.FreeId, Plan.FreeCode, "Free", durationDays: null, unlockTickets: 0, askBackMessageLimit: 1);
+
+        user.ActivatePlan(lite, Now);
+
+        Assert.Equal(Plan.YakkuLiteId, user.PlanId);
+        Assert.Equal(Now, user.PlanActivatedAt);
+        Assert.Equal(Now.AddDays(7), user.PlanExpiresAt);
+        Assert.True(user.IsPlanActive(Now.AddDays(6)));
+        Assert.False(user.IsPlanActive(Now.AddDays(7).AddSeconds(1)));
+
+        // Buying it again restarts the period from that moment.
+        user.ActivatePlan(lite, Now.AddDays(5));
+        Assert.Equal(Now.AddDays(12), user.PlanExpiresAt);
+
+        user.ActivatePlan(free, Now.AddDays(6));
+        Assert.Null(user.PlanActivatedAt);
+        Assert.Null(user.PlanExpiresAt);
+        Assert.True(user.IsPlanActive(Now.AddYears(5)));
+    }
+
+    [Fact]
+    public void PlanUpdate_MapsMinusOneToUnlimited_AndLeavesUntouchedFieldsAlone()
+    {
+        var plan = Plan.Create(Plan.YakkuLiteId, Plan.YakkuLiteCode, "Yakku Lite", durationDays: 7, unlockTickets: 3, askBackMessageLimit: 3);
+
+        plan.Update(name: null, priceMinor: null, isActive: null, unlockTickets: Plan.Unlimited);
+        Assert.Null(plan.UnlockTickets);
+        Assert.Equal(3, plan.AskBackMessageLimit);
+        Assert.Equal(7, plan.DurationDays);
+
+        plan.Update(name: null, priceMinor: null, isActive: null, durationDays: 14, askBackMessageLimit: Plan.Unlimited);
+        Assert.Null(plan.AskBackMessageLimit);
+        Assert.Equal(14, plan.DurationDays);
+    }
+
+    [Fact]
+    public void CardUnlock_IsForPollsAndChecksOnly_AndAPurchaseNeverGoesBackToAPlanUnlock()
+    {
+        var owner = Guid.NewGuid();
+        Assert.Throws<ArgumentException>(() => CardUnlock.Create(
+            owner, ShareContentType.Personality, Guid.NewGuid(), CardUnlockSource.Plan, Now));
+
+        var unlock = CardUnlock.Create(owner, ShareContentType.Poll, Guid.NewGuid(), CardUnlockSource.Plan, Now);
+        Assert.True(unlock.PromoteToPurchase());
+        Assert.Equal(CardUnlockSource.Purchase, unlock.Source);
+        Assert.False(unlock.PromoteToPurchase());
+    }
+
+    [Fact]
     public void Participant_ReadPosition_OnlyMovesForward()
     {
         var conversation = NewConversation();

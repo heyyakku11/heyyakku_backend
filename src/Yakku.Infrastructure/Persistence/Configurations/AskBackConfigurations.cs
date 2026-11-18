@@ -19,6 +19,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 table.HasCheckConstraint(
                     "CK_ask_back_conversations_blocked_by",
                     "(\"status\" = 'BLOCKED') = (\"blocked_by_user_id\" IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_ask_back_conversations_message_counts",
+                    "\"asker_message_count\" >= 0 AND \"voter_message_count\" >= 0");
             });
             builder.HasKey(x => x.Id);
 
@@ -40,6 +43,18 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.LastMessageAt).HasColumnName("last_message_at");
             builder.Property(x => x.LastActivityAt).HasColumnName("last_activity_at").IsRequired();
             builder.Property(x => x.ClosedAt).HasColumnName("closed_at");
+
+            // Concurrency tokens: of two sends by the same person at once, only one update matches the old count.
+            builder.Property(x => x.AskerMessageCount)
+                .HasColumnName("asker_message_count")
+                .IsRequired()
+                .HasDefaultValue(0)
+                .IsConcurrencyToken();
+            builder.Property(x => x.VoterMessageCount)
+                .HasColumnName("voter_message_count")
+                .IsRequired()
+                .HasDefaultValue(0)
+                .IsConcurrencyToken();
 
             // Accounts that are permanently deleted leave the conversation behind for the other person.
             builder.HasOne<User>().WithMany().HasForeignKey(x => x.CreatorUserId).OnDelete(DeleteBehavior.SetNull);
@@ -70,7 +85,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.LastReadMessageId).HasColumnName("last_read_message_id");
             builder.Property(x => x.LastReadMessageCreatedAt).HasColumnName("last_read_message_created_at");
             builder.Property(x => x.LastReadAt).HasColumnName("last_read_at");
-            builder.Property(x => x.IsMuted).HasColumnName("is_muted").IsRequired();
             builder.Property(x => x.JoinedAt).HasColumnName("joined_at").IsRequired();
 
             builder.HasOne(x => x.Conversation)

@@ -29,6 +29,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.PlanId)
                 .HasDatabaseName("IX_Users_PlanId");
 
+            // Set while a paid plan is active; null on the free plan. After the end date the user counts as free.
+            builder.Property(x => x.PlanActivatedAt);
+            builder.Property(x => x.PlanExpiresAt);
+
             builder.Property(x => x.CreatedAt)
                 .IsRequired();
 

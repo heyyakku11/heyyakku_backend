@@ -34,7 +34,13 @@ namespace Yakku.Application.Plans.Services
             var plan = await _repository.GetForUpdateAsync(id, cancellationToken)
                 ?? throw new AppException(404, ApiErrorCodes.NotFound, "Plan not found");
 
-            plan.Update(request.Name?.Trim(), request.PriceMinor, request.IsActive);
+            plan.Update(
+                request.Name?.Trim(),
+                request.PriceMinor,
+                request.IsActive,
+                request.DurationDays,
+                request.UnlockTickets,
+                request.AskBackMessageLimit);
             await _repository.SaveAsync(cancellationToken);
             return ToResponse(plan);
         }
@@ -47,7 +53,10 @@ namespace Yakku.Application.Plans.Services
                 Code = plan.Code,
                 Name = plan.Name,
                 PriceMinor = plan.PriceMinor,
-                Currency = plan.Currency
+                Currency = plan.Currency,
+                DurationDays = plan.DurationDays,
+                UnlockTickets = plan.UnlockTickets,
+                AskBackMessageLimit = plan.AskBackMessageLimit
             };
         }
     }

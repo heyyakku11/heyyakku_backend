@@ -1,3 +1,4 @@
+using Yakku.Application.AskBack.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls.Interfaces;
@@ -14,15 +15,18 @@ namespace Yakku.Application.Sharing.Services
         private readonly IVotableContentRepository _contents;
         private readonly IObjectStorage _storage;
         private readonly IMediaUploadPolicy _policy;
+        private readonly IUserBlockLookup? _blocks;
 
         public SharedContentService(
             IVotableContentRepository contents,
             IObjectStorage storage,
-            IMediaUploadPolicy policy)
+            IMediaUploadPolicy policy,
+            IUserBlockLookup? blocks = null)
         {
             _contents = contents;
             _storage = storage;
             _policy = policy;
+            _blocks = blocks;
         }
 
         public async Task<SharedContentResponse> GetAsync(
@@ -38,7 +42,7 @@ namespace Yakku.Application.Sharing.Services
             var content = await _contents.FindByShareCodeAsync(shareCode.Trim(), cancellationToken)
                 ?? throw NotFound();
 
-            return await BuildAsync(content, viewer, _contents, _storage, _policy, cancellationToken);
+            return await BuildAsync(content, viewer, _contents, _storage, _policy, cancellationToken, _blocks);
         }
 
         public async Task<SharedResultResponse> GetResultAsync(
@@ -68,7 +72,8 @@ namespace Yakku.Application.Sharing.Services
             IVotableContentRepository contents,
             IObjectStorage storage,
             IMediaUploadPolicy policy,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            IUserBlockLookup? blocks = null)
         {
             var isOwner = viewer is { IsUser: true } && viewer.Id == content.OwnerId;
             if (!content.PubliclyReadable && !isOwner)
@@ -80,6 +85,16 @@ namespace Yakku.Application.Sharing.Services
             var myVote = viewer is null ? null : await contents.GetVoteAsync(content, viewer, cancellationToken);
 
             var response = SharedContentMapper.ToResponse(content, tally, myVote, viewer, DateTime.UtcNow);
+
+            // Someone the owner blocked sees the card as closed. They are never told it is because of a block.
+            if (response.Voting.CanVote
+                && viewer is { IsUser: true }
+                && blocks is not null
+                && await blocks.IsBlockedAsync(content.OwnerId, viewer.Id, cancellationToken))
+            {
+                response.Voting.CanVote = false;
+                response.Voting.BlockedReason = content.IsPoll ? "CLOSED" : "INACTIVE";
+            }
 
             if (content.Poll?.Media is { } media && response.Poll?.Media is { } mediaResponse)
             {

@@ -15,6 +15,19 @@ namespace Yakku.Application.AskBack.Interfaces
         bool HasReason,
         int OtherVotes);
 
+    /// <summary>Result of trying to start a conversation with the card's one free ask back.</summary>
+    public enum FreeAskOutcome
+    {
+        /// <summary>The conversation was created.</summary>
+        Created = 0,
+
+        /// <summary>The card already has a conversation (another reason used its free ask back).</summary>
+        CardAlreadyUsed = 1,
+
+        /// <summary>This vote already had a conversation, created by a request that got there first.</summary>
+        AlreadyExists = 2
+    }
+
     public interface IAskBackRepository
     {
         Task<AskBackVoteContext?> FindVoteContextAsync(Guid voteId, CancellationToken cancellationToken = default);
@@ -48,6 +61,15 @@ namespace Yakku.Application.AskBack.Interfaces
             CancellationToken cancellationToken = default);
 
         Task<bool> IsParticipantAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// A fresh, untracked copy of the conversation for working out turns and limits; null unless
+        /// <paramref name="userId"/> is a participant.
+        /// </summary>
+        Task<AskBackConversation?> GetSnapshotAsync(
+            Guid conversationId,
+            Guid userId,
+            CancellationToken cancellationToken = default);
 
         Task<AskBackConversationResponse?> GetDetailsAsync(
             Guid conversationId,
@@ -99,9 +121,47 @@ namespace Yakku.Application.AskBack.Interfaces
             Guid userId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Whether the vote is the top reason of its option: the newest visible reason a signed-in user gave for that
+        /// option, the same one the owner's reasons list shows first. A custom answer's reason is always its own top.
+        /// </summary>
+        Task<bool> IsTopAskableReasonAsync(AskBackVoteContext vote, CancellationToken cancellationToken = default);
+
+        /// <summary>Whether the card has a conversation about any of its reasons.</summary>
+        Task<bool> HasConversationOnCardAsync(
+            ShareContentType contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Creates the conversation only if the card has none yet, so a card gets one free ask back in all. The check
+        /// and the insert run in one transaction under a lock on the card, so two simultaneous taps on different
+        /// reasons cannot both create one.
+        /// </summary>
+        Task<(FreeAskOutcome Outcome, Guid? ConversationId)> AddFreeAskConversationAsync(
+            AskBackConversation conversation,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>True when either user blocked the other.</summary>
+        Task<bool> IsBlockedEitherWayAsync(Guid userA, Guid userB, CancellationToken cancellationToken = default);
+
+        /// <summary>Stages a user block (saved with the next <see cref="SaveAsync"/>); does nothing if there is one.</summary>
+        Task AddUserBlockAsync(
+            Guid blockerUserId,
+            Guid blockedUserId,
+            Guid sourceConversationId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Stages the removal of a user block (saved with the next <see cref="SaveAsync"/>).</summary>
+        Task RemoveUserBlockAsync(
+            Guid blockerUserId,
+            Guid blockedUserId,
+            CancellationToken cancellationToken = default);
+
         void AddReport(AskBackReport report);
 
-        /// <summary>Saves changes made to tracked entities (status, read position, mute, report).</summary>
+        /// <summary>Saves changes made to tracked entities (status, read position, report).</summary>
         Task SaveAsync(CancellationToken cancellationToken = default);
     }
 }

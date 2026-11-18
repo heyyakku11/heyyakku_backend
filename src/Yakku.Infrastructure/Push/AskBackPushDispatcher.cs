@@ -13,7 +13,7 @@ namespace Yakku.Infrastructure.Push
     /// <summary>
     /// Sends the push rows written with each Ask Back message. Rows are claimed with a conditional update and a
     /// lease (like the vote notification outbox), so several instances can run it and a crashed claim becomes
-    /// claimable again. A recipient who is viewing the conversation, or who muted it, gets no push.
+    /// claimable again. A recipient who is viewing the conversation gets no push.
     /// </summary>
     public sealed class AskBackPushDispatcher
     {
@@ -119,16 +119,6 @@ namespace Yakku.Infrastructure.Push
             CancellationToken cancellationToken)
         {
             if (_presence.IsViewing(conversationId, recipientId))
-            {
-                return PushOutcome.Skipped;
-            }
-
-            var muted = await _db.AskBackParticipants
-                .AsNoTracking()
-                .AnyAsync(
-                    p => p.ConversationId == conversationId && p.UserId == recipientId && p.IsMuted,
-                    cancellationToken);
-            if (muted)
             {
                 return PushOutcome.Skipped;
             }

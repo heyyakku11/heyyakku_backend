@@ -66,16 +66,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 })
                 .ToListAsync(cancellationToken);
 
+            var lockState = await GetLockStateAsync(ownerId, ShareContentType.Poll, pollId, cancellationToken);
             return new ReasonListResponse
             {
-                Items = rows.Select(row => new ReasonResponse
-                {
-                    Id = row.Id,
-                    Text = row.Text,
-                    CreatedAt = row.CreatedAt,
-                    CanAskBack = row.CanAskBack,
-                    ReportStatus = StateOf(row.Report)
-                }).ToList(),
+                Items = ToReasons(rows.Select(row => (row.Id, row.Text, row.CreatedAt, row.CanAskBack, row.Report)), lockState),
                 BlockedCount = await BlockedCountAsync(ShareContentType.Poll, pollId, optionId, cancellationToken)
             };
         }
@@ -130,16 +124,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 })
                 .ToListAsync(cancellationToken);
 
+            var lockState = await GetLockStateAsync(ownerId, ShareContentType.Check, userCheckId, cancellationToken);
             return new ReasonListResponse
             {
-                Items = rows.Select(row => new ReasonResponse
-                {
-                    Id = row.Id,
-                    Text = row.Text,
-                    CreatedAt = row.CreatedAt,
-                    CanAskBack = row.CanAskBack,
-                    ReportStatus = StateOf(row.Report)
-                }).ToList(),
+                Items = ToReasons(rows.Select(row => (row.Id, row.Text, row.CreatedAt, row.CanAskBack, row.Report)), lockState),
                 BlockedCount = await BlockedCountAsync(ShareContentType.Check, userCheckId, optionId, cancellationToken)
             };
         }
@@ -182,9 +170,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                         .FirstOrDefault()))
                 .ToListAsync(cancellationToken);
 
+            var lockState = await GetLockStateAsync(ownerId, ShareContentType.Poll, pollId, cancellationToken);
             return new CustomAnswerListResponse
             {
-                Items = rows.Select(ToCustomAnswer).ToList(),
+                Items = rows.Select(row => ToCustomAnswer(row, lockState)).ToList(),
                 BlockedCount = await BlockedCountAsync(ShareContentType.Poll, pollId, null, cancellationToken)
             };
         }
@@ -227,9 +216,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                         .FirstOrDefault()))
                 .ToListAsync(cancellationToken);
 
+            var lockState = await GetLockStateAsync(ownerId, ShareContentType.Check, userCheckId, cancellationToken);
             return new CustomAnswerListResponse
             {
-                Items = rows.Select(ToCustomAnswer).ToList(),
+                Items = rows.Select(row => ToCustomAnswer(row, lockState)).ToList(),
                 BlockedCount = await BlockedCountAsync(ShareContentType.Check, userCheckId, null, cancellationToken)
             };
         }
@@ -357,7 +347,83 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
-        private static CustomAnswerResponse ToCustomAnswer(CustomAnswerRow row)
+        /// <summary>What decides whether asking back on a reason needs an unlock.</summary>
+        private sealed record LockState(bool CardOpen, bool CardHasConversation, HashSet<Guid> ConversationVoteIds);
+
+        /// <summary>
+        /// The card is open when it was unlocked on its own, unlocked through a plan that is still running, or the
+        /// owner's active plan has no ticket limit (asking back unlocks it). Otherwise only a reason that already has
+        /// a conversation, or the free top reason while the card has none, can be asked back.
+        /// </summary>
+        private async Task<LockState> GetLockStateAsync(
+            Guid ownerId,
+            ShareContentType contentType,
+            Guid contentId,
+            CancellationToken cancellationToken)
+        {
+            var now = DateTime.UtcNow;
+            var unlockSource = await _context.CardUnlocks
+                .AsNoTracking()
+                .Where(item => item.OwnerUserId == ownerId && item.ContentType == contentType && item.ContentId == contentId)
+                .Select(item => (CardUnlockSource?)item.Source)
+                .FirstOrDefaultAsync(cancellationToken);
+            var plan = await _context.Users
+                .AsNoTracking()
+                .Where(user => user.Id == ownerId)
+                .Select(user => new { user.PlanId, user.PlanExpiresAt, user.Plan.UnlockTickets })
+                .FirstOrDefaultAsync(cancellationToken);
+            var planActive = plan is not null
+                && plan.PlanId != Plan.FreeId
+                && (plan.PlanExpiresAt == null || plan.PlanExpiresAt > now);
+
+            var open = unlockSource == CardUnlockSource.Purchase
+                || (unlockSource == CardUnlockSource.Plan && planActive)
+                || (planActive && plan!.UnlockTickets == null);
+
+            var voteIds = await _context.AskBackConversations
+                .AsNoTracking()
+                .Where(item => item.ContentType == contentType && item.ContentId == contentId)
+                .Select(item => item.VoteId)
+                .ToListAsync(cancellationToken);
+            return new LockState(open, voteIds.Count > 0, voteIds.ToHashSet());
+        }
+
+        private static bool IsLocked(bool canAskBack, bool isTop, Guid voteId, LockState state)
+        {
+            if (!canAskBack || state.CardOpen || state.ConversationVoteIds.Contains(voteId))
+            {
+                return false;
+            }
+
+            return !(isTop && !state.CardHasConversation);
+        }
+
+        /// <summary>Rows come newest first, so the first registered user's reason is the option's top reason.</summary>
+        private static List<ReasonResponse> ToReasons(
+            IEnumerable<(Guid Id, string Text, DateTime CreatedAt, bool CanAskBack, ReasonReportStatus? Report)> rows,
+            LockState state)
+        {
+            var items = new List<ReasonResponse>();
+            var topSeen = false;
+            foreach (var row in rows)
+            {
+                var isTop = row.CanAskBack && !topSeen;
+                topSeen |= row.CanAskBack;
+                items.Add(new ReasonResponse
+                {
+                    Id = row.Id,
+                    Text = row.Text,
+                    CreatedAt = row.CreatedAt,
+                    CanAskBack = row.CanAskBack,
+                    AskBackLocked = IsLocked(row.CanAskBack, isTop, row.Id, state),
+                    ReportStatus = StateOf(row.Report)
+                });
+            }
+
+            return items;
+        }
+
+        private static CustomAnswerResponse ToCustomAnswer(CustomAnswerRow row, LockState state)
         {
             return new CustomAnswerResponse
             {
@@ -366,6 +432,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 Reason = row.Reason,
                 CreatedAt = row.CreatedAt,
                 CanAskBack = row.CanAskBack,
+                AskBackLocked = IsLocked(row.CanAskBack, isTop: true, row.Id, state),
                 ReasonReportStatus = row.Reason is null ? ReasonReportState.None : StateOf(row.Report)
             };
         }

@@ -152,6 +152,13 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int>("AskerMessageCount")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("asker_message_count");
+
                     b.Property<Guid?>("BlockedByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("blocked_by_user_id");
@@ -196,6 +203,13 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("vote_id");
 
+                    b.Property<int>("VoterMessageCount")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("voter_message_count");
+
                     b.Property<Guid?>("VoterUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("voter_user_id");
@@ -217,6 +231,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_ask_back_conversations_blocked_by", "(\"status\" = 'BLOCKED') = (\"blocked_by_user_id\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ask_back_conversations_distinct_users", "\"creator_user_id\" IS NULL OR \"voter_user_id\" IS NULL OR \"creator_user_id\" <> \"voter_user_id\"");
+
+                            t.HasCheckConstraint("CK_ask_back_conversations_message_counts", "\"asker_message_count\" >= 0 AND \"voter_message_count\" >= 0");
 
                             t.HasCheckConstraint("CK_ask_back_conversations_status", "\"status\" IN ('ACTIVE', 'CLOSED', 'BLOCKED')");
                         });
@@ -354,10 +370,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ConversationId")
                         .HasColumnType("uuid")
                         .HasColumnName("conversation_id");
-
-                    b.Property<bool>("IsMuted")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_muted");
 
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("timestamp with time zone")
@@ -579,6 +591,54 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_card_themes_name_not_blank", "char_length(btrim(\"name\")) > 0");
 
                             t.HasCheckConstraint("CK_card_themes_tag_not_blank", "\"tag\" IS NULL OR char_length(btrim(\"tag\")) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CardUnlock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("source");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId", "ContentType", "ContentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_card_unlocks_owner_card");
+
+                    b.HasIndex("OwnerUserId", "Source", "CreatedAt")
+                        .HasDatabaseName("IX_card_unlocks_owner_source_created");
+
+                    b.ToTable("card_unlocks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_card_unlocks_content_type", "\"content_type\" IN ('POLL', 'CHECK')");
+
+                            t.HasCheckConstraint("CK_card_unlocks_source", "\"source\" IN ('PLAN', 'PURCHASE')");
                         });
                 });
 
@@ -1445,6 +1505,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int?>("AskBackMessageLimit")
+                        .HasColumnType("integer")
+                        .HasColumnName("ask_back_message_limit");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1464,6 +1528,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(3)")
                         .HasDefaultValue("INR")
                         .HasColumnName("currency");
+
+                    b.Property<int?>("DurationDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_days");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -1487,6 +1555,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("sort_order");
 
+                    b.Property<int?>("UnlockTickets")
+                        .HasColumnType("integer")
+                        .HasColumnName("unlock_tickets");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1505,7 +1577,13 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.ToTable("plans", null, t =>
                         {
+                            t.HasCheckConstraint("CK_plans_ask_back_message_limit", "\"ask_back_message_limit\" IS NULL OR \"ask_back_message_limit\" >= 1");
+
+                            t.HasCheckConstraint("CK_plans_duration_days", "\"duration_days\" IS NULL OR \"duration_days\" >= 1");
+
                             t.HasCheckConstraint("CK_plans_price_not_negative", "\"price_minor\" >= 0");
+
+                            t.HasCheckConstraint("CK_plans_unlock_tickets", "\"unlock_tickets\" IS NULL OR \"unlock_tickets\" >= 0");
                         });
                 });
 
@@ -2201,6 +2279,12 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<DateTime?>("PlanActivatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PlanExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("PlanId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
@@ -2256,6 +2340,44 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasName("PK_user_activity_days");
 
                     b.ToTable("user_activity_days", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserBlock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BlockedUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("blocked_user_id");
+
+                    b.Property<Guid>("BlockerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("blocker_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("SourceConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_conversation_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BlockedUserId")
+                        .HasDatabaseName("IX_user_blocks_blocked_user_id");
+
+                    b.HasIndex("BlockerUserId", "BlockedUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_user_blocks_pair");
+
+                    b.ToTable("user_blocks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_blocks_distinct_users", "\"blocker_user_id\" <> \"blocked_user_id\"");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>
@@ -2821,6 +2943,15 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Conversation");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.CardUnlock", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Check", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.CardTheme", "CardTheme")
@@ -3110,6 +3241,21 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserBlock", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("BlockedUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("BlockerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>

@@ -29,6 +29,12 @@ namespace Yakku.Domain.Entities
         public DateTime LastActivityAt { get; private set; }
         public DateTime? ClosedAt { get; private set; }
 
+        /// <summary>Messages the asker sent. A concurrency token, so two sends at once cannot both pass the turn rule.</summary>
+        public int AskerMessageCount { get; private set; }
+
+        /// <summary>Messages the voter sent. A concurrency token, like <see cref="AskerMessageCount"/>.</summary>
+        public int VoterMessageCount { get; private set; }
+
         public ICollection<AskBackParticipant> Participants { get; private set; } = new List<AskBackParticipant>();
         public ICollection<AskBackMessage> Messages { get; private set; } = new List<AskBackMessage>();
 
@@ -80,12 +86,78 @@ namespace Yakku.Domain.Entities
         /// <summary>Both accounts exist, so there is still someone to talk to.</summary>
         public bool HasBothParticipants => CreatorUserId is not null && VoterUserId is not null;
 
+        /// <summary>Active and both people exist. Whose turn it is and the plan's limits are checked on top of this.</summary>
         public bool CanSend => Status == AskBackStatus.Active && HasBothParticipants;
 
         public void RecordMessage(DateTime utcNow)
         {
             LastMessageAt = utcNow;
             LastActivityAt = utcNow;
+        }
+
+        /// <summary>
+        /// Turn rule: the asker sends first, the voter answers once, then it is the asker's turn again. The asker may
+        /// send <paramref name="limit"/> questions in all (null means no limit), so the voter answers at most that many
+        /// times. When every allowed question was answered the conversation is finished.
+        /// </summary>
+        public AskBackTurn TurnFor(Guid userId, int? limit)
+        {
+            var isAsker = CreatorUserId == userId;
+            if (IsFinished(limit))
+            {
+                return AskBackTurn.Done;
+            }
+
+            var askerWaiting = AskerMessageCount > VoterMessageCount;
+            return isAsker == !askerWaiting ? AskBackTurn.Me : AskBackTurn.Them;
+        }
+
+        /// <summary>Messages the caller may still send under <paramref name="limit"/>; null when there is no limit.</summary>
+        public int? MessagesLeft(Guid userId, int? limit)
+        {
+            if (limit is not { } max)
+            {
+                return null;
+            }
+
+            var sent = CreatorUserId == userId ? AskerMessageCount : VoterMessageCount;
+            return Math.Max(0, max - sent);
+        }
+
+        /// <summary>
+        /// Counts a message from <paramref name="userId"/> if the turn rule allows it, and records the activity.
+        /// Anything but <see cref="AskBackSendResult.Ok"/> leaves the conversation unchanged.
+        /// </summary>
+        public AskBackSendResult TryRecordMessage(Guid userId, int? limit, DateTime utcNow)
+        {
+            if (IsFinished(limit))
+            {
+                return AskBackSendResult.LimitReached;
+            }
+
+            var isAsker = CreatorUserId == userId;
+            var askerWaiting = AskerMessageCount > VoterMessageCount;
+            if (isAsker == askerWaiting)
+            {
+                return AskBackSendResult.NotYourTurn;
+            }
+
+            if (isAsker)
+            {
+                AskerMessageCount++;
+            }
+            else
+            {
+                VoterMessageCount++;
+            }
+
+            RecordMessage(utcNow);
+            return AskBackSendResult.Ok;
+        }
+
+        private bool IsFinished(int? limit)
+        {
+            return limit is { } max && AskerMessageCount >= max && VoterMessageCount >= AskerMessageCount;
         }
 
         /// <summary>Either participant can close an active conversation. False when it is not active.</summary>
