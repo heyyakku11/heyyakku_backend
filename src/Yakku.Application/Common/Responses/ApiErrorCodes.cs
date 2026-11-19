@@ -42,5 +42,41 @@ namespace Yakku.Application.Common.Responses
 
         /// <summary>The conversation was unlocked through a plan that has expired, so nobody can send.</summary>
         public const string AskBackPlanExpired = "ASK_BACK_PLAN_EXPIRED";
+
+        /// <summary>The caller already has this paid plan active.</summary>
+        public const string PlanAlreadyActive = "PLAN_ALREADY_ACTIVE";
+
+        /// <summary>Active Love cannot be replaced with Lite.</summary>
+        public const string PlanDowngradeNotAllowed = "PLAN_DOWNGRADE_NOT_ALLOWED";
+
+        /// <summary>Permanent access to this card was already purchased.</summary>
+        public const string CardAlreadyUnlocked = "CARD_ALREADY_UNLOCKED";
+
+        /// <summary>Razorpay is disabled or not configured for this environment.</summary>
+        public const string PaymentProviderDisabled = "PAYMENT_PROVIDER_DISABLED";
+
+        /// <summary>The payment gateway rejected or failed the request.</summary>
+        public const string PaymentGatewayError = "PAYMENT_GATEWAY_ERROR";
+
+        /// <summary>Razorpay Checkout signature did not match.</summary>
+        public const string PaymentSignatureInvalid = "PAYMENT_SIGNATURE_INVALID";
+
+        /// <summary>Payment is not captured (or failed), so access was not granted.</summary>
+        public const string PaymentNotCaptured = "PAYMENT_NOT_CAPTURED";
+
+        /// <summary>Razorpay payment does not belong to the expected order.</summary>
+        public const string PaymentOrderMismatch = "PAYMENT_ORDER_MISMATCH";
+
+        /// <summary>Razorpay payment amount does not match the internal order.</summary>
+        public const string PaymentAmountMismatch = "PAYMENT_AMOUNT_MISMATCH";
+
+        /// <summary>Razorpay payment currency does not match the internal order.</summary>
+        public const string PaymentCurrencyMismatch = "PAYMENT_CURRENCY_MISMATCH";
+
+        /// <summary>Razorpay webhook HMAC did not match the raw body.</summary>
+        public const string WebhookSignatureInvalid = "WEBHOOK_SIGNATURE_INVALID";
+
+        /// <summary>Razorpay API call failed after the request was accepted locally.</summary>
+        public const string PaymentProviderError = "PAYMENT_PROVIDER_ERROR";
     }
 }

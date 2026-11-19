@@ -102,6 +102,7 @@ namespace Yakku.Infrastructure
         public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
         {
             BindAppOptions(services, configuration);
+            AddPaymentConfiguration(services, configuration);
 
             MediaUploadPolicyFactory.ValidateStorageConfiguration(configuration);
             services.AddSmsDelivery(configuration);
@@ -227,10 +228,74 @@ namespace Yakku.Infrastructure
             services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackRepository, AskBackRepository>();
             services.AddScoped<Yakku.Application.AskBack.Interfaces.IUserBlockLookup, UserBlockRepository>();
             services.AddScoped<Yakku.Application.Entitlements.IEntitlementRepository, EntitlementRepository>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentOrderRepository, PaymentOrderRepository>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentFulfillmentRepository, PaymentFulfillmentRepository>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentQueryRepository, PaymentQueryRepository>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentReconciliationRepository, PaymentReconciliationRepository>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentRefundRepository, PaymentRefundRepository>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IRazorpayWebhookInbox, RazorpayWebhookInboxRepository>();
+            services.AddSingleton<Yakku.Application.Payments.IPaymentLogWriter, Payments.PaymentLogWriter>();
+            services.AddHostedService<Payments.RazorpayWebhookWorker>();
+            services.AddHostedService<Payments.PaymentReconciliationWorker>();
             services.AddScoped<AskBackPushDispatcher>();
             services.AddHostedService<AskBackPushWorker>();
 
             return services;
+        }
+
+        private static void AddPaymentConfiguration(IServiceCollection services, IConfiguration configuration)
+        {
+            var razorpay = RazorpayOptions.FromConfiguration(configuration);
+            razorpay.ThrowIfInvalid();
+            services.AddSingleton(razorpay);
+
+            services.Configure<PaymentOptions>(configuration.GetSection(PaymentOptions.SectionName));
+            services.AddSingleton(sp =>
+            {
+                var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentOptions>>().Value;
+                if (!string.Equals(options.Provider, "Razorpay", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"Payment:Provider '{options.Provider}' is not supported. Only Razorpay is supported.");
+                }
+
+                if (string.IsNullOrWhiteSpace(options.Currency) || options.Currency.Trim().Length != 3)
+                {
+                    throw new InvalidOperationException(
+                        "Payment:Currency must be a 3-letter ISO 4217 code (for example INR).");
+                }
+
+                if (options.OrderExpiryMinutes is < 1 or > 24 * 60)
+                {
+                    throw new InvalidOperationException(
+                        "Payment:OrderExpiryMinutes must be between 1 and 1440.");
+                }
+
+                if (!Enum.TryParse<Yakku.Domain.Enums.PaymentCaptureMode>(options.CaptureMode, ignoreCase: true, out _))
+                {
+                    throw new InvalidOperationException(
+                        "Payment:CaptureMode must be Automatic or Manual.");
+                }
+
+                return options;
+            });
+
+            if (razorpay.Enabled)
+            {
+                services.AddHttpClient<Yakku.Application.Payments.Interfaces.IRazorpayClient, Payments.RazorpayClient>(
+                    (sp, client) =>
+                    {
+                        var options = sp.GetRequiredService<RazorpayOptions>();
+                        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+                        client.Timeout = TimeSpan.FromSeconds(15);
+                        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+                        client.MaxResponseContentBufferSize = 256 * 1024;
+                    });
+            }
+            else
+            {
+                services.AddSingleton<Yakku.Application.Payments.Interfaces.IRazorpayClient, Payments.DisabledRazorpayClient>();
+            }
         }
 
         private static void BindAppOptions(IServiceCollection services, IConfiguration configuration)

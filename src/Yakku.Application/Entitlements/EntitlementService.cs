@@ -47,8 +47,11 @@ namespace Yakku.Application.Entitlements
                 }
                 else
                 {
-                    var used = await _repository.CountPlanUnlocksSinceAsync(
-                        ownerId, plan.ActivatedAt ?? DateTime.MinValue, cancellationToken);
+                    var used = await _repository.CountPlanUnlocksAsync(
+                        ownerId,
+                        plan.EntitlementId,
+                        plan.ActivatedAt ?? DateTime.MinValue,
+                        cancellationToken);
                     ticketsLeft = Math.Max(0, tickets - used);
                     canUnlockWithPlan = ticketsLeft > 0;
                 }
@@ -102,9 +105,18 @@ namespace Yakku.Application.Entitlements
             }
 
             var unlock = CardUnlock.Create(
-                ownerId, contentType, contentId, CardUnlockSource.Plan, _time.GetUtcNow().UtcDateTime);
+                ownerId,
+                contentType,
+                contentId,
+                CardUnlockSource.Plan,
+                _time.GetUtcNow().UtcDateTime,
+                userPlanEntitlementId: access.Plan.EntitlementId);
             return await _repository.TryAddPlanUnlockAsync(
-                unlock, access.Plan.ActivatedAt ?? DateTime.MinValue, null, cancellationToken) is not null;
+                unlock,
+                access.Plan.EntitlementId,
+                access.Plan.ActivatedAt ?? DateTime.MinValue,
+                tickets: null,
+                cancellationToken) is not null;
         }
 
         public async Task<AskBackAccessResponse> GetAccessAsync(
@@ -155,9 +167,18 @@ namespace Yakku.Application.Entitlements
             }
 
             var unlock = CardUnlock.Create(
-                userId, vote.ContentType, vote.ContentId, CardUnlockSource.Plan, _time.GetUtcNow().UtcDateTime);
+                userId,
+                vote.ContentType,
+                vote.ContentId,
+                CardUnlockSource.Plan,
+                _time.GetUtcNow().UtcDateTime,
+                userPlanEntitlementId: access.Plan.EntitlementId);
             var saved = await _repository.TryAddPlanUnlockAsync(
-                unlock, access.Plan.ActivatedAt ?? DateTime.MinValue, access.Plan.Plan.UnlockTickets, cancellationToken);
+                unlock,
+                access.Plan.EntitlementId,
+                access.Plan.ActivatedAt ?? DateTime.MinValue,
+                access.Plan.Plan.UnlockTickets,
+                cancellationToken);
             if (saved is null)
             {
                 throw new AppException(
@@ -248,10 +269,11 @@ namespace Yakku.Application.Entitlements
         /// <summary>The plan that counts for the user now. A paid plan that has ended counts as free.</summary>
         private async Task<EffectivePlan> ResolvePlanAsync(Guid userId, DateTime now, CancellationToken cancellationToken)
         {
-            var state = await _repository.GetUserPlanAsync(userId, cancellationToken);
+            var state = await _repository.GetUserPlanAsync(userId, now, cancellationToken);
             if (state is not null && state.Plan.Id != Plan.FreeId && (state.ExpiresAt is null || state.ExpiresAt > now))
             {
-                return new EffectivePlan(state.Plan, true, false, state.ActivatedAt, state.ExpiresAt);
+                return new EffectivePlan(
+                    state.Plan, true, false, state.ActivatedAt, state.ExpiresAt, state.EntitlementId);
             }
 
             var free = await _repository.GetPlanByIdAsync(Plan.FreeId, cancellationToken)

@@ -63,7 +63,16 @@ namespace Yakku.Infrastructure.Configuration
             ("ADMIN_SESSION_IDLE_TIMEOUT", "Admin:Session:IdleTimeout"),
             ("ADMIN_SESSION_ABSOLUTE_TIMEOUT", "Admin:Session:AbsoluteTimeout"),
             ("ADMIN_SESSION_ROTATION_INTERVAL", "Admin:Session:RotationInterval"),
-            ("TRUSTED_PROXY_HOPS", "ForwardedHeaders:ProxyHopCount")
+            ("TRUSTED_PROXY_HOPS", "ForwardedHeaders:ProxyHopCount"),
+            ("RAZORPAY_ENABLED", "Razorpay:Enabled"),
+            ("RAZORPAY_KEY_ID", "Razorpay:KeyId"),
+            ("RAZORPAY_KEY_SECRET", "Razorpay:KeySecret"),
+            ("RAZORPAY_WEBHOOK_SECRET", "Razorpay:WebhookSecret"),
+            ("RAZORPAY_BASE_URL", "Razorpay:BaseUrl"),
+            ("PAYMENT_PROVIDER", "Payment:Provider"),
+            ("PAYMENT_CURRENCY", "Payment:Currency"),
+            ("PAYMENT_CAPTURE_MODE", "Payment:CaptureMode"),
+            ("PAYMENT_ORDER_EXPIRY_MINUTES", "Payment:OrderExpiryMinutes")
         ];
 
         public static IEnumerable<KeyValuePair<string, string?>> Build(

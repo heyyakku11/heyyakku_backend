@@ -5,8 +5,14 @@ namespace Yakku.Application.Entitlements
 {
     public interface IEntitlementRepository
     {
-        /// <summary>The user's plan and activation dates; null when the user does not exist.</summary>
-        Task<UserPlanState?> GetUserPlanAsync(Guid userId, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// The user's effective plan projection. Prefers an active <c>user_plan_entitlements</c> row; lazily marks
+        /// expired actives. Null when the user does not exist.
+        /// </summary>
+        Task<UserPlanState?> GetUserPlanAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default);
 
         Task<PlanPerks?> GetPlanByIdAsync(Guid planId, CancellationToken cancellationToken = default);
 
@@ -19,17 +25,24 @@ namespace Yakku.Application.Entitlements
             Guid contentId,
             CancellationToken cancellationToken = default);
 
-        /// <summary>Unlocks the owner made through a plan since <paramref name="since"/> (the tickets used).</summary>
-        Task<int> CountPlanUnlocksSinceAsync(Guid ownerId, DateTime since, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Plan unlocks that count against the current Lite (or similar) allowance. When
+        /// <paramref name="entitlementId"/> is set, only unlocks for that entitlement count; otherwise unlocks since
+        /// <paramref name="since"/> are counted (legacy / pre-entitlement activations).
+        /// </summary>
+        Task<int> CountPlanUnlocksAsync(
+            Guid ownerId,
+            Guid? entitlementId,
+            DateTime since,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Adds a plan unlock if the owner still has a ticket: unlocks made through a plan since
-        /// <paramref name="ticketsSince"/> must be fewer than <paramref name="tickets"/> (null means no limit).
-        /// The count and the insert are serialised per owner, so two taps cannot spend the same ticket. Returns the
-        /// card's unlock (new or already there), or null when no ticket is left.
+        /// Adds a plan unlock if the owner still has a ticket. The count and the insert are serialised per owner.
+        /// Returns the card's unlock (new or already there), or null when no ticket is left.
         /// </summary>
         Task<CardUnlock?> TryAddPlanUnlockAsync(
             CardUnlock unlock,
+            Guid? entitlementId,
             DateTime ticketsSince,
             int? tickets,
             CancellationToken cancellationToken = default);
@@ -47,7 +60,10 @@ namespace Yakku.Application.Entitlements
             Guid contentId,
             CancellationToken cancellationToken = default);
 
-        /// <summary>Puts the user on the plan from <paramref name="utcNow"/>; false when the user does not exist.</summary>
+        /// <summary>
+        /// Puts the user on the plan from <paramref name="utcNow"/>, writing <c>user_plan_entitlements</c> history
+        /// (superseding any prior active paid row). Admin overrides use a null payment order id.
+        /// </summary>
         Task<UserPlanState?> ActivatePlanAsync(
             Guid userId,
             Guid planId,

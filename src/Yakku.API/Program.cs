@@ -220,6 +220,8 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("anonymous-name-regenerate", httpContext => FixedWindow(httpContext, OperationalSettings.AnonymousNames.RegenerateRateLimitPerMinute));
     options.AddPolicy("ask-back-write", httpContext => FixedWindow(httpContext, permitLimit: 60));
     options.AddPolicy("ask-back-read", httpContext => FixedWindow(httpContext, permitLimit: 240));
+    options.AddPolicy("payments-write", httpContext => FixedWindow(httpContext, permitLimit: 20));
+    options.AddPolicy("payments-read", httpContext => FixedWindow(httpContext, permitLimit: 60));
 });
 
 builder.Services.AddApplication();

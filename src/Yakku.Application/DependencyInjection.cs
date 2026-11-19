@@ -77,6 +77,17 @@ namespace Yakku.Application
             services.AddScoped<IPushNotificationService, PushNotificationService>();
             services.AddScoped<Yakku.Application.Entitlements.IEntitlementService, Yakku.Application.Entitlements.EntitlementService>();
             services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackService, Yakku.Application.AskBack.Services.AskBackService>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentOrderService, Yakku.Application.Payments.Services.PaymentOrderService>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentVerificationService, Yakku.Application.Payments.Services.PaymentVerificationService>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentFulfillmentService, Yakku.Application.Payments.Services.PaymentFulfillmentService>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentQueryService, Yakku.Application.Payments.Services.PaymentQueryService>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentReconciliationService, Yakku.Application.Payments.Services.PaymentReconciliationService>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentRefundService, Yakku.Application.Payments.Services.PaymentRefundService>();
+            services.AddSingleton<Yakku.Application.Payments.Services.RazorpayWebhookSignal>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IRazorpayWebhookReceiver, Yakku.Application.Payments.Services.RazorpayWebhookReceiver>();
+            services.AddScoped<Yakku.Application.Payments.Interfaces.IRazorpayWebhookProcessor, Yakku.Application.Payments.Services.RazorpayWebhookProcessor>();
+            // Infrastructure replaces this with the durable writer; tests can keep the no-op.
+            services.AddSingleton<Yakku.Application.Payments.IPaymentLogWriter, Yakku.Application.Payments.NullPaymentLogWriter>();
             // The API replaces these with the SignalR-backed ones; elsewhere nothing is connected.
             services.AddSingleton<Yakku.Application.AskBack.Interfaces.IAskBackRealtime, Yakku.Application.AskBack.Interfaces.NullAskBackRealtime>();
             services.AddSingleton<Yakku.Application.AskBack.Interfaces.IAskBackPresence, Yakku.Application.AskBack.Interfaces.NullAskBackPresence>();

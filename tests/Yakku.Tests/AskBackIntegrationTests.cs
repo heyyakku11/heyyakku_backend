@@ -954,6 +954,22 @@ public sealed class AskBackIntegrationTests
             NullLogger<AskBackService>.Instance);
     }
 
+    /// <summary>Simulates a paid plan ending: both the user projection and any ACTIVE entitlement row.</summary>
+    internal static async Task ExpirePaidPlanAsync(YakkuDbContext context, Guid userId)
+    {
+        var activatedAt = DateTime.UtcNow.AddDays(-8);
+        var expiresAt = DateTime.UtcNow.AddDays(-1);
+        await context.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(set => set
+            .SetProperty(u => u.PlanActivatedAt, activatedAt)
+            .SetProperty(u => u.PlanExpiresAt, expiresAt));
+        await context.UserPlanEntitlements
+            .Where(e => e.UserId == userId && e.Status == UserPlanEntitlementStatus.Active)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(e => e.StartsAt, activatedAt)
+                .SetProperty(e => e.ExpiresAt, expiresAt));
+        context.ChangeTracker.Clear();
+    }
+
     /// <summary>Puts the user on a paid plan (yakku_lite or yakku_love) from now.</summary>
     internal static async Task ActivatePlanAsync(YakkuDbContext context, Guid userId, string planCode)
     {

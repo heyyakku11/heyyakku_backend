@@ -50,6 +50,12 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<AskBackReport> AskBackReports => Set<AskBackReport>();
         public DbSet<CardUnlock> CardUnlocks => Set<CardUnlock>();
         public DbSet<UserBlock> UserBlocks => Set<UserBlock>();
+        public DbSet<PaymentOrder> PaymentOrders => Set<PaymentOrder>();
+        public DbSet<PaymentAttempt> PaymentAttempts => Set<PaymentAttempt>();
+        public DbSet<UserPlanEntitlement> UserPlanEntitlements => Set<UserPlanEntitlement>();
+        public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
+        public DbSet<PaymentLog> PaymentLogs => Set<PaymentLog>();
+        public DbSet<PaymentRefund> PaymentRefunds => Set<PaymentRefund>();
 
         public DbSet<PersonalityTrait> PersonalityTraits => Set<PersonalityTrait>();
         public DbSet<PersonalityCard> PersonalityCards => Set<PersonalityCard>();

@@ -467,9 +467,7 @@ public sealed class AskBackEntitlementIntegrationTests
         var entitlements = AskBackIntegrationTests.EntitlementsFor(context);
         await entitlements.GrantCardUnlockAsync(owner.Id, "poll", bought.Id);
 
-        await context.Users.Where(u => u.Id == owner.Id).ExecuteUpdateAsync(set => set
-            .SetProperty(u => u.PlanActivatedAt, DateTime.UtcNow.AddDays(-8))
-            .SetProperty(u => u.PlanExpiresAt, DateTime.UtcNow.AddDays(-1)));
+        await AskBackIntegrationTests.ExpirePaidPlanAsync(context, owner.Id);
 
         var repository = new ReasonRepository(context);
         Assert.Equal(2, (await repository.GetPollOptionReasonsAsync(viaPlan.Id, owner.Id, planOption))!.HiddenCount);
@@ -523,9 +521,7 @@ public sealed class AskBackEntitlementIntegrationTests
         Assert.Equal(3, plan.MessagesLeft);
 
         // The plan runs out.
-        await context.Users.Where(u => u.Id == asker.Id).ExecuteUpdateAsync(set => set
-            .SetProperty(u => u.PlanActivatedAt, DateTime.UtcNow.AddDays(-8))
-            .SetProperty(u => u.PlanExpiresAt, DateTime.UtcNow.AddDays(-1)));
+        await AskBackIntegrationTests.ExpirePaidPlanAsync(context, asker.Id);
         context.ChangeTracker.Clear();
 
         var paused = await service.GetConversationAsync(asker.Id, plan.Id);
@@ -701,7 +697,7 @@ public sealed class AskBackEntitlementIntegrationTests
     }
 
     /// <summary>A poll owned by <paramref name="ownerId"/> with enough votes to reveal reasons, one with a reason.</summary>
-    private static async Task<(Poll Poll, PollVote Vote, User Voter)> CardWithReasonAsync(
+    internal static async Task<(Poll Poll, PollVote Vote, User Voter)> CardWithReasonAsync(
         YakkuDbContext context,
         Guid ownerId,
         Guid? voterId = null)

@@ -12,10 +12,14 @@ namespace Yakku.Application.Entitlements
         int? AskBackMessageLimit);
 
     /// <summary>The plan row a user is on, with the dates of the current activation.</summary>
+    /// <param name="EntitlementId">
+    /// Active <c>user_plan_entitlements</c> row when present; Lite tickets are scoped to this id.
+    /// </param>
     public sealed record UserPlanState(
         PlanPerks Plan,
         DateTime? ActivatedAt,
-        DateTime? ExpiresAt);
+        DateTime? ExpiresAt,
+        Guid? EntitlementId = null);
 
     /// <summary>
     /// The plan that counts for a user right now. A paid plan whose end has passed is replaced by the free plan
@@ -26,7 +30,8 @@ namespace Yakku.Application.Entitlements
         bool IsPaid,
         bool Expired,
         DateTime? ActivatedAt,
-        DateTime? ExpiresAt);
+        DateTime? ExpiresAt,
+        Guid? EntitlementId = null);
 
     /// <summary>What an owner can do with Ask Back on one card.</summary>
     /// <param name="Unlocked">The card has an unlock.</param>

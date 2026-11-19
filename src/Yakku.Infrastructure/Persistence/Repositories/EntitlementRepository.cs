@@ -9,6 +9,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
     public class EntitlementRepository : IEntitlementRepository
     {
         private const string OwnerCardConstraint = "IX_card_unlocks_owner_card";
+        private const string OneActiveEntitlementConstraint = "IX_user_plan_entitlements_one_active";
 
         private readonly YakkuDbContext _context;
 
@@ -17,26 +18,72 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public async Task<UserPlanState?> GetUserPlanAsync(Guid userId, CancellationToken cancellationToken = default)
+        public async Task<UserPlanState?> GetUserPlanAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
         {
-            var row = await _context.Users
+            var user = await _context.Users
                 .AsNoTracking()
-                .Where(user => user.Id == userId)
-                .Select(user => new
+                .Where(item => item.Id == userId)
+                .Select(item => new
                 {
-                    user.PlanActivatedAt,
-                    user.PlanExpiresAt,
+                    item.PlanActivatedAt,
+                    item.PlanExpiresAt,
                     Plan = new PlanPerks(
-                        user.Plan.Id,
-                        user.Plan.Code,
-                        user.Plan.Name,
-                        user.Plan.DurationDays,
-                        user.Plan.UnlockTickets,
-                        user.Plan.AskBackMessageLimit)
+                        item.Plan.Id,
+                        item.Plan.Code,
+                        item.Plan.Name,
+                        item.Plan.DurationDays,
+                        item.Plan.UnlockTickets,
+                        item.Plan.AskBackMessageLimit)
                 })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            return row is null ? null : new UserPlanState(row.Plan, row.PlanActivatedAt, row.PlanExpiresAt);
+            if (user is null)
+            {
+                return null;
+            }
+
+            var entitlement = await _context.UserPlanEntitlements
+                .FirstOrDefaultAsync(
+                    item => item.UserId == userId && item.Status == UserPlanEntitlementStatus.Active,
+                    cancellationToken);
+
+            if (entitlement is not null)
+            {
+                var plan = await PerksQuery()
+                    .Where(item => item.Id == entitlement.PlanId)
+                    .Select(ToPerks)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (plan is not null)
+                {
+                    if (entitlement.ExpiresAt <= utcNow)
+                    {
+                        entitlement.MarkExpired(utcNow);
+                        // Keep the user projection's expiry aligned so reason-visibility checks match Ask Back access.
+                        await _context.Users
+                            .Where(item => item.Id == userId
+                                           && item.PlanId == entitlement.PlanId
+                                           && (item.PlanExpiresAt == null || item.PlanExpiresAt > entitlement.ExpiresAt))
+                            .ExecuteUpdateAsync(
+                                setters => setters.SetProperty(item => item.PlanExpiresAt, entitlement.ExpiresAt),
+                                cancellationToken);
+                        await _context.SaveChangesAsync(cancellationToken);
+
+                        return new UserPlanState(plan, entitlement.StartsAt, entitlement.ExpiresAt);
+                    }
+
+                    return new UserPlanState(
+                        plan,
+                        entitlement.StartsAt,
+                        entitlement.ExpiresAt,
+                        entitlement.Id);
+                }
+            }
+
+            return new UserPlanState(user.Plan, user.PlanActivatedAt, user.PlanExpiresAt);
         }
 
         public Task<PlanPerks?> GetPlanByIdAsync(Guid planId, CancellationToken cancellationToken = default)
@@ -68,22 +115,30 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 cancellationToken);
         }
 
-        public Task<int> CountPlanUnlocksSinceAsync(
+        public Task<int> CountPlanUnlocksAsync(
             Guid ownerId,
+            Guid? entitlementId,
             DateTime since,
             CancellationToken cancellationToken = default)
         {
-            return _context.CardUnlocks
-                .AsNoTracking()
-                .CountAsync(
-                    unlock => unlock.OwnerUserId == ownerId
-                              && unlock.Source == CardUnlockSource.Plan
-                              && unlock.CreatedAt >= since,
-                    cancellationToken);
+            var query = _context.CardUnlocks.AsNoTracking()
+                .Where(unlock => unlock.OwnerUserId == ownerId && unlock.Source == CardUnlockSource.Plan);
+
+            if (entitlementId is Guid id)
+            {
+                query = query.Where(unlock => unlock.UserPlanEntitlementId == id);
+            }
+            else
+            {
+                query = query.Where(unlock => unlock.CreatedAt >= since);
+            }
+
+            return query.CountAsync(cancellationToken);
         }
 
         public async Task<CardUnlock?> TryAddPlanUnlockAsync(
             CardUnlock unlock,
+            Guid? entitlementId,
             DateTime ticketsSince,
             int? tickets,
             CancellationToken cancellationToken = default)
@@ -108,11 +163,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
             if (tickets is { } max)
             {
-                var used = await _context.CardUnlocks.CountAsync(
-                    item => item.OwnerUserId == unlock.OwnerUserId
-                            && item.Source == CardUnlockSource.Plan
-                            && item.CreatedAt >= ticketsSince,
-                    cancellationToken);
+                var usedQuery = _context.CardUnlocks.Where(item =>
+                    item.OwnerUserId == unlock.OwnerUserId && item.Source == CardUnlockSource.Plan);
+
+                usedQuery = entitlementId is Guid id
+                    ? usedQuery.Where(item => item.UserPlanEntitlementId == id)
+                    : usedQuery.Where(item => item.CreatedAt >= ticketsSince);
+
+                var used = await usedQuery.CountAsync(cancellationToken);
                 if (used >= max)
                 {
                     return null;
@@ -168,6 +226,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+            var lockKey = $"user-plan-entitlement:{userId:N}";
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))",
+                cancellationToken);
+
             var user = await _context.Users.FirstOrDefaultAsync(item => item.Id == userId, cancellationToken);
             var plan = await _context.Plans.FirstOrDefaultAsync(item => item.Id == planId, cancellationToken);
             if (user is null || plan is null)
@@ -175,9 +240,52 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 return null;
             }
 
+            var actives = await _context.UserPlanEntitlements
+                .Where(item => item.UserId == userId && item.Status == UserPlanEntitlementStatus.Active)
+                .ToListAsync(cancellationToken);
+
+            foreach (var active in actives)
+            {
+                if (active.ExpiresAt <= utcNow)
+                {
+                    active.MarkExpired(utcNow);
+                }
+                else
+                {
+                    active.MarkSuperseded(utcNow);
+                }
+            }
+
+            if (plan.Id != Plan.FreeId && plan.DurationDays is { } days && days > 0)
+            {
+                var created = UserPlanEntitlement.Activate(
+                    userId,
+                    plan.Id,
+                    utcNow,
+                    utcNow.AddDays(days),
+                    paymentOrderId: null);
+                _context.UserPlanEntitlements.Add(created);
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException exception) when (IsUniqueViolation(exception, OneActiveEntitlementConstraint))
+                {
+                    // Concurrent admin activate: reload and continue with projection update.
+                    _context.Entry(created).State = EntityState.Detached;
+                    await _context.Entry(user).ReloadAsync(cancellationToken);
+                }
+            }
+            else if (actives.Count > 0)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
             user.ActivatePlan(plan, utcNow);
             await _context.SaveChangesAsync(cancellationToken);
-            return await GetUserPlanAsync(userId, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return await GetUserPlanAsync(userId, utcNow, cancellationToken);
         }
 
         public Task SaveAsync(CancellationToken cancellationToken = default)

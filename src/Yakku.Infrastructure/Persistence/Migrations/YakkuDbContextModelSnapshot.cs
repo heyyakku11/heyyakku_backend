@@ -619,13 +619,29 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("owner_user_id");
 
+                    b.Property<Guid?>("PaymentOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_order_id");
+
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("source");
 
+                    b.Property<Guid?>("UserPlanEntitlementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_plan_entitlement_id");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("PaymentOrderId")
+                        .HasDatabaseName("IX_card_unlocks_payment_order_id")
+                        .HasFilter("\"payment_order_id\" IS NOT NULL");
+
+                    b.HasIndex("UserPlanEntitlementId")
+                        .HasDatabaseName("IX_card_unlocks_user_plan_entitlement_id")
+                        .HasFilter("\"user_plan_entitlement_id\" IS NOT NULL");
 
                     b.HasIndex("OwnerUserId", "ContentType", "ContentId")
                         .IsUnique()
@@ -1343,6 +1359,383 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_notification_audit_logs_latency_non_negative", "\"latency_ms\" IS NULL OR \"latency_ms\" >= 0");
 
                             t.HasCheckConstraint("CK_notification_audit_logs_status", "\"status\" IN ('QUEUED', 'ACCEPTED', 'FAILED', 'SKIPPED')");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PaymentAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AmountInPaise")
+                        .HasColumnType("integer")
+                        .HasColumnName("amount_in_paise");
+
+                    b.Property<DateTime?>("AuthorizedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("authorized_at");
+
+                    b.Property<DateTime?>("CapturedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("captured_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("payment_method");
+
+                    b.Property<Guid>("PaymentOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_order_id");
+
+                    b.Property<string>("RazorpayPaymentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("razorpay_payment_id");
+
+                    b.Property<string>("RazorpayStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("razorpay_status");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentOrderId")
+                        .HasDatabaseName("IX_payment_attempts_payment_order_id");
+
+                    b.HasIndex("RazorpayPaymentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_payment_attempts_razorpay_payment_id")
+                        .HasFilter("\"razorpay_payment_id\" IS NOT NULL");
+
+                    b.ToTable("payment_attempts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_payment_attempts_amount_not_negative", "\"amount_in_paise\" >= 0");
+
+                            t.HasCheckConstraint("CK_payment_attempts_status", "\"status\" IN ('CREATED', 'AUTHORIZED', 'CAPTURED', 'FAILED')");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PaymentLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EventSource")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("event_source");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<Guid?>("PaymentAttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_attempt_id");
+
+                    b.Property<Guid?>("PaymentOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_order_id");
+
+                    b.Property<string>("RazorpayOrderId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("razorpay_order_id");
+
+                    b.Property<string>("RazorpayPaymentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("razorpay_payment_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId")
+                        .HasDatabaseName("IX_payment_logs_correlation_id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_payment_logs_created_at");
+
+                    b.HasIndex("PaymentOrderId")
+                        .HasDatabaseName("IX_payment_logs_payment_order_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_payment_logs_user_id");
+
+                    b.HasIndex("EventType", "CreatedAt")
+                        .HasDatabaseName("IX_payment_logs_event_type_created_at");
+
+                    b.ToTable("payment_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_payment_logs_message_not_blank", "char_length(btrim(\"message\")) > 0");
+
+                            t.HasCheckConstraint("CK_payment_logs_status", "\"status\" IN ('INFORMATION', 'SUCCESS', 'WARNING', 'FAILURE')");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PaymentOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AmountInPaise")
+                        .HasColumnType("integer")
+                        .HasColumnName("amount_in_paise");
+
+                    b.Property<Guid?>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<Guid?>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<string>("PlanSnapshot")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("plan_snapshot");
+
+                    b.Property<string>("PurchaseType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("purchase_type");
+
+                    b.Property<string>("RazorpayOrderId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("razorpay_order_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("RazorpayOrderId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_payment_orders_razorpay_order_id")
+                        .HasFilter("\"razorpay_order_id\" IS NOT NULL");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_payment_orders_status");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_payment_orders_user_created_at");
+
+                    b.HasIndex("UserId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_payment_orders_user_idempotency");
+
+                    b.ToTable("payment_orders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_payment_orders_amount_not_negative", "\"amount_in_paise\" >= 0");
+
+                            t.HasCheckConstraint("CK_payment_orders_card_unlock_shape", "(\"purchase_type\" <> 'CARDUNLOCK') OR (\"plan_id\" IS NOT NULL AND \"content_type\" IN ('POLL', 'CHECK') AND \"content_id\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_payment_orders_purchase_type", "\"purchase_type\" IN ('USERPLAN', 'CARDUNLOCK')");
+
+                            t.HasCheckConstraint("CK_payment_orders_status", "\"status\" IN ('CREATED', 'PENDING', 'PAID', 'FAILED', 'CANCELLED', 'EXPIRED')");
+
+                            t.HasCheckConstraint("CK_payment_orders_user_plan_shape", "(\"purchase_type\" <> 'USERPLAN') OR (\"plan_id\" IS NOT NULL AND \"content_type\" IS NULL AND \"content_id\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PaymentRefund", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AmountInPaise")
+                        .HasColumnType("integer")
+                        .HasColumnName("amount_in_paise");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<Guid>("PaymentAttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_attempt_id");
+
+                    b.Property<Guid>("PaymentOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_order_id");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("RazorpayRefundId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("razorpay_refund_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_payment_refunds_created_at");
+
+                    b.HasIndex("PaymentAttemptId")
+                        .HasDatabaseName("IX_payment_refunds_payment_attempt_id");
+
+                    b.HasIndex("PaymentOrderId");
+
+                    b.HasIndex("RazorpayRefundId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_payment_refunds_razorpay_refund_id")
+                        .HasFilter("\"razorpay_refund_id\" IS NOT NULL");
+
+                    b.ToTable("payment_refunds", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_payment_refunds_amount_positive", "\"amount_in_paise\" > 0");
+
+                            t.HasCheckConstraint("CK_payment_refunds_status", "\"status\" IN ('REQUESTED', 'PROCESSED', 'FAILED')");
                         });
                 });
 
@@ -2565,6 +2958,80 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserPlanEntitlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid?>("PaymentOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_order_id");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("SupersededAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("superseded_at");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_user_plan_entitlements_expires_at")
+                        .HasFilter("\"status\" = 'ACTIVE'");
+
+                    b.HasIndex("PaymentOrderId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_user_plan_entitlements_payment_order_id")
+                        .HasFilter("\"payment_order_id\" IS NOT NULL");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_user_plan_entitlements_one_active")
+                        .HasFilter("\"status\" = 'ACTIVE'");
+
+                    b.HasIndex("UserId", "Status")
+                        .HasDatabaseName("IX_user_plan_entitlements_user_status");
+
+                    b.ToTable("user_plan_entitlements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_plan_entitlements_status", "\"status\" IN ('ACTIVE', 'EXPIRED', 'SUPERSEDED', 'REVOKED')");
+
+                            t.HasCheckConstraint("CK_user_plan_entitlements_window", "\"expires_at\" > \"starts_at\"");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2949,6 +3416,70 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.WebhookEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("ProcessingStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("processing_status");
+
+                    b.Property<string>("RazorpayEventId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("razorpay_event_id");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("retry_count");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RazorpayEventId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_webhook_events_razorpay_event_id");
+
+                    b.HasIndex("ProcessingStatus", "ReceivedAt")
+                        .HasDatabaseName("IX_webhook_events_status_received_at");
+
+                    b.ToTable("webhook_events", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_webhook_events_processing_status", "\"processing_status\" IN ('RECEIVED', 'PROCESSING', 'PROCESSED', 'FAILED')");
+
+                            t.HasCheckConstraint("CK_webhook_events_retry_count", "\"retry_count\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Admin", "Admin")
@@ -3012,6 +3543,16 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasForeignKey("OwnerUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.PaymentOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentOrderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Yakku.Domain.Entities.UserPlanEntitlement", null)
+                        .WithMany()
+                        .HasForeignKey("UserPlanEntitlementId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Check", b =>
@@ -3125,6 +3666,48 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PaymentAttempt", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.PaymentOrder", "PaymentOrder")
+                        .WithMany("Attempts")
+                        .HasForeignKey("PaymentOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PaymentOrder");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PaymentOrder", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Plan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PaymentRefund", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.PaymentAttempt", "PaymentAttempt")
+                        .WithMany()
+                        .HasForeignKey("PaymentAttemptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.PaymentOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PaymentAttempt");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCard", b =>
@@ -3380,6 +3963,26 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("UserCheck");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserPlanEntitlement", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.PaymentOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentOrderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Yakku.Domain.Entities.Plan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserProfile", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.User", "User")
@@ -3452,6 +4055,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
                 {
                     b.Navigation("Sessions");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.PaymentOrder", b =>
+                {
+                    b.Navigation("Attempts");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.PersonalityCard", b =>
