@@ -11,9 +11,13 @@ namespace Yakku.Domain.Entities
         public static readonly Guid YakkuLiteId = new("a1f3c0de-0000-4000-8000-000000000002");
         public static readonly Guid YakkuLoveId = new("a1f3c0de-0000-4000-8000-000000000003");
 
+        /// <summary>Catalog SKU for a one-card unlock purchase (not an activatable subscription).</summary>
+        public static readonly Guid ThisCardId = new("a1f3c0de-0000-4000-8000-000000000004");
+
         public const string FreeCode = "free";
         public const string YakkuLiteCode = "yakku_lite";
         public const string YakkuLoveCode = "yakku_love";
+        public const string ThisCardCode = "this_card";
 
         /// <summary>Sent in an update for <see cref="UnlockTickets"/> or <see cref="AskBackMessageLimit"/> to remove the limit.</summary>
         public const int Unlimited = -1;
@@ -23,7 +27,10 @@ namespace Yakku.Domain.Entities
         public string Name { get; private set; } = string.Empty;
         public int SortOrder { get; private set; }
 
-        /// <summary>Price in the smallest currency unit (paise for INR): 0 for free, 4900 for Rs 49.</summary>
+        /// <summary>
+        /// Price in the smallest currency unit (paise for INR): free 0, this card 4900 (₹49),
+        /// yakku lite 9900 (₹99), yakku love 29900 (₹299).
+        /// </summary>
         public int PriceMinor { get; private set; }
 
         /// <summary>ISO 4217 currency code of the price.</summary>

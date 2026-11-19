@@ -25,11 +25,12 @@ All endpoints need a Bearer JWT with a live session. Responses use the usual `Ap
 
 Plans are rows in `plans` with three perks. `null` means unlimited (for `duration_days`, never expires).
 
-| Plan | `duration_days` | `unlock_tickets` | `ask_back_message_limit` |
-| --- | --- | --- | --- |
-| `free` (default) | null | 0 | 1 |
-| `yakku_lite` | 7 | 3 | 3 |
-| `yakku_love` | 30 | null (unlimited) | null (unlimited) |
+| Plan | Price (INR) | `duration_days` | `unlock_tickets` | `ask_back_message_limit` |
+| --- | --- | --- | --- | --- |
+| `free` (default) | ₹0 | null | 0 | 1 |
+| `this_card` (catalog SKU; not activatable) | ₹49 | null | 1 | 1 |
+| `yakku_lite` | ₹99 | 7 | 3 | 3 |
+| `yakku_love` | ₹299 | 30 | null (unlimited) | null (unlimited) |
 
 An admin can change them (`PATCH /api/v1/yakku/plans/{id}`, `-1` means unlimited for tickets and the limit). The
 limit is read live, so a change also applies to conversations that already exist.

@@ -179,7 +179,17 @@ namespace Yakku.Application.Entitlements
                 throw new AppException(400, ApiErrorCodes.ValidationError, "planCode is required.", "planCode");
             }
 
-            var plan = await _repository.GetPlanByCodeAsync(planCode.Trim().ToLowerInvariant(), cancellationToken)
+            var code = planCode.Trim().ToLowerInvariant();
+            if (code == Plan.ThisCardCode)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "This card is a one-off unlock, not an activatable plan.",
+                    "planCode");
+            }
+
+            var plan = await _repository.GetPlanByCodeAsync(code, cancellationToken)
                 ?? throw new AppException(404, ApiErrorCodes.NotFound, "Plan not found");
             var state = await _repository.ActivatePlanAsync(
                 userId, plan.Id, _time.GetUtcNow().UtcDateTime, cancellationToken)
