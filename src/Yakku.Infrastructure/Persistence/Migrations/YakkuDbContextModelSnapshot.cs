@@ -747,6 +747,68 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("check_options", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.CommunityQueuedQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(280)
+                        .HasColumnType("character varying(280)")
+                        .HasColumnName("question");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_community_queued_questions_user_id_created_at");
+
+                    b.ToTable("community_queued_questions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_community_queued_questions_question_not_blank", "char_length(btrim(\"question\")) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CommunityQueuedQuestionTag", b =>
+                {
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("question_id");
+
+                    b.Property<string>("Tag")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("tag");
+
+                    b.HasKey("QuestionId", "Tag");
+
+                    b.HasIndex("Tag")
+                        .HasDatabaseName("IX_community_queued_question_tags_tag");
+
+                    b.ToTable("community_queued_question_tags", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_community_queued_question_tags_tag", "\"tag\" IN ('friendships', 'career', 'family', 'love', 'money')");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.CommunityWaitlistEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2973,6 +3035,28 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Check");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.CommunityQueuedQuestion", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CommunityQueuedQuestionTag", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.CommunityQueuedQuestion", "Question")
+                        .WithMany("Tags")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.CommunityWaitlistEntry", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.User", "User")
@@ -3358,6 +3442,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.CheckOption", b =>
                 {
                     b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CommunityQueuedQuestion", b =>
+                {
+                    b.Navigation("Tags");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>

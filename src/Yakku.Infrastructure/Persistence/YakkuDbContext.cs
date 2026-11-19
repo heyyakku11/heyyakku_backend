@@ -16,6 +16,8 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<MediaUploadSession> MediaUploadSessions => Set<MediaUploadSession>();
         public DbSet<SavedCard> SavedCards => Set<SavedCard>();
         public DbSet<CommunityWaitlistEntry> CommunityWaitlist => Set<CommunityWaitlistEntry>();
+        public DbSet<CommunityQueuedQuestion> CommunityQueuedQuestions => Set<CommunityQueuedQuestion>();
+        public DbSet<CommunityQueuedQuestionTag> CommunityQueuedQuestionTags => Set<CommunityQueuedQuestionTag>();
         public DbSet<User> Users => Set<User>();
         public DbSet<Plan> Plans => Set<Plan>();
         public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
