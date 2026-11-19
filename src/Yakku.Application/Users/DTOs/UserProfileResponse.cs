@@ -54,6 +54,10 @@ namespace Yakku.Application.Users.DTOs
     public class UserPlanResponse
     {
         public Guid Id { get; set; }
+
+        /// <summary>Plan code (free, yakku_lite, yakku_love).</summary>
+        public string Code { get; set; } = string.Empty;
+
         public string Name { get; set; } = string.Empty;
 
         /// <summary>When the current activation of a paid plan began; null on the free plan.</summary>
