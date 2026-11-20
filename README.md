@@ -2,7 +2,7 @@
 
 ASP.NET Core API for Hey Yakku. Users prove ownership of their mobile number with a 6-digit OTP sent by SMS. A user row is created only after verification succeeds. Until then, Redis holds a short-lived challenge — not a user.
 
-Postgres stores users, profiles, sessions, guests, polls, votes, and system logs. Redis (any provider via `REDIS_URL`) stores OTP challenges and coordination state.
+Postgres stores users, profiles, sessions, guests, polls, votes, and system logs. Redis (any provider via `REDIS_URL`) stores OTP challenges, coordination state, and a short-TTL GET response cache for hot catalogs (see [`docs/response-cache.md`](docs/response-cache.md)).
 
 ## Stack
 

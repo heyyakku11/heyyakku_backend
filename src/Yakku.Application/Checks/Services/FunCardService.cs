@@ -1,9 +1,12 @@
 using FluentValidation;
+using Microsoft.Extensions.Options;
+using Yakku.Application.Caching;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Checks.Themes;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -18,79 +21,116 @@ namespace Yakku.Application.Checks.Services
         private readonly ICheckRepository _repository;
         private readonly ICheckService _checks;
         private readonly Yakku.Application.SavedCards.Interfaces.ISavedCardRepository _saved;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
 
         public FunCardService(
             ICheckRepository repository,
             ICheckService checks,
-            Yakku.Application.SavedCards.Interfaces.ISavedCardRepository saved)
+            Yakku.Application.SavedCards.Interfaces.ISavedCardRepository saved,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _repository = repository;
             _checks = checks;
             _saved = saved;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
-        public async Task<List<FunCardResponse>> ListAsync(Guid? userId, CancellationToken cancellationToken = default)
+        public Task<List<FunCardResponse>> ListAsync(Guid? userId, CancellationToken cancellationToken = default)
         {
-            var cards = await _repository.GetFunCardsAsync(activeOnly: true, cancellationToken);
-            var used = userId is null
-                ? new Dictionary<Guid, UserCheck>()
-                : await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
-            var saved = await SavedIdsAsync(userId, cancellationToken);
-
-            return cards.Select(card => ToResponse(card, used.ContainsKey(card.Id), saved.Contains(card.Id))).ToList();
-        }
-
-        public async Task<List<FunCardTypeResponse>> ListTypesAsync(Guid? userId, CancellationToken cancellationToken = default)
-        {
-            var available = await AvailableAsync(userId, cancellationToken);
-
-            // One entry per type, in the order the types first appear (oldest card first).
-            return available
-                .GroupBy(entry => entry.Card.CardThemeId)
-                .Select(group =>
+            var key = userId is { } id ? ResponseCacheKeys.FunList(id) : ResponseCacheKeys.FunListAnon;
+            return _cache.GetOrSetAsync(
+                key,
+                _cacheOptions.UserCatalog,
+                async ct =>
                 {
-                    var first = group.First().Card;
-                    var theme = CheckThemeMapper.ToResponse(first);
-                    return new FunCardTypeResponse
-                    {
-                        TypeId = theme.CheckTypeId,
-                        Name = theme.CheckType ?? first.Title,
-                        TotalCount = group.Count(),
-                        Cards = group.Take(FunCardLimits.PreviewPerType)
-                            .Select(entry => ToResponse(entry.Card, entry.Used, entry.Saved))
-                            .ToList()
-                    };
-                })
-                .ToList();
+                    var catalog = await LoadCatalogAsync(ct);
+                    var used = userId is null
+                        ? new HashSet<Guid>()
+                        : (await _repository.GetUserChecksByCheckAsync(userId.Value, ct)).Keys.ToHashSet();
+                    var saved = await SavedIdsAsync(userId, ct);
+
+                    return catalog.Select(card => WithUserFlags(card, used.Contains(card.Id), saved.Contains(card.Id))).ToList();
+                },
+                cancellationToken);
         }
 
-        public async Task<List<FunCardResponse>> ListByTypeAsync(
+        public Task<List<FunCardTypeResponse>> ListTypesAsync(Guid? userId, CancellationToken cancellationToken = default)
+        {
+            var key = userId is { } id ? ResponseCacheKeys.FunTypes(id) : ResponseCacheKeys.FunTypesAnon;
+            return _cache.GetOrSetAsync(
+                key,
+                _cacheOptions.UserCatalog,
+                async ct =>
+                {
+                    var available = await AvailableAsync(userId, ct);
+
+                    // One entry per type, in the order the types first appear (oldest card first).
+                    return available
+                        .GroupBy(entry => entry.Theme.CheckTypeId)
+                        .Select(group =>
+                        {
+                            var first = group.First();
+                            return new FunCardTypeResponse
+                            {
+                                TypeId = first.Theme.CheckTypeId ?? Guid.Empty,
+                                Name = first.CheckType ?? first.Title,
+                                TotalCount = group.Count(),
+                                Cards = group.Take(FunCardLimits.PreviewPerType).ToList()
+                            };
+                        })
+                        .ToList();
+                },
+                cancellationToken);
+        }
+
+        public Task<List<FunCardResponse>> ListByTypeAsync(
             Guid? userId,
             Guid typeId,
             CancellationToken cancellationToken = default)
         {
-            var available = await AvailableAsync(userId, cancellationToken);
-            return available
-                .Where(entry => entry.Card.CardThemeId == typeId)
-                .Select(entry => ToResponse(entry.Card, entry.Used, entry.Saved))
-                .ToList();
+            var key = userId is { } id
+                ? ResponseCacheKeys.FunType(typeId, id)
+                : ResponseCacheKeys.FunTypeAnon(typeId);
+            return _cache.GetOrSetAsync(
+                key,
+                _cacheOptions.UserCatalog,
+                async ct =>
+                {
+                    var available = await AvailableAsync(userId, ct);
+                    return available
+                        .Where(entry => entry.Theme.CheckTypeId == typeId)
+                        .ToList();
+                },
+                cancellationToken);
         }
 
-        // Active cards the caller can still make, oldest first (signed-out callers have made none).
-        private async Task<List<(Check Card, bool Used, bool Saved)>> AvailableAsync(Guid? userId, CancellationToken cancellationToken)
+        private async Task<List<FunCardResponse>> AvailableAsync(Guid? userId, CancellationToken cancellationToken)
         {
-            var cards = await _repository.GetFunCardsAsync(activeOnly: true, cancellationToken);
+            var catalog = await LoadCatalogAsync(cancellationToken);
             var used = userId is null
-                ? new Dictionary<Guid, UserCheck>()
-                : await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
-
+                ? new HashSet<Guid>()
+                : (await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken)).Keys.ToHashSet();
             var saved = await SavedIdsAsync(userId, cancellationToken);
 
-            return cards
-                .Where(card => !used.ContainsKey(card.Id))
-                .Select(card => (card, false, saved.Contains(card.Id)))
+            return catalog
+                .Where(card => !used.Contains(card.Id))
+                .Select(card => WithUserFlags(card, used: false, saved.Contains(card.Id)))
                 .ToList();
         }
+
+        private Task<List<FunCardResponse>> LoadCatalogAsync(CancellationToken cancellationToken) =>
+            _cache.GetOrSetAsync(
+                ResponseCacheKeys.FunCatalog,
+                _cacheOptions.FunCatalog,
+                async ct =>
+                {
+                    var cards = await _repository.GetFunCardsAsync(activeOnly: true, ct);
+                    return cards.Select(card => ToResponse(card, used: false, saved: false)).ToList();
+                },
+                cancellationToken);
 
         private async Task<HashSet<Guid>> SavedIdsAsync(Guid? userId, CancellationToken cancellationToken) =>
             userId is null ? [] : await _saved.GetSavedCardIdsAsync(userId.Value, SavedCardType.FunCard, cancellationToken);
@@ -102,6 +142,19 @@ namespace Yakku.Application.Checks.Services
         {
             return _checks.MakeAsync(userId, request, requireFun: true, cancellationToken);
         }
+
+        private static FunCardResponse WithUserFlags(FunCardResponse card, bool used, bool saved) => new()
+        {
+            Id = card.Id,
+            Title = card.Title,
+            Question = card.Question,
+            BackgroundColor = card.BackgroundColor,
+            Options = card.Options,
+            Used = used,
+            IsSaved = saved,
+            CheckType = card.CheckType,
+            Theme = card.Theme
+        };
 
         internal static FunCardResponse ToResponse(Check card, bool used, bool saved = false)
         {
@@ -134,17 +187,20 @@ namespace Yakku.Application.Checks.Services
         private readonly ICheckThemeRepository _themes;
         private readonly IValidator<SaveFunCardRequest> _validator;
         private readonly IValidator<CreateCheckThemeRequest> _themeValidator;
+        private readonly IResponseCache _cache;
 
         public AdminFunCardService(
             ICheckRepository repository,
             ICheckThemeRepository themes,
             IValidator<SaveFunCardRequest> validator,
-            IValidator<CreateCheckThemeRequest> themeValidator)
+            IValidator<CreateCheckThemeRequest> themeValidator,
+            IResponseCache? cache = null)
         {
             _repository = repository;
             _themes = themes;
             _validator = validator;
             _themeValidator = themeValidator;
+            _cache = cache ?? new NullResponseCache();
         }
 
         public async Task<List<CheckThemeDefinitionResponse>> ListThemesAsync(CancellationToken cancellationToken = default)
@@ -172,6 +228,7 @@ namespace Yakku.Application.Checks.Services
                 throw new AppException(409, ApiErrorCodes.Conflict, $"A fun card type named \"{theme.Name}\" already exists.", "name");
             }
 
+            await _cache.RemoveAsync(ResponseCacheKeys.FunCatalog, cancellationToken);
             return ToThemeResponse(theme);
         }
 
@@ -244,6 +301,7 @@ namespace Yakku.Application.Checks.Services
 
             await _repository.AddCheckAsync(card, cancellationToken);
             await _repository.SaveChecksAsync(cancellationToken);
+            await _cache.RemoveAsync(ResponseCacheKeys.FunCatalog, cancellationToken);
 
             return new AdminFunCardCreatedResponse
             {
@@ -262,6 +320,7 @@ namespace Yakku.Application.Checks.Services
             }
 
             await _repository.DeleteWithUsageAsync(card, cancellationToken);
+            await _cache.RemoveAsync(ResponseCacheKeys.FunCatalog, cancellationToken);
         }
 
         private static CheckThemeDefinitionResponse ToThemeResponse(CardTheme theme) => new()

@@ -1,6 +1,7 @@
 using FluentValidation;
 using Yakku.Application.AskBack.Interfaces;
 using Yakku.Application.Audit;
+using Yakku.Application.Caching;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Polls.Interfaces;
@@ -26,6 +27,7 @@ namespace Yakku.Application.Sharing.Services
         private readonly IStreakService _streaks;
         private readonly IVoteNotificationOutbox _notifications;
         private readonly IUserBlockLookup? _blocks;
+        private readonly IResponseCache _cache;
 
         public VotingService(
             IVotableContentRepository contents,
@@ -35,7 +37,8 @@ namespace Yakku.Application.Sharing.Services
             IAuditLogWriter audit,
             IStreakService streaks,
             IVoteNotificationOutbox notifications,
-            IUserBlockLookup? blocks = null)
+            IUserBlockLookup? blocks = null,
+            IResponseCache? cache = null)
         {
             _blocks = blocks;
             _streaks = streaks;
@@ -45,6 +48,7 @@ namespace Yakku.Application.Sharing.Services
             _policy = policy;
             _validator = validator;
             _audit = audit;
+            _cache = cache ?? new NullResponseCache();
         }
 
         public async Task<SharedContentResponse> VoteAsync(
@@ -210,6 +214,8 @@ namespace Yakku.Application.Sharing.Services
                 _notifications.Wake();
             }
 
+            await InvalidateAfterVoteAsync(content, voter, request.OptionId, cancellationToken);
+
             var response = await SharedContentService.BuildAsync(
                 content,
                 voter,
@@ -219,6 +225,38 @@ namespace Yakku.Application.Sharing.Services
                 cancellationToken,
                 _blocks);
             return new VoteOutcome(response, receipt);
+        }
+
+        private async Task InvalidateAfterVoteAsync(
+            VotableContent content,
+            VoterIdentity voter,
+            Guid? optionId,
+            CancellationToken cancellationToken)
+        {
+            var keys = new List<string>(
+                ResponseCacheKeys.AfterShareMutation(
+                    content.ShareCode,
+                    content.OwnerId,
+                    voter.Id == Guid.Empty ? null : voter.Id));
+
+            if (content.IsPoll)
+            {
+                keys.Add(ResponseCacheKeys.PollCustomAnswers(content.ContentId, content.OwnerId));
+                if (optionId is { } pollOption)
+                {
+                    keys.Add(ResponseCacheKeys.PollOptionReasons(content.ContentId, pollOption, content.OwnerId));
+                }
+            }
+            else
+            {
+                keys.Add(ResponseCacheKeys.CheckCustomAnswers(content.ContentId, content.OwnerId));
+                if (optionId is { } checkOption)
+                {
+                    keys.Add(ResponseCacheKeys.CheckOptionReasons(content.ContentId, checkOption, content.OwnerId));
+                }
+            }
+
+            await _cache.RemoveManyAsync(keys, cancellationToken);
         }
 
         private static string Noun(VotableContent content) => content.IsPoll ? "poll" : "check";

@@ -1,6 +1,9 @@
 using FluentValidation;
+using Microsoft.Extensions.Options;
+using Yakku.Application.Caching;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Application.Plans.DTOs;
 using Yakku.Application.Plans.Interfaces;
 using Yakku.Domain.Entities;
@@ -11,17 +14,32 @@ namespace Yakku.Application.Plans.Services
     {
         private readonly IPlanRepository _repository;
         private readonly IValidator<UpdatePlanRequest> _validator;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
 
-        public PlanService(IPlanRepository repository, IValidator<UpdatePlanRequest> validator)
+        public PlanService(
+            IPlanRepository repository,
+            IValidator<UpdatePlanRequest> validator,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _repository = repository;
             _validator = validator;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
-        public async Task<List<PlanResponse>> ListAsync(CancellationToken cancellationToken = default)
+        public Task<List<PlanResponse>> ListAsync(CancellationToken cancellationToken = default)
         {
-            var plans = await _repository.GetAllAsync(cancellationToken);
-            return plans.Select(ToResponse).ToList();
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.PlansAll,
+                _cacheOptions.Plans,
+                async ct =>
+                {
+                    var plans = await _repository.GetAllAsync(ct);
+                    return plans.Select(ToResponse).ToList();
+                },
+                cancellationToken);
         }
 
         public async Task<PlanResponse> UpdateAsync(
@@ -42,6 +60,7 @@ namespace Yakku.Application.Plans.Services
                 request.UnlockTickets,
                 request.AskBackMessageLimit);
             await _repository.SaveAsync(cancellationToken);
+            await _cache.RemoveAsync(ResponseCacheKeys.PlansAll, cancellationToken);
             return ToResponse(plan);
         }
 

@@ -177,6 +177,9 @@ namespace Yakku.Infrastructure
             services.AddSingleton<IRedisClient>(sp =>
                 new RedisClient(sp.GetRequiredService<IConnectionMultiplexer>()));
             services.AddSingleton<IRedisScriptClient>(sp => sp.GetRequiredService<IRedisClient>());
+            services.Configure<Yakku.Application.Configuration.ResponseCacheOptions>(
+                configuration.GetSection(Yakku.Application.Configuration.ResponseCacheOptions.SectionName));
+            services.AddSingleton<Yakku.Application.Caching.IResponseCache, Redis.RedisResponseCache>();
 
             var emailChannel = Channel.CreateBounded<EmailJob>(new BoundedChannelOptions(OtpEmailQueueOptions.Capacity)
             {

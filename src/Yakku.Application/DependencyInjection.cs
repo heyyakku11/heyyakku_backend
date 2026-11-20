@@ -6,6 +6,7 @@ using Yakku.Application.AdminAuth.Interfaces;
 using Yakku.Application.AdminAuth.Services;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Services;
+using Yakku.Application.Caching;
 using Yakku.Application.Configuration;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Checks.Services;
@@ -33,6 +34,8 @@ namespace Yakku.Application
         public static IServiceCollection AddApplication(this IServiceCollection services)
         {
             services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+            // Infrastructure replaces this with RedisResponseCache when Redis is configured.
+            services.AddSingleton<IResponseCache, NullResponseCache>();
             services.AddScoped<IPollService, PollService>();
             services.AddScoped<IMediaUploadSessionService, MediaUploadSessionService>();
             services.AddScoped<IMediaUploadCleanupService, MediaUploadCleanupService>();

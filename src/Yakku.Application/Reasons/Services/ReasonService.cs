@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Options;
+using Yakku.Application.Caching;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Application.Reasons.DTOs;
 using Yakku.Application.Reasons.Interfaces;
 using Yakku.Domain.Entities;
@@ -9,48 +12,71 @@ namespace Yakku.Application.Reasons.Services
     public class ReasonService : IReasonService
     {
         private readonly IReasonRepository _repository;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
 
-        public ReasonService(IReasonRepository repository)
+        public ReasonService(
+            IReasonRepository repository,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _repository = repository;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
-        public async Task<ReasonListResponse> GetPollOptionReasonsAsync(
+        public Task<ReasonListResponse> GetPollOptionReasonsAsync(
             Guid pollId,
             Guid ownerId,
             Guid optionId,
             CancellationToken cancellationToken = default)
         {
-            return await _repository.GetPollOptionReasonsAsync(pollId, ownerId, optionId, cancellationToken)
-                ?? throw NotFound();
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.PollOptionReasons(pollId, optionId, ownerId),
+                _cacheOptions.Reasons,
+                async ct => await _repository.GetPollOptionReasonsAsync(pollId, ownerId, optionId, ct)
+                    ?? throw NotFound(),
+                cancellationToken);
         }
 
-        public async Task<ReasonListResponse> GetCheckOptionReasonsAsync(
+        public Task<ReasonListResponse> GetCheckOptionReasonsAsync(
             Guid userCheckId,
             Guid ownerId,
             Guid optionId,
             CancellationToken cancellationToken = default)
         {
-            return await _repository.GetCheckOptionReasonsAsync(userCheckId, ownerId, optionId, cancellationToken)
-                ?? throw NotFound();
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.CheckOptionReasons(userCheckId, optionId, ownerId),
+                _cacheOptions.Reasons,
+                async ct => await _repository.GetCheckOptionReasonsAsync(userCheckId, ownerId, optionId, ct)
+                    ?? throw NotFound(),
+                cancellationToken);
         }
 
-        public async Task<CustomAnswerListResponse> GetPollCustomAnswersAsync(
+        public Task<CustomAnswerListResponse> GetPollCustomAnswersAsync(
             Guid pollId,
             Guid ownerId,
             CancellationToken cancellationToken = default)
         {
-            return await _repository.GetPollCustomAnswersAsync(pollId, ownerId, cancellationToken)
-                ?? throw NotFound();
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.PollCustomAnswers(pollId, ownerId),
+                _cacheOptions.Reasons,
+                async ct => await _repository.GetPollCustomAnswersAsync(pollId, ownerId, ct)
+                    ?? throw NotFound(),
+                cancellationToken);
         }
 
-        public async Task<CustomAnswerListResponse> GetCheckCustomAnswersAsync(
+        public Task<CustomAnswerListResponse> GetCheckCustomAnswersAsync(
             Guid userCheckId,
             Guid ownerId,
             CancellationToken cancellationToken = default)
         {
-            return await _repository.GetCheckCustomAnswersAsync(userCheckId, ownerId, cancellationToken)
-                ?? throw NotFound();
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.CheckCustomAnswers(userCheckId, ownerId),
+                _cacheOptions.Reasons,
+                async ct => await _repository.GetCheckCustomAnswersAsync(userCheckId, ownerId, ct)
+                    ?? throw NotFound(),
+                cancellationToken);
         }
 
         public async Task<ReasonReportResponse> ReportPollReasonAsync(

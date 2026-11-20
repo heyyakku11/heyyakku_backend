@@ -1,5 +1,8 @@
 using FluentValidation;
+using Microsoft.Extensions.Options;
 using Yakku.Application.AskBack.Interfaces;
+using Yakku.Application.Caching;
+using Yakku.Application.Configuration;
 using Yakku.Application.Personality.DTOs;
 using Yakku.Application.Personality.Interfaces;
 using Yakku.Application.PushNotifications.Interfaces;
@@ -19,31 +22,44 @@ namespace Yakku.Application.Personality.Services
         private readonly ICardLifecycleNotifications _lifecycle;
         private readonly IVoteNotificationOutbox? _notifications;
         private readonly IUserBlockLookup? _blocks;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
 
         public PersonalityService(
             IPersonalityRepository repository,
             IValidator<SubmitTraitsRequest> validator,
             ICardLifecycleNotifications? lifecycle = null,
             IVoteNotificationOutbox? notifications = null,
-            IUserBlockLookup? blocks = null)
+            IUserBlockLookup? blocks = null,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _blocks = blocks;
             _repository = repository;
             _validator = validator;
             _lifecycle = lifecycle ?? NullCardLifecycleNotifications.Instance;
             _notifications = notifications;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
-        public async Task<List<PersonalityTraitResponse>> GetTraitsAsync(CancellationToken cancellationToken = default)
+        public Task<List<PersonalityTraitResponse>> GetTraitsAsync(CancellationToken cancellationToken = default)
         {
-            var traits = await _repository.GetActiveTraitsAsync(cancellationToken);
-            return traits
-                .Select(trait => new PersonalityTraitResponse
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.PersonalityTraits,
+                _cacheOptions.PersonalityTraits,
+                async ct =>
                 {
-                    Id = trait.Id,
-                    Name = trait.Name
-                })
-                .ToList();
+                    var traits = await _repository.GetActiveTraitsAsync(ct);
+                    return traits
+                        .Select(trait => new PersonalityTraitResponse
+                        {
+                            Id = trait.Id,
+                            Name = trait.Name
+                        })
+                        .ToList();
+                },
+                cancellationToken);
         }
 
         public async Task<PersonalityCardResponse> GetMyCardAsync(Guid userId, CancellationToken cancellationToken = default)

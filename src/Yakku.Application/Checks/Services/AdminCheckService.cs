@@ -1,4 +1,5 @@
 using FluentValidation;
+using Yakku.Application.Caching;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Checks.Themes;
@@ -17,15 +18,18 @@ namespace Yakku.Application.Checks.Services
         private readonly ICheckRepository _repository;
         private readonly IValidator<SaveCheckRequest> _validator;
         private readonly ICheckThemeService _themes;
+        private readonly IResponseCache _cache;
 
         public AdminCheckService(
             ICheckRepository repository,
             IValidator<SaveCheckRequest> validator,
-            ICheckThemeService themes)
+            ICheckThemeService themes,
+            IResponseCache? cache = null)
         {
             _repository = repository;
             _validator = validator;
             _themes = themes;
+            _cache = cache ?? new NullResponseCache();
         }
 
         public async Task<List<AdminCheckResponse>> ListAsync(
@@ -64,6 +68,7 @@ namespace Yakku.Application.Checks.Services
 
             await _repository.AddCheckAsync(check, cancellationToken);
             await _repository.SaveChecksAsync(cancellationToken);
+            await _cache.RemoveAsync(ResponseCacheKeys.ChecksWeekAnon(week), cancellationToken);
 
             var saved = await _repository.GetForUpdateAsync(check.Id, cancellationToken) ?? check;
             return ToResponse(saved);
@@ -122,6 +127,7 @@ namespace Yakku.Application.Checks.Services
                 request.IsActive);
 
             await _repository.SaveChecksAsync(cancellationToken);
+            await _cache.RemoveAsync(ResponseCacheKeys.ChecksWeekAnon(week), cancellationToken);
 
             if (newTheme is not null)
             {
@@ -139,7 +145,12 @@ namespace Yakku.Application.Checks.Services
                 throw CheckExceptions.NotFound();
             }
 
+            var week = check.LiveWeekStart;
             await _repository.DeleteWithUsageAsync(check, cancellationToken);
+            if (week is { } liveWeek)
+            {
+                await _cache.RemoveAsync(ResponseCacheKeys.ChecksWeekAnon(liveWeek), cancellationToken);
+            }
         }
 
         private static AdminCheckResponse ToResponse(Check check)

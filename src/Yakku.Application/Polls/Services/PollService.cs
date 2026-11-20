@@ -1,5 +1,6 @@
 using FluentValidation;
 using Yakku.Application.Audit;
+using Yakku.Application.Caching;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.PushNotifications.Interfaces;
@@ -28,6 +29,7 @@ namespace Yakku.Application.Polls.Services
         private readonly IAuditLogWriter _audit;
         private readonly IStreakService _streaks;
         private readonly ICardLifecycleNotifications _lifecycle;
+        private readonly IResponseCache _cache;
 
         public PollService(
             IPollRepository pollRepository,
@@ -38,7 +40,8 @@ namespace Yakku.Application.Polls.Services
             IValidator<UpdatePollRequest> updateValidator,
             IAuditLogWriter audit,
             IStreakService streaks,
-            ICardLifecycleNotifications? lifecycle = null)
+            ICardLifecycleNotifications? lifecycle = null,
+            IResponseCache? cache = null)
         {
             _streaks = streaks;
             _lifecycle = lifecycle ?? NullCardLifecycleNotifications.Instance;
@@ -49,6 +52,7 @@ namespace Yakku.Application.Polls.Services
             _createValidator = createValidator;
             _updateValidator = updateValidator;
             _audit = audit;
+            _cache = cache ?? new NullResponseCache();
         }
 
         public Task<PollResponse> CreateAsync(
@@ -398,6 +402,7 @@ namespace Yakku.Application.Polls.Services
 
             await _pollRepository.SaveChangesAsync(cancellationToken);
             await _lifecycle.NotifyPollClosedAsync(poll.Id, cancellationToken);
+            await InvalidateShareAsync(poll.ShareCode, creatorId, cancellationToken);
             return await ToResponseAsync(poll, creatorId, cancellationToken);
         }
 
@@ -430,8 +435,14 @@ namespace Yakku.Application.Polls.Services
             }
 
             await _pollRepository.SaveChangesAsync(cancellationToken);
+            await InvalidateShareAsync(poll.ShareCode, creatorId, cancellationToken);
             return await ToResponseAsync(poll, creatorId, cancellationToken);
         }
+
+        private Task InvalidateShareAsync(string shareCode, Guid ownerId, CancellationToken cancellationToken) =>
+            _cache.RemoveManyAsync(
+                ResponseCacheKeys.AfterShareMutation(shareCode, ownerId),
+                cancellationToken);
 
         public async Task DeletePollAsync(
             Guid pollId,

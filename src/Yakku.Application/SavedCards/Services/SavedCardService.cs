@@ -1,3 +1,4 @@
+using Yakku.Application.Caching;
 using Yakku.Application.Checks;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Checks.Services;
@@ -19,12 +20,18 @@ namespace Yakku.Application.SavedCards.Services
         private readonly ISavedCardRepository _saved;
         private readonly IPollRepository _polls;
         private readonly ICheckRepository _checks;
+        private readonly IResponseCache _cache;
 
-        public SavedCardService(ISavedCardRepository saved, IPollRepository polls, ICheckRepository checks)
+        public SavedCardService(
+            ISavedCardRepository saved,
+            IPollRepository polls,
+            ICheckRepository checks,
+            IResponseCache? cache = null)
         {
             _saved = saved;
             _polls = polls;
             _checks = checks;
+            _cache = cache ?? new NullResponseCache();
         }
 
         public async Task<SavedCardStateResponse> SaveAsync(
@@ -41,6 +48,7 @@ namespace Yakku.Application.SavedCards.Services
                 await _saved.SaveChangesAsync(cancellationToken);
             }
 
+            await InvalidateFunListsAsync(userId, cardType, cardId, cancellationToken);
             return State(cardType, cardId, saved: true);
         }
 
@@ -57,6 +65,7 @@ namespace Yakku.Application.SavedCards.Services
                 await _saved.SaveChangesAsync(cancellationToken);
             }
 
+            await InvalidateFunListsAsync(userId, cardType, cardId, cancellationToken);
             return State(cardType, cardId, saved: false);
         }
 
@@ -106,6 +115,29 @@ namespace Yakku.Application.SavedCards.Services
                 Items = items,
                 Meta = PaginationMeta.ForCursor(PollCursor.PageSize, nextCursor, hasMore)
             };
+        }
+
+        private async Task InvalidateFunListsAsync(
+            Guid userId,
+            SavedCardType cardType,
+            Guid cardId,
+            CancellationToken cancellationToken)
+        {
+            if (cardType != SavedCardType.FunCard)
+            {
+                return;
+            }
+
+            Guid? funTypeId = null;
+            var card = await _saved.GetActiveFunCardAsync(cardId, cancellationToken);
+            if (card is not null)
+            {
+                funTypeId = card.CardThemeId;
+            }
+
+            await _cache.RemoveManyAsync(
+                ResponseCacheKeys.AfterFunSaveChange(userId, funTypeId),
+                cancellationToken);
         }
 
         // Validates that the card can be saved by this user and builds the row for it.

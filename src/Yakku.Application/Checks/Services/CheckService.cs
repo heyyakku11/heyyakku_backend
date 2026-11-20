@@ -1,12 +1,15 @@
 using System.Security.Cryptography;
 using FluentValidation;
+using Microsoft.Extensions.Options;
 using Yakku.Application.AskBack.Interfaces;
+using Yakku.Application.Caching;
 using Yakku.Application.Checks.DTOs;
 using Yakku.Application.Checks.Themes;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.Streaks;
 using Yakku.Application.Streaks.Interfaces;
@@ -25,32 +28,49 @@ namespace Yakku.Application.Checks.Services
         private readonly IStreakService _streaks;
         private readonly ICardLifecycleNotifications _lifecycle;
         private readonly IUserBlockLookup? _blocks;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
 
         public CheckService(
             ICheckRepository repository,
             IValidator<CastCheckVoteRequest> voteValidator,
             IStreakService streaks,
             ICardLifecycleNotifications? lifecycle = null,
-            IUserBlockLookup? blocks = null)
+            IUserBlockLookup? blocks = null,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _blocks = blocks;
             _repository = repository;
             _voteValidator = voteValidator;
             _streaks = streaks;
             _lifecycle = lifecycle ?? NullCardLifecycleNotifications.Instance;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
-        public async Task<List<CheckResponse>> GetChecksAsync(Guid? userId, CancellationToken cancellationToken = default)
+        public Task<List<CheckResponse>> GetChecksAsync(Guid? userId, CancellationToken cancellationToken = default)
         {
             var currentWeek = CheckWeek.Current();
-            var checks = await _repository.GetForWeekAsync(currentWeek, cancellationToken);
-            var used = userId is null
-                ? new Dictionary<Guid, UserCheck>()
-                : await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
+            var key = userId is { } id
+                ? ResponseCacheKeys.ChecksWeekUser(currentWeek, id)
+                : ResponseCacheKeys.ChecksWeekAnon(currentWeek);
 
-            return checks
-                .Select(check => ToCheckResponse(check, used.GetValueOrDefault(check.Id)))
-                .ToList();
+            return _cache.GetOrSetAsync(
+                key,
+                _cacheOptions.UserCatalog,
+                async ct =>
+                {
+                    var checks = await _repository.GetForWeekAsync(currentWeek, ct);
+                    var used = userId is null
+                        ? new Dictionary<Guid, UserCheck>()
+                        : await _repository.GetUserChecksByCheckAsync(userId.Value, ct);
+
+                    return checks
+                        .Select(check => ToCheckResponse(check, used.GetValueOrDefault(check.Id)))
+                        .ToList();
+                },
+                cancellationToken);
         }
 
         public async Task<CheckResponse> GetByIdAsync(Guid id, Guid? userId, CancellationToken cancellationToken = default)
@@ -122,6 +142,13 @@ namespace Yakku.Application.Checks.Services
                             userId, StreakActivity.CheckMade, userCheck.CreatedAt, token),
                         cancellationToken))
                 {
+                    await _cache.RemoveManyAsync(
+                        ResponseCacheKeys.AfterUserMadeCard(
+                            userId,
+                            CheckWeek.Current(),
+                            check.IsFun ? check.CardThemeId : null),
+                        cancellationToken);
+
                     var saved = await _repository.GetUserCheckByIdAsync(userCheck.Id, cancellationToken)
                         ?? throw CheckExceptions.NotFound();
                     return ToUserCheckResponse(saved, userId);
@@ -179,6 +206,7 @@ namespace Yakku.Application.Checks.Services
 
             await _repository.SaveChecksAsync(cancellationToken);
             await _lifecycle.NotifyCheckClosedAsync(userCheckId, cancellationToken);
+            await InvalidateShareAsync(item.ShareCode, userId, cancellationToken);
             var closed = await _repository.GetUserCheckByIdAsync(userCheckId, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
             return ToUserCheckResponse(closed, userId);
@@ -198,6 +226,7 @@ namespace Yakku.Application.Checks.Services
             }
 
             await _repository.SaveChecksAsync(cancellationToken);
+            await InvalidateShareAsync(item.ShareCode, userId, cancellationToken);
             var reopened = await _repository.GetUserCheckByIdAsync(userCheckId, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
             return ToUserCheckResponse(reopened, userId);
@@ -210,8 +239,18 @@ namespace Yakku.Application.Checks.Services
         {
             var item = await _repository.GetOwnedUserCheckForUpdateAsync(userCheckId, userId, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
+            var shareCode = item.ShareCode;
             await _repository.DeleteUserCheckAsync(item, cancellationToken);
+            await _cache.RemoveManyAsync(
+                ResponseCacheKeys.AfterUserMadeCard(userId, CheckWeek.Current()),
+                cancellationToken);
+            await InvalidateShareAsync(shareCode, userId, cancellationToken);
         }
+
+        private Task InvalidateShareAsync(string shareCode, Guid ownerId, CancellationToken cancellationToken) =>
+            _cache.RemoveManyAsync(
+                ResponseCacheKeys.AfterShareMutation(shareCode, ownerId),
+                cancellationToken);
 
         public async Task<CheckVoteResponse> VoteAsync(
             string shareCode,
@@ -248,6 +287,17 @@ namespace Yakku.Application.Checks.Services
 
             var vote = BuildVote(item.Id, item.Check, userId, request);
             await _repository.AddVoteAsync(vote, cancellationToken);
+
+            var keys = new List<string>(ResponseCacheKeys.AfterShareMutation(item.ShareCode, item.UserId, userId))
+            {
+                ResponseCacheKeys.CheckCustomAnswers(item.Id, item.UserId)
+            };
+            if (request.CheckOptionId is { } optionId)
+            {
+                keys.Add(ResponseCacheKeys.CheckOptionReasons(item.Id, optionId, item.UserId));
+            }
+
+            await _cache.RemoveManyAsync(keys, cancellationToken);
 
             return new CheckVoteResponse
             {

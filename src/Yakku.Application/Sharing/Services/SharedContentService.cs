@@ -1,6 +1,9 @@
+using Microsoft.Extensions.Options;
 using Yakku.Application.AskBack.Interfaces;
+using Yakku.Application.Caching;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Sharing.DTOs;
 using Yakku.Application.Sharing.Interfaces;
@@ -16,17 +19,23 @@ namespace Yakku.Application.Sharing.Services
         private readonly IObjectStorage _storage;
         private readonly IMediaUploadPolicy _policy;
         private readonly IUserBlockLookup? _blocks;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
 
         public SharedContentService(
             IVotableContentRepository contents,
             IObjectStorage storage,
             IMediaUploadPolicy policy,
-            IUserBlockLookup? blocks = null)
+            IUserBlockLookup? blocks = null,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _contents = contents;
             _storage = storage;
             _policy = policy;
             _blocks = blocks;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
         public async Task<SharedContentResponse> GetAsync(
@@ -39,13 +48,25 @@ namespace Yakku.Application.Sharing.Services
                 throw NotFound();
             }
 
-            var content = await _contents.FindByShareCodeAsync(shareCode.Trim(), cancellationToken)
-                ?? throw NotFound();
+            var code = shareCode.Trim();
+            // Guests and users both have an id that affects MyVote / ResultsVisible.
+            var viewerKey = ResponseCacheKeys.ViewerKey(viewer?.Id);
+            var key = ResponseCacheKeys.ShareViewer(code, viewerKey);
 
-            return await BuildAsync(content, viewer, _contents, _storage, _policy, cancellationToken, _blocks);
+            return await _cache.GetOrSetAsync(
+                key,
+                _cacheOptions.Share,
+                async ct =>
+                {
+                    var content = await _contents.FindByShareCodeAsync(code, ct)
+                        ?? throw NotFound();
+
+                    return await BuildAsync(content, viewer, _contents, _storage, _policy, ct, _blocks);
+                },
+                cancellationToken);
         }
 
-        public async Task<SharedResultResponse> GetResultAsync(
+        public Task<SharedResultResponse> GetResultAsync(
             string shareCode,
             CancellationToken cancellationToken = default)
         {
@@ -54,15 +75,23 @@ namespace Yakku.Application.Sharing.Services
                 throw NotFound();
             }
 
-            var content = await _contents.FindByShareCodeAsync(shareCode.Trim(), cancellationToken)
-                ?? throw NotFound();
-            if (string.Equals(content.Status, "DRAFT", StringComparison.OrdinalIgnoreCase))
-            {
-                throw NotFound();
-            }
+            var code = shareCode.Trim();
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.ShareResult(code),
+                _cacheOptions.Share,
+                async ct =>
+                {
+                    var content = await _contents.FindByShareCodeAsync(code, ct)
+                        ?? throw NotFound();
+                    if (string.Equals(content.Status, "DRAFT", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw NotFound();
+                    }
 
-            var tally = await _contents.GetTallyAsync(content, cancellationToken);
-            return SharedContentMapper.ToResult(content, tally, DateTime.UtcNow);
+                    var tally = await _contents.GetTallyAsync(content, ct);
+                    return SharedContentMapper.ToResult(content, tally, DateTime.UtcNow);
+                },
+                cancellationToken);
         }
 
         /// <summary>Shared with <see cref="VotingService"/>: the content as one caller sees it right now.</summary>
