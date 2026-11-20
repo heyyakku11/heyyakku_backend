@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Yakku.Application.PushNotifications;
 using Yakku.Application.PushNotifications.Batching;
+using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 using Yakku.Infrastructure.Push;
 
@@ -447,6 +448,7 @@ public class PushPayloadTests
         Assert.Equal(batch.ToString(), payload.Data["batchId"]);
         Assert.Equal(batch.ToString(), payload.Data["deliveryId"]);
         Assert.Equal($"yakku://results/poll/{card}", payload.Data["deepLink"]);
+        Assert.Equal("cardResults", payload.Data["screen"]);
         Assert.DoesNotContain(payload.Data.Keys, key => key.Contains("voter", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -467,5 +469,54 @@ public class PushPayloadTests
         Assert.Equal(
             PushPayloads.ForBatch("poll", card, 3, batch).Data!["deliveryId"],
             PushPayloads.ForBatch("poll", card, 3, batch).Data!["deliveryId"]);
+    }
+
+    [Fact]
+    public void APersonalityVotePush_OpensCardResults()
+    {
+        var cardId = Guid.NewGuid();
+        var notification = new Notification(
+            Guid.NewGuid(),
+            NotificationType.Normal,
+            NotificationEventType.PollAnswered,
+            "2 of 5 friends",
+            "Two friends have answered. Three more to reveal your top 3.",
+            data: System.Text.Json.JsonSerializer.Serialize(new
+            {
+                contentId = cardId,
+                contentType = "personality",
+                shareCode = "abc123def0"
+            }));
+
+        var payload = PushPayloads.ForNotification(notification);
+
+        Assert.Equal("cardResults", payload.Data!["screen"]);
+        Assert.Equal("personality", payload.Data["contentType"]);
+        Assert.Equal(cardId.ToString(), payload.Data["contentId"]);
+        Assert.Equal($"yakku://results/personality/{cardId}", payload.Data["deepLink"]);
+    }
+
+    [Fact]
+    public void APersonalityReadyPush_OpensPersonalityResults()
+    {
+        var cardId = Guid.NewGuid();
+        var notification = new Notification(
+            Guid.NewGuid(),
+            NotificationType.Normal,
+            NotificationEventType.PersonalityReady,
+            "Who you are is in",
+            "Your friends finished describing you. Open your result.",
+            data: System.Text.Json.JsonSerializer.Serialize(new
+            {
+                contentId = cardId,
+                contentType = "personality",
+                shareCode = "abc123def0"
+            }));
+
+        var payload = PushPayloads.ForNotification(notification);
+
+        Assert.Equal("personalityResults", payload.Data!["screen"]);
+        Assert.Equal("personality", payload.Data["contentType"]);
+        Assert.Equal($"yakku://results/personality/{cardId}", payload.Data["deepLink"]);
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Yakku.Application.PushNotifications.DTOs;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Application.PushNotifications
 {
@@ -10,7 +11,7 @@ namespace Yakku.Application.PushNotifications
         /// A push payload carries no private content: a generic text and the ids needed to open the notification
         /// and the card it is about (<c>contentType</c> poll|check|personality and <c>contentId</c>, which are opaque ids; the
         /// card itself is only readable by its owner over the authenticated API). Tapping the push opens that card's
-        /// results screen.
+        /// results (or share) screen via <c>screen</c> + <c>deepLink</c>.
         /// The app fetches the real content over the authenticated API (GET /notifications/{id}), which checks the
         /// signed-in user owns it. Lock screens, OS logs and FCM never see poll text, names or phone numbers.
         /// </summary>
@@ -31,22 +32,24 @@ namespace Yakku.Application.PushNotifications
 
             if (TryReadConversationId(notification.Data, out var conversationId))
             {
+                data["screen"] = "askBackConversation";
                 data["conversationId"] = conversationId;
                 data["deepLink"] = $"yakku://ask-back/{conversationId}";
             }
             else if (TryReadTarget(notification.Data, out var contentType, out var contentId))
             {
+                data["screen"] = ScreenFor(notification.EventType);
                 data["contentType"] = contentType;
                 data["contentId"] = contentId;
-                // The in-app route the push opens: yakku://results/{poll|check}/{id}.
+                // The in-app route the push opens: yakku://results/{poll|check|personality}/{id}.
                 data["deepLink"] = $"yakku://results/{contentType}/{contentId}";
             }
 
             return new NotificationPayload
             {
                 Title = "Yakku",
-                Body = notification.EventType is Domain.Enums.NotificationEventType.AskBackStarted
-                    or Domain.Enums.NotificationEventType.AskBackReply
+                Body = notification.EventType is NotificationEventType.AskBackStarted
+                    or NotificationEventType.AskBackReply
                     ? "You have a new message"
                     : "You have a new notification",
                 Data = data
@@ -58,7 +61,7 @@ namespace Yakku.Application.PushNotifications
         /// <summary>
         /// The aggregated push for a batch of votes on one card: how many people voted, and where to open it. Like
         /// every push it carries no voter and no answer. <c>deliveryId</c> is the batch id and stays the same when
-        /// the push is retried, so the app can drop a duplicate; <c>cardId</c> is the card (poll or check) id.
+        /// the push is retried, so the app can drop a duplicate; <c>cardId</c> is the card (poll, check, or personality) id.
         /// The keys the earlier digest push carried (<c>digest</c>, <c>count</c>, <c>contentType</c>, <c>contentId</c>,
         /// <c>deepLink</c>) are unchanged, so opening it still lands on the card's results.
         /// </summary>
@@ -73,6 +76,7 @@ namespace Yakku.Application.PushNotifications
                 {
                     ["type"] = "normal",
                     ["eventType"] = "PollAnswered",
+                    ["screen"] = "cardResults",
                     ["digest"] = "true",
                     ["count"] = count.ToString(),
                     ["contentType"] = contentType,
@@ -99,9 +103,25 @@ namespace Yakku.Application.PushNotifications
                 {
                     ["type"] = "normal",
                     ["eventType"] = "AskBackMessage",
+                    ["screen"] = "askBackConversation",
                     ["conversationId"] = conversationId.ToString(),
                     ["deepLink"] = $"yakku://ask-back/{conversationId}"
                 }
+            };
+        }
+
+        /// <summary>
+        /// Same screen names the inbox API returns in <c>target.screen</c>
+        /// (askBackConversation | cardResults | personalityResults | cardShare).
+        /// </summary>
+        public static string ScreenFor(NotificationEventType eventType)
+        {
+            return eventType switch
+            {
+                NotificationEventType.AskBackStarted or NotificationEventType.AskBackReply => "askBackConversation",
+                NotificationEventType.PersonalityReady => "personalityResults",
+                NotificationEventType.NoVotesYet => "cardShare",
+                _ => "cardResults"
             };
         }
 

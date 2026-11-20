@@ -878,17 +878,19 @@ public sealed class VoteNotificationPipelineIntegrationTests
         await MakeDueAsync(CardKey.For(ShareContentType.Personality, cardId));
         await p.Batches.ProcessScheduleAsync(CancellationToken.None);
 
-        // Three immediate pushes and one batch, every one of them opening the personality card.
+        // Three immediate pushes and one batch, every one of them opening the personality card progress screen.
         Assert.Equal(4, p.Push.Payloads.Count);
         Assert.All(p.Push.Payloads, payload =>
         {
             Assert.Equal("personality", payload.Data!["contentType"]);
             Assert.Equal(cardId.ToString(), payload.Data["contentId"]);
+            Assert.Equal("cardResults", payload.Data["screen"]);
             Assert.Equal($"yakku://results/personality/{cardId}", payload.Data["deepLink"]);
         });
         var batch = Assert.Single(p.Push.Payloads, payload => payload.Data!.ContainsKey("digest"));
         Assert.Equal(PushPayloads.BatchTitle, batch.Title);
         Assert.Equal("1", batch.Data!["count"]);
+        Assert.Equal("cardResults", batch.Data["screen"]);
     }
 
     [SkippableFact]
