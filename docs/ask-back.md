@@ -107,14 +107,6 @@ Unlocking and access, base `/api/v1/ask-back`:
 | `GET /access?voteId=` | Whether the card of that vote is unlocked, how, tickets left, plan expiry and the limit. |
 | `POST /unlocks` `{ "voteId" }` | Unlock the card with a plan ticket. Unlocking an unlocked card costs nothing. |
 
-Admin (`Admin` policy), base `/api/v1/yakku`:
-
-| Method and path | Purpose |
-| --- | --- |
-| `POST /users/{userId}/plan` `{ "planCode" }` | Activate a plan from now (restarts the period and tickets). |
-| `POST /users/{userId}/card-unlocks` `{ "contentType": "poll"\|"check", "contentId" }` | Grant a single-card unlock (source `PURCHASE`). |
-| `PATCH /plans/{planId}` | Edit name, price, `durationDays`, `unlockTickets`, `askBackMessageLimit`. |
-
 ### POST /
 
 ```json
