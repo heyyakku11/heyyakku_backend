@@ -172,7 +172,8 @@ public class AskBackDomainTests
         Assert.Equal(AskBackTurn.Done, conversation.TurnFor(voter, 1));
         Assert.Equal(AskBackSendResult.LimitReached, conversation.TryRecordMessage(asker, 1, Now));
         Assert.Equal(AskBackSendResult.LimitReached, conversation.TryRecordMessage(voter, 1, Now));
-        Assert.Equal(0, conversation.MessagesLeft(voter, 1));
+        // Voters have no personal ask-back budget.
+        Assert.Null(conversation.MessagesLeft(voter, 1));
     }
 
     [Fact]
@@ -193,18 +194,21 @@ public class AskBackDomainTests
     }
 
     [Fact]
-    public void RaisingTheLimit_ReopensAFinishedChat()
+    public void RaisingTheLimit_ReopensAFinishedChat_WithAFullNewBudget()
     {
         var asker = Guid.NewGuid();
         var voter = Guid.NewGuid();
         var conversation = NewConversation(asker, voter);
+        Assert.True(conversation.TryAlignAskerQuota(1));
         conversation.TryRecordMessage(asker, 1, Now);
         conversation.TryRecordMessage(voter, 1, Now);
         Assert.Equal(AskBackTurn.Done, conversation.TurnFor(asker, 1));
 
-        // The limit is read live, so a better plan (or a changed plan value) lets the conversation go on.
+        // A higher entitlement grandfathers prior sends so the asker gets the full new limit.
+        Assert.True(conversation.TryAlignAskerQuota(3));
         Assert.Equal(AskBackTurn.Me, conversation.TurnFor(asker, 3));
-        Assert.Equal(2, conversation.MessagesLeft(asker, 3));
+        Assert.Equal(3, conversation.MessagesLeft(asker, 3));
+        Assert.Null(conversation.MessagesLeft(voter, 3));
     }
 
     [Fact]

@@ -16,8 +16,12 @@ All endpoints need a Bearer JWT with a live session. Responses use the usual `Ap
   (the same as for an id that does not exist).
 - The reason stays on the vote. It is shown as context and is never copied into a message. If the asker reports the
   reason, the conversation is closed (the asker can reopen it).
-- **Turns.** The asker sends first, the voter replies once, then it is the asker's turn again. The number of questions
-  the asker gets comes from the plan (below). When every allowed question has been answered the chat is done.
+- **Turns.** The asker sends first, the voter replies once, then it is the asker's turn again. Only the **asker** has a
+  question budget from the plan (below); the voter has no `messagesLeft` and simply replies on their turn. When every
+  allowed asker question has been answered the chat is done.
+- **Raising the limit.** The asker's message limit is read live. When it increases (for example free ask → Lite unlock),
+  prior asker sends under the old entitlement are grandfathered (`asker_quota_offset`), so the asker gets a **full new**
+  budget (Lite’s 3 questions, not 3 minus the free ask already used).
 - **Report and end.** Blocking always files a report (`ask_back_reports`, reason `Not specified` if none was given) and
   ends the chat. See [Blocking](#blocking).
 
@@ -137,7 +141,7 @@ the winner's conversation.
   "closedAt": null,
   "unreadCount": 0,
   "turn": "me",                    // me | them | done
-  "messagesLeft": 1,               // my questions (asker) or replies (voter) left; null when unlimited
+  "messagesLeft": 1,               // asker questions left; null for voter or when unlimited
   "isPaused": false,               // read-only because the asker's plan expired
   "canSend": true,                 // active, not paused and my turn
   "canReopen": false,

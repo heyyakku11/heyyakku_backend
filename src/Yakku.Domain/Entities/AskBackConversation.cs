@@ -35,6 +35,18 @@ namespace Yakku.Domain.Entities
         /// <summary>Messages the voter sent. A concurrency token, like <see cref="AskerMessageCount"/>.</summary>
         public int VoterMessageCount { get; private set; }
 
+        /// <summary>
+        /// Asker sends already counted under a prior (lower) entitlement. Budget math uses
+        /// <c>AskerMessageCount - AskerQuotaOffset</c> so raising the plan limit grants a full new budget.
+        /// </summary>
+        public int AskerQuotaOffset { get; private set; }
+
+        /// <summary>
+        /// The asker <c>MessageLimit</c> this conversation last aligned its quota offset to.
+        /// Null until the first finite limit is applied (or after an unlimited plan clears it).
+        /// </summary>
+        public int? AppliedMessageLimit { get; private set; }
+
         public ICollection<AskBackParticipant> Participants { get; private set; } = new List<AskBackParticipant>();
         public ICollection<AskBackMessage> Messages { get; private set; } = new List<AskBackMessage>();
 
@@ -96,6 +108,40 @@ namespace Yakku.Domain.Entities
         }
 
         /// <summary>
+        /// Asker questions that count against the current entitlement (excludes sends grandfathered by
+        /// <see cref="AskerQuotaOffset"/> when the limit was raised).
+        /// </summary>
+        public int EffectiveAskerSent => Math.Max(0, AskerMessageCount - AskerQuotaOffset);
+
+        /// <summary>
+        /// When the asker's effective message limit increases, grandfather prior sends so the new budget is full.
+        /// Returns true when the conversation was updated and should be saved.
+        /// </summary>
+        public bool TryAlignAskerQuota(int? currentLimit)
+        {
+            if (currentLimit is null)
+            {
+                // Unlimited: no finish-by-count. Leave offset; clear applied so a later finite limit realigns.
+                if (AppliedMessageLimit is null)
+                {
+                    return false;
+                }
+
+                AppliedMessageLimit = null;
+                return true;
+            }
+
+            if (AppliedMessageLimit is { } applied && currentLimit.Value <= applied)
+            {
+                return false;
+            }
+
+            AskerQuotaOffset = AskerMessageCount;
+            AppliedMessageLimit = currentLimit;
+            return true;
+        }
+
+        /// <summary>
         /// Turn rule: the asker sends first, the voter answers once, then it is the asker's turn again. The asker may
         /// send <paramref name="limit"/> questions in all (null means no limit), so the voter answers at most that many
         /// times. When every allowed question was answered the conversation is finished.
@@ -112,16 +158,18 @@ namespace Yakku.Domain.Entities
             return isAsker == !askerWaiting ? AskBackTurn.Me : AskBackTurn.Them;
         }
 
-        /// <summary>Messages the caller may still send under <paramref name="limit"/>; null when there is no limit.</summary>
+        /// <summary>
+        /// Asker questions still allowed under <paramref name="limit"/>. Always null for the voter (no personal quota)
+        /// and when there is no limit.
+        /// </summary>
         public int? MessagesLeft(Guid userId, int? limit)
         {
-            if (limit is not { } max)
+            if (CreatorUserId != userId || limit is not { } max)
             {
                 return null;
             }
 
-            var sent = CreatorUserId == userId ? AskerMessageCount : VoterMessageCount;
-            return Math.Max(0, max - sent);
+            return Math.Max(0, max - EffectiveAskerSent);
         }
 
         /// <summary>
@@ -157,7 +205,9 @@ namespace Yakku.Domain.Entities
 
         private bool IsFinished(int? limit)
         {
-            return limit is { } max && AskerMessageCount >= max && VoterMessageCount >= AskerMessageCount;
+            return limit is { } max
+                   && EffectiveAskerSent >= max
+                   && VoterMessageCount >= AskerMessageCount;
         }
 
         /// <summary>Either participant can close an active conversation. False when it is not active.</summary>

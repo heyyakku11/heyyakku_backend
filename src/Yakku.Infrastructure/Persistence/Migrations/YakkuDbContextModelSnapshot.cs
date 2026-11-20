@@ -259,12 +259,22 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int?>("AppliedMessageLimit")
+                        .HasColumnType("integer")
+                        .HasColumnName("applied_message_limit");
+
                     b.Property<int>("AskerMessageCount")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasColumnName("asker_message_count");
+
+                    b.Property<int>("AskerQuotaOffset")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("asker_quota_offset");
 
                     b.Property<Guid?>("BlockedByUserId")
                         .HasColumnType("uuid")
@@ -339,7 +349,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_ask_back_conversations_distinct_users", "\"creator_user_id\" IS NULL OR \"voter_user_id\" IS NULL OR \"creator_user_id\" <> \"voter_user_id\"");
 
-                            t.HasCheckConstraint("CK_ask_back_conversations_message_counts", "\"asker_message_count\" >= 0 AND \"voter_message_count\" >= 0");
+                            t.HasCheckConstraint("CK_ask_back_conversations_message_counts", "\"asker_message_count\" >= 0 AND \"voter_message_count\" >= 0 AND \"asker_quota_offset\" >= 0");
 
                             t.HasCheckConstraint("CK_ask_back_conversations_status", "\"status\" IN ('ACTIVE', 'CLOSED', 'BLOCKED')");
                         });

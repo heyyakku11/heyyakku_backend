@@ -91,7 +91,8 @@ public sealed class AskBackEntitlementIntegrationTests
         var asAsker = await service.GetConversationAsync(scene.Asker.Id, conversationId);
         var asVoter = await service.GetConversationAsync(scene.Voter.Id, conversationId);
         Assert.Equal(("me", true, (int?)1), (asAsker.Turn, asAsker.CanSend, asAsker.MessagesLeft));
-        Assert.Equal(("them", false, (int?)1), (asVoter.Turn, asVoter.CanSend, asVoter.MessagesLeft));
+        // Voters have no ask-back message budget; they only reply on their turn.
+        Assert.Equal(("them", false, (int?)null), (asVoter.Turn, asVoter.CanSend, asVoter.MessagesLeft));
 
         // The asker speaks first.
         var early = await Assert.ThrowsAsync<AppException>(() => service.SendMessageAsync(
@@ -111,12 +112,17 @@ public sealed class AskBackEntitlementIntegrationTests
         await service.SendMessageAsync(scene.Voter.Id, conversationId, AskBackIntegrationTests.Send("Because."));
 
         // Every allowed question is answered: the conversation is done for both.
+        var askerDone = await service.GetConversationAsync(scene.Asker.Id, conversationId);
+        Assert.Equal("done", askerDone.Turn);
+        Assert.False(askerDone.CanSend);
+        Assert.Equal(0, askerDone.MessagesLeft);
+        var voterDone = await service.GetConversationAsync(scene.Voter.Id, conversationId);
+        Assert.Equal("done", voterDone.Turn);
+        Assert.False(voterDone.CanSend);
+        Assert.Null(voterDone.MessagesLeft);
+
         foreach (var user in new[] { scene.Asker.Id, scene.Voter.Id })
         {
-            var details = await service.GetConversationAsync(user, conversationId);
-            Assert.Equal("done", details.Turn);
-            Assert.False(details.CanSend);
-            Assert.Equal(0, details.MessagesLeft);
             var error = await Assert.ThrowsAsync<AppException>(() => service.SendMessageAsync(
                 user, conversationId, AskBackIntegrationTests.Send("one more")));
             Assert.Equal(409, error.StatusCode);
@@ -124,6 +130,30 @@ public sealed class AskBackEntitlementIntegrationTests
         }
 
         Assert.Equal(2, await context.AskBackMessages.CountAsync(m => m.ConversationId == conversationId));
+    }
+
+    [SkippableFact]
+    public async Task FreeAskUsed_ThenLiteUnlock_GivesFullNewAskerBudget()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (scene, conversationId) = await AskBackIntegrationTests.StartedAsync(context, askerPlan: null);
+        var service = AskBackIntegrationTests.ServiceFor(context);
+        var entitlements = AskBackIntegrationTests.EntitlementsFor(context);
+
+        await service.SendMessageAsync(scene.Asker.Id, conversationId, AskBackIntegrationTests.Send("Free Q"));
+        await service.SendMessageAsync(scene.Voter.Id, conversationId, AskBackIntegrationTests.Send("Free A"));
+        Assert.Equal("done", (await service.GetConversationAsync(scene.Asker.Id, conversationId)).Turn);
+
+        await AskBackIntegrationTests.ActivatePlanAsync(context, scene.Asker.Id, Plan.YakkuLiteCode);
+        await entitlements.UnlockAsync(scene.Asker.Id, scene.Vote.Id);
+
+        // Prior free-ask send is grandfathered; Lite grants a full 3 new questions.
+        var after = await service.GetConversationAsync(scene.Asker.Id, conversationId);
+        Assert.Equal("me", after.Turn);
+        Assert.Equal(3, after.MessagesLeft);
+        Assert.True(after.CanSend);
+        Assert.Null((await service.GetConversationAsync(scene.Voter.Id, conversationId)).MessagesLeft);
     }
 
     [SkippableFact]

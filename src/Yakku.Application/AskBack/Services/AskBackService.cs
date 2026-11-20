@@ -207,18 +207,21 @@ namespace Yakku.Application.AskBack.Services
             // Whose turn it is depends on the asker's plan for that card; fill it in for the tabs.
             foreach (var item in page.Items)
             {
-                var snapshot = await _repository.GetSnapshotAsync(item.Id, userId, cancellationToken);
-                if (snapshot is null)
+                // Tracked so a raised plan limit can align AskerQuotaOffset and persist.
+                var conversation = await _repository.FindForParticipantAsync(
+                    item.Id, userId, cancellationToken);
+                if (conversation is null)
                 {
                     continue;
                 }
 
-                var (messageLimit, paused) = await ResolveAccessAsync(snapshot, cancellationToken);
-                var turn = snapshot.TurnFor(userId, messageLimit);
+                var (messageLimit, paused) = await ResolveAccessAndAlignAsync(
+                    conversation, cancellationToken);
+                var turn = conversation.TurnFor(userId, messageLimit);
                 item.Turn = turn.ToString().ToLowerInvariant();
-                item.MessagesLeft = snapshot.MessagesLeft(userId, messageLimit);
+                item.MessagesLeft = conversation.MessagesLeft(userId, messageLimit);
                 item.IsPaused = paused;
-                item.CanSend = snapshot.CanSend && !paused && turn == AskBackTurn.Me;
+                item.CanSend = conversation.CanSend && !paused && turn == AskBackTurn.Me;
             }
 
             return page;
@@ -291,7 +294,7 @@ namespace Yakku.Application.AskBack.Services
             }
 
             // A conversation unlocked through a plan stops for both people when that plan has expired.
-            var access = await ResolveAccessAsync(conversation, cancellationToken);
+            var access = await ResolveAccessAndAlignAsync(conversation, cancellationToken);
             if (access.Paused)
             {
                 throw new AppException(
@@ -570,6 +573,23 @@ namespace Yakku.Application.AskBack.Services
             return (access.MessageLimit, access.Paused);
         }
 
+        /// <summary>
+        /// Resolves the live asker limit and, when that limit has risen, grandfathers prior asker sends so the new
+        /// budget is full. The conversation must be tracked so the alignment can be saved.
+        /// </summary>
+        private async Task<(int? MessageLimit, bool Paused)> ResolveAccessAndAlignAsync(
+            AskBackConversation conversation,
+            CancellationToken cancellationToken)
+        {
+            var access = await ResolveAccessAsync(conversation, cancellationToken);
+            if (conversation.TryAlignAskerQuota(access.MessageLimit))
+            {
+                await _repository.SaveAsync(cancellationToken);
+            }
+
+            return access;
+        }
+
         /// <summary>The conversation as the caller sees it, with whose turn it is and how many messages are left.</summary>
         private async Task<AskBackConversationResponse> LoadDetailsAsync(
             Guid conversationId,
@@ -578,19 +598,22 @@ namespace Yakku.Application.AskBack.Services
         {
             var response = await _repository.GetDetailsAsync(conversationId, userId, cancellationToken)
                 ?? throw NotFound("Conversation not found.");
-            var snapshot = await _repository.GetSnapshotAsync(conversationId, userId, cancellationToken)
+            // Tracked: raising the plan limit must persist AskerQuotaOffset before turn/left are computed.
+            var conversation = await _repository.FindForParticipantAsync(
+                conversationId, userId, cancellationToken)
                 ?? throw NotFound("Conversation not found.");
 
-            var (limit, paused) = await ResolveAccessAsync(snapshot, cancellationToken);
-            var turn = snapshot.TurnFor(userId, limit);
+            var (limit, paused) = await ResolveAccessAndAlignAsync(conversation, cancellationToken);
+            var turn = conversation.TurnFor(userId, limit);
             response.Turn = turn.ToString().ToLowerInvariant();
-            response.MessagesLeft = snapshot.MessagesLeft(userId, limit);
+            // Asker-only budget; voters reply on turn and get null.
+            response.MessagesLeft = conversation.MessagesLeft(userId, limit);
             response.IsPaused = paused;
             response.CanSend = response.CanSend && !paused && turn == AskBackTurn.Me;
             if (turn == AskBackTurn.Done && response.MyRole == "asker")
             {
                 response.WaitingReplies = await _repository.CountReasonsOnCardAsync(
-                    snapshot.ContentType, snapshot.ContentId, cancellationToken);
+                    conversation.ContentType, conversation.ContentId, cancellationToken);
             }
 
             return response;

@@ -21,7 +21,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                     "(\"status\" = 'BLOCKED') = (\"blocked_by_user_id\" IS NOT NULL)");
                 table.HasCheckConstraint(
                     "CK_ask_back_conversations_message_counts",
-                    "\"asker_message_count\" >= 0 AND \"voter_message_count\" >= 0");
+                    "\"asker_message_count\" >= 0 AND \"voter_message_count\" >= 0 AND \"asker_quota_offset\" >= 0");
             });
             builder.HasKey(x => x.Id);
 
@@ -55,6 +55,12 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasDefaultValue(0)
                 .IsConcurrencyToken();
+            builder.Property(x => x.AskerQuotaOffset)
+                .HasColumnName("asker_quota_offset")
+                .IsRequired()
+                .HasDefaultValue(0);
+            builder.Property(x => x.AppliedMessageLimit)
+                .HasColumnName("applied_message_limit");
 
             // Accounts that are permanently deleted leave the conversation behind for the other person.
             builder.HasOne<User>().WithMany().HasForeignKey(x => x.CreatorUserId).OnDelete(DeleteBehavior.SetNull);
