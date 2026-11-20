@@ -2,6 +2,7 @@ using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Entitlements;
 using Yakku.Application.Polls;
 using Yakku.Application.Polls.Interfaces;
 using Yakku.Application.Polls.Mapper;
@@ -21,6 +22,8 @@ namespace Yakku.Application.Users.Services
         private readonly IVoteRepository _voteRepository;
         private readonly IUserStatsRepository _stats;
         private readonly IStreakService _streaks;
+        private readonly IEntitlementRepository _entitlements;
+        private readonly TimeProvider _time;
 
         public UserService(
             IUserRepository userRepository,
@@ -28,7 +31,9 @@ namespace Yakku.Application.Users.Services
             ICheckRepository checkRepository,
             IVoteRepository voteRepository,
             IUserStatsRepository stats,
-            IStreakService streaks)
+            IStreakService streaks,
+            IEntitlementRepository entitlements,
+            TimeProvider time)
         {
             _userRepository = userRepository;
             _pollRepository = pollRepository;
@@ -36,6 +41,8 @@ namespace Yakku.Application.Users.Services
             _voteRepository = voteRepository;
             _stats = stats;
             _streaks = streaks;
+            _entitlements = entitlements;
+            _time = time;
         }
 
         public async Task<UserProfileResponse?> GetMeAsync(
@@ -63,6 +70,19 @@ namespace Yakku.Application.Users.Services
                     LongestStreak = streak.LongestStreak
                 }
             };
+
+            var now = _time.GetUtcNow().UtcDateTime;
+            var planState = await _entitlements.GetUserPlanAsync(user.Id, now, cancellationToken);
+            if (planState is not null)
+            {
+                response.Account.CurrentPlan.UnlockTickets = planState.Plan.UnlockTickets;
+                response.Account.CurrentPlan.CardsUnlocked = await _entitlements.CountPlanUnlocksAsync(
+                    user.Id,
+                    planState.EntitlementId,
+                    planState.ActivatedAt ?? DateTime.MinValue,
+                    cancellationToken);
+            }
+
             return response;
         }
 

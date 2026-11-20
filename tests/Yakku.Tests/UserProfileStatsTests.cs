@@ -159,7 +159,9 @@ public sealed class UserProfileStatsTests
             new CheckRepository(context),
             new VoteRepository(context),
             new UserStatsRepository(context),
-            NewStreaks(context, Today));
+            NewStreaks(context, Today),
+            new EntitlementRepository(context),
+            new TestTimeProvider(Today));
     }
 
     private static StreakService NewStreaks(YakkuDbContext context, DateTime now)

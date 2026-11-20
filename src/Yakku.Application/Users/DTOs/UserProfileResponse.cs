@@ -68,5 +68,16 @@ namespace Yakku.Application.Users.DTOs
 
         /// <summary>A paid plan was bought and its period has ended, so the user is back on the free perks.</summary>
         public bool IsExpired { get; set; }
+
+        /// <summary>
+        /// Cards unlockable on this activation; null means unlimited (Love).
+        /// Sourced from the plan row — never invented by the client.
+        /// </summary>
+        public int? UnlockTickets { get; set; }
+
+        /// <summary>
+        /// Plan-sourced card unlocks used on the current entitlement (Lite tickets / Love unlocks so far).
+        /// </summary>
+        public int CardsUnlocked { get; set; }
     }
 }
