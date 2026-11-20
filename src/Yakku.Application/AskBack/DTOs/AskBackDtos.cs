@@ -67,6 +67,9 @@ namespace Yakku.Application.AskBack.DTOs
     {
         public Guid Id { get; set; }
 
+        /// <summary>The vote this chat is about; used to spend a plan ticket on the card.</summary>
+        public Guid VoteId { get; set; }
+
         /// <summary>active, closed or blocked.</summary>
         public string Status { get; set; } = string.Empty;
 

@@ -204,6 +204,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return new AskBackConversationResponse
             {
                 Id = conversation.Id,
+                VoteId = conversation.VoteId,
                 Status = StatusName(conversation.Status),
                 MyRole = isAsker ? "asker" : "voter",
                 Other = ToParticipant(otherId, names),
