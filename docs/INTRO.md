@@ -9,13 +9,13 @@ Anonymous OTP-based API. Users prove email ownership with a 6-digit code. A **us
 | `Yakku.API` | HTTP controllers, middleware, Swagger |
 | `Yakku.Application` | Auth/poll use cases, validators, DTOs |
 | `Yakku.Domain` | `User`, `UserProfile`, polls, enums |
-| `Yakku.Infrastructure` | Postgres (EF Core), Upstash Redis, email |
+| `Yakku.Infrastructure` | Postgres (EF Core), Redis (`REDIS_URL`), email |
 
 ## Where data lives
 
 | Data | Store | Key / table |
 |---|---|---|
-| Pending OTP challenge | Redis (Upstash REST) | `auth:otp:{email}` |
+| Pending OTP challenge | Redis (TCP via `REDIS_URL`) | `auth:otp:{email}` |
 | Verified user | Postgres `Users` | unique `Email` |
 | Display name, avatar | Postgres `UserProfiles` | unique `DisplayName` |
 | Polls | Postgres `Polls` / `PollOptions` | — |
@@ -152,8 +152,7 @@ Copy `.env.example` to `.env`:
 
 ```
 DB_CONNECTION_STRING=
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
+REDIS_URL=
 ```
 
-Postgres holds users and polls. Upstash Redis holds OTP challenges via REST (`SET` / `GET` / `DEL` / `TTL`).
+Postgres holds users and polls. Redis (any provider via `REDIS_URL`) holds OTP challenges over TCP.

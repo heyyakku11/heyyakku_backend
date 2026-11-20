@@ -13,9 +13,11 @@ namespace Yakku.Application.Configuration
     {
         public const string SectionName = "Redis";
 
+        /// <summary>
+        /// Provider-agnostic connection URL from <c>REDIS_URL</c>: <c>redis://</c>, <c>rediss://</c>,
+        /// or a StackExchange connection string. Not Upstash-REST specific.
+        /// </summary>
         public string Url { get; set; } = string.Empty;
-
-        public string Token { get; set; } = string.Empty;
     }
 
     public sealed class JwtSettings

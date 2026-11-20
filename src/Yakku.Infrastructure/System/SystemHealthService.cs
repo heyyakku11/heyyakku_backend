@@ -9,9 +9,9 @@ namespace Yakku.Infrastructure.System
     public class SystemHealthService : ISystemHealthService
     {
         private readonly YakkuDbContext _dbContext;
-        private readonly UpstashRedisClient _redis;
+        private readonly IRedisClient _redis;
 
-        public SystemHealthService(YakkuDbContext dbContext, UpstashRedisClient redis)
+        public SystemHealthService(YakkuDbContext dbContext, IRedisClient redis)
         {
             _dbContext = dbContext;
             _redis = redis;

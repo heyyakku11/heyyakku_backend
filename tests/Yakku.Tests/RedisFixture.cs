@@ -7,9 +7,8 @@ using Yakku.Infrastructure.Redis;
 namespace Yakku.Tests;
 
 /// <summary>
-/// A real Redis in a container for the batching tests. Skipped (like the PostgreSQL tests) when Docker is not
-/// available. Scripts run through the same <see cref="IRedisScriptClient"/> seam production uses, so the Lua and
-/// the store are tested for real; only the HTTP transport to Upstash is replaced.
+/// A real Redis in a container for integration tests. Skipped when Docker is unavailable. Uses the same
+/// <see cref="RedisClient"/> production uses over a standard Redis TCP connection.
 /// </summary>
 public sealed class RedisFixture : IAsyncLifetime
 {
@@ -22,7 +21,7 @@ public sealed class RedisFixture : IAsyncLifetime
 
     public IDatabase Database => _connection!.GetDatabase();
 
-    public IRedisScriptClient Client { get; private set; } = null!;
+    public IRedisClient Client { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
@@ -31,7 +30,7 @@ public sealed class RedisFixture : IAsyncLifetime
             _container = new RedisBuilder("redis:7-alpine").Build();
             await _container.StartAsync();
             _connection = await ConnectionMultiplexer.ConnectAsync(_container.GetConnectionString() + ",allowAdmin=true");
-            Client = new StackExchangeScriptClient(Database);
+            Client = new RedisClient(Database);
             IsAvailable = true;
         }
         catch (Exception exception) when (exception is DockerUnavailableException or TimeoutException)
@@ -56,69 +55,7 @@ public sealed class RedisFixture : IAsyncLifetime
     }
 }
 
-/// <summary>
-/// Runs a script with EVAL (the command the Upstash client sends) and shapes the reply like Upstash's REST API does:
-/// integers as numbers, strings as strings, nil as null, arrays as arrays.
-/// </summary>
-public sealed class StackExchangeScriptClient : IRedisScriptClient
-{
-    private readonly IDatabase _database;
-
-    public StackExchangeScriptClient(IDatabase database)
-    {
-        _database = database;
-    }
-
-    public async Task<JsonElement> EvalAsync(
-        string script,
-        IReadOnlyList<string> keys,
-        IReadOnlyList<object> arguments,
-        CancellationToken ct = default)
-    {
-        var result = await _database.ScriptEvaluateAsync(
-            script,
-            keys.Select(key => (RedisKey)key).ToArray(),
-            arguments.Select(argument => (RedisValue)Convert.ToString(argument, System.Globalization.CultureInfo.InvariantCulture)).ToArray());
-
-        using var stream = new MemoryStream();
-        await using (var writer = new Utf8JsonWriter(stream))
-        {
-            Write(writer, result);
-        }
-
-        return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
-    }
-
-    private static void Write(Utf8JsonWriter writer, RedisResult result)
-    {
-        if (result.IsNull)
-        {
-            writer.WriteNullValue();
-            return;
-        }
-
-        switch (result.Resp2Type)
-        {
-            case ResultType.Integer:
-                writer.WriteNumberValue((long)result);
-                break;
-            case ResultType.Array:
-                writer.WriteStartArray();
-                foreach (var item in (RedisResult[])result!)
-                {
-                    Write(writer, item);
-                }
-
-                writer.WriteEndArray();
-                break;
-            default:
-                writer.WriteStringValue((string?)result);
-                break;
-        }
-    }
-}
-
-/// <summary>A Redis that is down: every call fails the way an unreachable Upstash does.</summary>
+/// <summary>A Redis that is down: every call fails the way an unreachable host does.</summary>
 public sealed class UnavailableScriptClient : IRedisScriptClient
 {
     public int Calls { get; private set; }

@@ -13,8 +13,7 @@ namespace Yakku.Infrastructure.Configuration
         [
             ("DB_CONNECTION_STRING", "Database:ConnectionString"),
             ("DB_AUTO_MIGRATE", "Database:AutoMigrate"),
-            ("UPSTASH_REDIS_REST_URL", "Redis:Url"),
-            ("UPSTASH_REDIS_REST_TOKEN", "Redis:Token"),
+            ("REDIS_URL", "Redis:Url"),
             ("MSG91_AUTH_KEY", "Msg91:AuthKey"),
             ("MSG91_FLOW_ID", "Msg91:FlowId"),
             ("MSG91_SENDER_ID", "Msg91:SenderId"),

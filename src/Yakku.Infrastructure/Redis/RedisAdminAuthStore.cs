@@ -7,9 +7,9 @@ namespace Yakku.Infrastructure.Redis
     {
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-        private readonly UpstashRedisClient _redis;
+        private readonly IRedisClient _redis;
 
-        public RedisAdminAuthStore(UpstashRedisClient redis)
+        public RedisAdminAuthStore(IRedisClient redis)
         {
             _redis = redis;
         }

@@ -32,6 +32,7 @@ using Yakku.Infrastructure.Firebase;
 using Yakku.Infrastructure.Persistence;
 using Yakku.Infrastructure.Push;
 using Yakku.Infrastructure.Persistence.Repositories;
+using StackExchange.Redis;
 using Yakku.Infrastructure.Redis;
 using Yakku.Infrastructure.Sms;
 using Yakku.Application.Storage;
@@ -169,13 +170,15 @@ namespace Yakku.Infrastructure
                 var logger = sp.GetRequiredService<ILogger<ResendEmailSender>>();
                 return ResendEmailSender.Create(resend.ApiKey, resend.OtpTemplateId, logger);
             });
-            services.AddSingleton(_ =>
+            services.AddSingleton<IConnectionMultiplexer>(sp =>
             {
-                var redis = _.GetRequiredService<IOptions<RedisOptions>>().Value;
-                Require(redis.Url, "Redis:Url", "UPSTASH_REDIS_REST_URL");
-                Require(redis.Token, "Redis:Token", "UPSTASH_REDIS_REST_TOKEN");
-                return UpstashRedisClient.Create(redis.Url, redis.Token);
+                var redis = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
+                Require(redis.Url, "Redis:Url", "REDIS_URL");
+                return RedisConnection.Connect(redis.Url);
             });
+            services.AddSingleton<IRedisClient>(sp =>
+                new RedisClient(sp.GetRequiredService<IConnectionMultiplexer>()));
+            services.AddSingleton<IRedisScriptClient>(sp => sp.GetRequiredService<IRedisClient>());
 
             var emailChannel = Channel.CreateBounded<EmailJob>(new BoundedChannelOptions(OtpEmailQueueOptions.Capacity)
             {
@@ -208,7 +211,6 @@ namespace Yakku.Infrastructure
                 })
                 .ValidateOnStart();
             services.AddSingleton(sp => sp.GetRequiredService<IOptions<VoteNotificationBatchingOptions>>().Value);
-            services.AddSingleton<IRedisScriptClient>(sp => sp.GetRequiredService<UpstashRedisClient>());
             services.AddSingleton<IVoteBatchingStore, VoteBatchingRedisStore>();
             services.AddSingleton<VoteBatchingPolicy>();
             services.AddSingleton<VoteBatchingEngine>();

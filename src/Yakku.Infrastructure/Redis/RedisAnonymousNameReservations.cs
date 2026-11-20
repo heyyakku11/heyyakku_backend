@@ -11,10 +11,10 @@ namespace Yakku.Infrastructure.Redis
     {
         private const string Prefix = "anon-name:";
 
-        private readonly UpstashRedisClient _redis;
+        private readonly IRedisClient _redis;
         private readonly ILogger<RedisAnonymousNameReservations> _logger;
 
-        public RedisAnonymousNameReservations(UpstashRedisClient redis, ILogger<RedisAnonymousNameReservations> logger)
+        public RedisAnonymousNameReservations(IRedisClient redis, ILogger<RedisAnonymousNameReservations> logger)
         {
             _redis = redis;
             _logger = logger;

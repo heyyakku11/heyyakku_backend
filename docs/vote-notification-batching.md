@@ -118,6 +118,6 @@ number or voter identity.
 2. A rolling deploy is safe: old instances keep writing the old kind of rows, which the sweep sends.
 3. Rollback: redeploy the old build. Rows classified in the new way (`UNDECIDED` events) are not understood by the old
    build, so wait for them to drain (seconds) before rolling back, or leave the migration applied.
-4. Redis must allow `EVAL` with `TIME` inside scripts (standard Redis does). **This has not been verified on Upstash
+4. Redis must allow `EVAL` with `TIME` inside scripts (standard Redis does). **This has not been verified on every managed Redis host
    from this repository**; check it on a staging database before production (see below).
 5. Polling costs Redis requests: one `EVAL` per second while a batch waits, one per `IdleRedisPollSeconds` when idle.

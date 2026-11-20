@@ -2,13 +2,13 @@
 
 ASP.NET Core API for Hey Yakku. Users prove ownership of their mobile number with a 6-digit OTP sent by SMS. A user row is created only after verification succeeds. Until then, Redis holds a short-lived challenge — not a user.
 
-Postgres stores users, profiles, sessions, guests, polls, votes, and system logs. Upstash Redis (REST) stores OTP challenges only.
+Postgres stores users, profiles, sessions, guests, polls, votes, and system logs. Redis (any provider via `REDIS_URL`) stores OTP challenges and coordination state.
 
 ## Stack
 
 - .NET 10 / ASP.NET Core
 - PostgreSQL (EF Core + Npgsql)
-- Upstash Redis (OTP challenge store)
+- Redis over TCP (`REDIS_URL`; local, Upstash, Redis Cloud, etc.)
 - JWT access tokens (15 minutes) + refresh sessions (30 days)
 - FluentValidation, Swagger (Swashbuckle)
 
@@ -27,7 +27,7 @@ Auth internals (Redis key shape, challenge JSON) are in [`docs/INTRO.md`](docs/I
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - PostgreSQL (local or hosted)
-- Upstash Redis REST credentials
+- A Redis instance reachable via `REDIS_URL`
 - EF Core tools: `dotnet tool install --global dotnet-ef`
 
 ## Setup
@@ -42,8 +42,7 @@ Fill in `.env`. Never commit that file; `.env.example` is the template that stay
 |---|---|---|
 | `DB_CONNECTION_STRING` | Yes | Postgres connection string |
 | `DB_AUTO_MIGRATE` | No | Pending EF migrations are applied at startup so the schema always matches the code; the app will not start if one fails. Set `false` to run `dotnet ef database update` yourself. |
-| `UPSTASH_REDIS_REST_URL` | Yes | Redis REST base URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Yes | Redis REST token |
+| `REDIS_URL` | Yes | Redis connection URL (`redis://`, `rediss://`, or StackExchange form). Provider-agnostic. |
 | `JWT_SECRET` | Yes | Access-token signing key (at least 32 characters) |
 | `MSG91_AUTH_KEY`, `MSG91_FLOW_ID` | Yes when `Msg91:Enabled` is true (Staging/Production) | OTP SMS delivery; see [MSG91 configuration](#msg91-configuration). `MSG91_SENDER_ID` is optional. Enablement is set in appsettings, not `.env`. |
 | `ADMIN_*`, `TRUSTED_PROXY_HOPS` | No | Admin cookie-session, CSRF and login-throttle settings with secure defaults; see [docs/admin-auth.md](docs/admin-auth.md). |
