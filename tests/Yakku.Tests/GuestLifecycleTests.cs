@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Yakku.Application.Audit;
+using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Guests;
 using Yakku.Application.Guests.Interfaces;
 using Yakku.Application.Guests.Services;
@@ -11,6 +12,8 @@ namespace Yakku.Tests;
 
 public class GuestLifecycleTests
 {
+    private const string TestJwtSecret = "test-jwt-secret-at-least-32-characters-long!!";
+
     [Fact]
     public async Task Establish_ReusesAValidGuest_WithoutIssuingANewToken()
     {
@@ -29,8 +32,9 @@ public class GuestLifecycleTests
     public async Task Establish_WithoutToken_CreatesExactlyOneGuest_ThenReusesIt()
     {
         var h = new Harness();
+        var key = h.NewIdempotencyKey();
 
-        var first = await h.Identity.EstablishAsync(null);
+        var first = await h.Identity.EstablishAsync(null, key);
         Assert.NotNull(first.RawTokenToSet);
         Assert.Single(h.Guests.All);
 
@@ -38,6 +42,51 @@ public class GuestLifecycleTests
         Assert.Equal(first.GuestId, second.GuestId);
         Assert.Null(second.RawTokenToSet);
         Assert.Single(h.Guests.All);
+    }
+
+    [Fact]
+    public async Task Establish_SameIdempotencyKeyTwice_ReturnsSameGuestAndToken()
+    {
+        var h = new Harness();
+        var key = h.NewIdempotencyKey();
+
+        var first = await h.Identity.EstablishAsync(null, key);
+        var second = await h.Identity.EstablishAsync(null, key);
+
+        Assert.Equal(first.GuestId, second.GuestId);
+        Assert.Equal(first.RawTokenToSet, second.RawTokenToSet);
+        Assert.Single(h.Guests.All);
+        Assert.Equal(key, h.Guests.All[0].IdempotencyKey);
+        Assert.Single(h.Audit.Authentication, entry => entry.EventType == AuditEvents.Auth.GuestCreated);
+    }
+
+    [Fact]
+    public async Task Establish_IdempotencyRace_ReturnsTheWinner()
+    {
+        var h = new Harness();
+        var key = h.NewIdempotencyKey();
+        var winner = await h.Identity.EstablishAsync(null, key);
+
+        // Simulate a concurrent create that missed the first lookup and lost the unique insert.
+        h.Guests.SuppressIdempotencyLookupCount = 1;
+        h.Guests.ForceIdempotencyConflict = true;
+        var raced = await h.Identity.EstablishAsync(null, key);
+
+        Assert.Equal(winner.GuestId, raced.GuestId);
+        Assert.Equal(winner.RawTokenToSet, raced.RawTokenToSet);
+        Assert.Single(h.Guests.All);
+    }
+
+    [Fact]
+    public async Task Establish_WithoutTokenOrIdempotencyKey_FailsValidation()
+    {
+        var h = new Harness();
+
+        var ex = await Assert.ThrowsAsync<AppException>(() => h.Identity.EstablishAsync(null));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Equal("idempotencyKey", ex.Field);
+        Assert.Empty(h.Guests.All);
     }
 
     [Fact]
@@ -57,8 +106,9 @@ public class GuestLifecycleTests
     {
         var h = new Harness();
         var expired = h.SeedGuest(createdDaysAgo: 30);
+        var key = h.NewIdempotencyKey();
 
-        var result = await h.Identity.EstablishAsync(h.RawToken);
+        var result = await h.Identity.EstablishAsync(h.RawToken, key);
 
         Assert.NotEqual(expired.Id, result.GuestId);
         Assert.NotNull(result.RawTokenToSet);
@@ -70,11 +120,28 @@ public class GuestLifecycleTests
     }
 
     [Fact]
+    public async Task Establish_ExpiredGuestWithSameIdempotencyKey_MintsReplacement()
+    {
+        var h = new Harness();
+        var key = h.NewIdempotencyKey();
+        var expired = h.SeedGuest(createdDaysAgo: 30, idempotencyKey: key);
+
+        var result = await h.Identity.EstablishAsync(null, key);
+
+        Assert.NotEqual(expired.Id, result.GuestId);
+        Assert.NotNull(result.RawTokenToSet);
+        Assert.Null(expired.IdempotencyKey);
+        Assert.Equal(key, h.Guests.All.Single(g => g.Id == result.GuestId).IdempotencyKey);
+        Assert.Equal(2, h.Guests.All.Count);
+    }
+
+    [Fact]
     public async Task Establish_WithUnknownToken_CreatesANewGuest()
     {
         var h = new Harness();
+        var key = h.NewIdempotencyKey();
 
-        var result = await h.Identity.EstablishAsync("not-a-known-token");
+        var result = await h.Identity.EstablishAsync("not-a-known-token", key);
 
         Assert.NotNull(result.RawTokenToSet);
         Assert.Single(h.Guests.All);
@@ -306,7 +373,8 @@ public class GuestLifecycleTests
             Storage = new FakeObjectStorage();
             Audit = new RecordingAuditLogWriter();
             VoteClaims = new InMemoryGuestVoteClaims();
-            Identity = new GuestIdentityService(Guests, new GuestTokenGenerator(), Hasher, Audit);
+            Tokens = new GuestSessionTokenFactory(TestJwtSecret);
+            Identity = new GuestIdentityService(Guests, Tokens, Hasher, Audit);
             Claim = new GuestMediaClaimService(Guests, Hasher, Sessions, new InMemoryDeviceRepository(), VoteClaims, Audit);
             Cleanup = new GuestCleanupService(
                 Guests,
@@ -321,6 +389,8 @@ public class GuestLifecycleTests
         public string RawToken { get; }
 
         public GuestTokenHasher Hasher { get; }
+
+        public GuestSessionTokenFactory Tokens { get; }
 
         public InMemoryGuestRepository Guests { get; }
 
@@ -338,9 +408,14 @@ public class GuestLifecycleTests
 
         public GuestCleanupService Cleanup { get; }
 
-        public Guest SeedGuest(int createdDaysAgo = 0)
+        public string NewIdempotencyKey() => Guid.NewGuid().ToString("D");
+
+        public Guest SeedGuest(int createdDaysAgo = 0, string? idempotencyKey = null)
         {
-            var guest = new Guest(Hasher.Hash(RawToken), DateTime.UtcNow.AddDays(-createdDaysAgo));
+            var guest = new Guest(
+                Hasher.Hash(RawToken),
+                DateTime.UtcNow.AddDays(-createdDaysAgo),
+                idempotencyKey);
             Guests.Seed(guest);
             return guest;
         }

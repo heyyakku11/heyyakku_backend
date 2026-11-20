@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Yakku.Application.Guests.Interfaces;
 using Yakku.Domain.Entities;
 
@@ -6,6 +7,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 {
     public class GuestRepository : IGuestRepository
     {
+        private const string IdempotencyConstraint = "IX_Guests_IdempotencyKey";
+
         private readonly YakkuDbContext _context;
 
         public GuestRepository(YakkuDbContext context)
@@ -16,6 +19,21 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         public async Task AddAsync(Guest guest, CancellationToken cancellationToken = default)
         {
             await _context.Guests.AddAsync(guest, cancellationToken);
+        }
+
+        public async Task<Guest?> TryAddAsync(Guest guest, CancellationToken cancellationToken = default)
+        {
+            await _context.Guests.AddAsync(guest, cancellationToken);
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+                return guest;
+            }
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception, IdempotencyConstraint))
+            {
+                _context.Entry(guest).State = EntityState.Detached;
+                return null;
+            }
         }
 
         public Task<Guest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -29,6 +47,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             return await _context.Guests
                 .FirstOrDefaultAsync(guest => guest.SessionTokenHash == tokenHash, cancellationToken);
+        }
+
+        public Task<Guest?> FindByIdempotencyKeyAsync(
+            string idempotencyKey,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.Guests.FirstOrDefaultAsync(
+                guest => guest.IdempotencyKey == idempotencyKey,
+                cancellationToken);
         }
 
         public async Task<Guest?> GetByTokenHashForUpdateAsync(
@@ -101,6 +128,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private static bool IsUniqueViolation(DbUpdateException exception, string constraintName)
+        {
+            return exception.InnerException is PostgresException postgres
+                   && postgres.SqlState == PostgresErrorCodes.UniqueViolation
+                   && postgres.ConstraintName == constraintName;
         }
     }
 }

@@ -18,6 +18,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.ExpiresAt)
                 .IsRequired();
 
+            builder.Property(x => x.IdempotencyKey)
+                .HasColumnName("idempotency_key")
+                .HasMaxLength(Guest.MaxIdempotencyKeyLength);
+
             builder.Property(x => x.IpAddress)
                 .HasColumnType("inet");
 
@@ -50,6 +54,11 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.HasIndex(x => x.ExpiresAt)
                 .HasDatabaseName("IX_Guests_ExpiresAt");
+
+            builder.HasIndex(x => x.IdempotencyKey)
+                .IsUnique()
+                .HasFilter("idempotency_key IS NOT NULL")
+                .HasDatabaseName("IX_Guests_IdempotencyKey");
         }
     }
 }

@@ -11,6 +11,12 @@ namespace Yakku.Domain.Entities
         public DateTime? LastSeenAt { get; private set; }
         public DateTime ExpiresAt { get; private set; }
 
+        /// <summary>
+        /// Client-supplied key that makes guest minting idempotent. Unique when set; null on legacy guests.
+        /// Treat as sensitive: the session token is derived from it.
+        /// </summary>
+        public string? IdempotencyKey { get; private set; }
+
         // Client details captured once, from request headers, when the guest is created. Every one is optional:
         // a missing or unparseable header leaves the column null and never blocks guest creation.
 
@@ -45,23 +51,25 @@ namespace Yakku.Domain.Entities
         public const int MaxOsNameLength = 64;
         public const int MaxLanguageLength = 35;
         public const int CountryCodeLength = 2;
+        public const int MaxIdempotencyKeyLength = 128;
 
         private Guest()
         {
         }
 
-        public Guest(string sessionTokenHash)
-            : this(sessionTokenHash, DateTime.UtcNow)
+        public Guest(string sessionTokenHash, string? idempotencyKey = null)
+            : this(sessionTokenHash, DateTime.UtcNow, idempotencyKey)
         {
         }
 
-        public Guest(string sessionTokenHash, DateTime createdAtUtc)
+        public Guest(string sessionTokenHash, DateTime createdAtUtc, string? idempotencyKey = null)
         {
             Id = Guid.NewGuid();
             SessionTokenHash = sessionTokenHash;
             CreatedAt = createdAtUtc;
             LastSeenAt = CreatedAt;
             ExpiresAt = CreatedAt.Add(Lifetime);
+            IdempotencyKey = NormalizeIdempotencyKey(idempotencyKey);
         }
 
         public bool IsExpired(DateTime utcNow)
@@ -72,6 +80,28 @@ namespace Yakku.Domain.Entities
         public void Touch()
         {
             LastSeenAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Frees the unique idempotency index so a new guest can be minted with the same key after expiry.
+        /// Does not revive this guest.
+        /// </summary>
+        public void ClearIdempotencyKey()
+        {
+            IdempotencyKey = null;
+        }
+
+        private static string? NormalizeIdempotencyKey(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var trimmed = value.Trim();
+            return trimmed.Length <= MaxIdempotencyKeyLength
+                ? trimmed
+                : trimmed[..MaxIdempotencyKeyLength];
         }
 
         /// <summary>Records the client details seen at creation. Values are normalised and capped to column size.</summary>

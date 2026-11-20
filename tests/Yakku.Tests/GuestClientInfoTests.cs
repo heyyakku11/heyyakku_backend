@@ -120,10 +120,13 @@ public class GuestClientInfoTests
     {
         var guests = new InMemoryGuestRepository();
         var hasher = new GuestTokenHasher();
-        var identity = new GuestIdentityService(guests, new GuestTokenGenerator(), hasher, new RecordingAuditLogWriter());
+        var tokens = new GuestSessionTokenFactory(TestJwtSecret);
+        var identity = new GuestIdentityService(guests, tokens, hasher, new RecordingAuditLogWriter());
+        var key = Guid.NewGuid().ToString("D");
 
         var created = await identity.EstablishAsync(
             null,
+            key,
             new GuestClientInfo(
                 IpAddress: "203.0.113.9",
                 UserAgent: ChromeWindows,
@@ -147,7 +150,9 @@ public class GuestClientInfoTests
         Assert.True(stored.CookiesEnabled);
 
         // Reusing the guest from another client must not overwrite what was recorded at creation.
-        await identity.EstablishAsync(created.RawTokenToSet, new GuestClientInfo(IpAddress: "198.51.100.1", BrowserName: "Firefox"));
+        await identity.EstablishAsync(
+            created.RawTokenToSet,
+            client: new GuestClientInfo(IpAddress: "198.51.100.1", BrowserName: "Firefox"));
 
         Assert.Equal(IPAddress.Parse("203.0.113.9"), stored.IpAddress);
         Assert.Equal("Chrome", stored.BrowserName);
@@ -158,9 +163,12 @@ public class GuestClientInfoTests
     {
         var guests = new InMemoryGuestRepository();
         var identity = new GuestIdentityService(
-            guests, new GuestTokenGenerator(), new GuestTokenHasher(), new RecordingAuditLogWriter());
+            guests,
+            new GuestSessionTokenFactory(TestJwtSecret),
+            new GuestTokenHasher(),
+            new RecordingAuditLogWriter());
 
-        var result = await identity.EstablishAsync(null);
+        var result = await identity.EstablishAsync(null, Guid.NewGuid().ToString("D"));
 
         Assert.NotNull(result.RawTokenToSet);
         var stored = Assert.Single(guests.All);
@@ -168,4 +176,6 @@ public class GuestClientInfoTests
         Assert.Null(stored.UserAgent);
         Assert.Null(stored.DeviceType);
     }
+
+    private const string TestJwtSecret = "test-jwt-secret-at-least-32-characters-long!!";
 }

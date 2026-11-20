@@ -9,15 +9,18 @@ namespace Yakku.Tests;
 /// <summary>Cookie audit: what the guest cookie looks like on the wire, and how tampered or stale values behave.</summary>
 public class GuestCookieSecurityTests
 {
+    private const string TestJwtSecret = "test-jwt-secret-at-least-32-characters-long!!";
     private static readonly GuestTokenHasher Hasher = new();
+    private static readonly GuestSessionTokenFactory Tokens = new(TestJwtSecret);
 
     private static (GuestCookieService Cookies, InMemoryGuestRepository Guests) NewService()
     {
         var guests = new InMemoryGuestRepository();
-        var identity = new GuestIdentityService(
-            guests, new GuestTokenGenerator(), Hasher, new RecordingAuditLogWriter());
+        var identity = new GuestIdentityService(guests, Tokens, Hasher, new RecordingAuditLogWriter());
         return (new GuestCookieService(identity), guests);
     }
+
+    private static string NewKey() => Guid.NewGuid().ToString("D");
 
     private static DefaultHttpContext NewContext(string scheme = "https")
     {
@@ -37,8 +40,9 @@ public class GuestCookieSecurityTests
     {
         var (cookies, guests) = NewService();
         var http = NewContext();
+        var key = NewKey();
 
-        var result = await cookies.EnsureAsync(http);
+        var result = await cookies.EnsureAsync(http, key);
         var header = SetCookieHeader(http);
 
         Assert.Single(guests.All);
@@ -48,6 +52,7 @@ public class GuestCookieSecurityTests
         // Only the hash is stored.
         Assert.Equal(Hasher.Hash(result.RawTokenToSet), guests.All[0].SessionTokenHash);
         Assert.DoesNotContain(result.RawTokenToSet, guests.All[0].SessionTokenHash);
+        Assert.Equal(key, guests.All[0].IdempotencyKey);
 
         var lower = header.ToLowerInvariant();
         Assert.Contains("httponly", lower);
@@ -67,7 +72,7 @@ public class GuestCookieSecurityTests
         var http = NewContext(scheme: "http");
         http.Request.Headers["X-Forwarded-Proto"] = "https";
 
-        await cookies.EnsureAsync(http);
+        await cookies.EnsureAsync(http, NewKey());
 
         Assert.DoesNotContain("secure", SetCookieHeader(http).ToLowerInvariant().Replace("samesite", string.Empty));
     }
@@ -77,7 +82,7 @@ public class GuestCookieSecurityTests
     {
         var (cookies, guests) = NewService();
         var first = NewContext();
-        var created = await cookies.EnsureAsync(first);
+        var created = await cookies.EnsureAsync(first, NewKey());
 
         var again = NewContext();
         again.Request.Headers.Cookie = $"{GuestCookieService.CookieName}={created.RawTokenToSet}";
@@ -96,11 +101,11 @@ public class GuestCookieSecurityTests
     {
         var (cookies, guests) = NewService();
         var first = NewContext();
-        var original = await cookies.EnsureAsync(first);
+        var original = await cookies.EnsureAsync(first, NewKey());
 
         var http = NewContext();
         http.Request.Headers.Cookie = $"{GuestCookieService.CookieName}={tampered}";
-        var result = await cookies.EnsureAsync(http);
+        var result = await cookies.EnsureAsync(http, NewKey());
 
         // The bad value matches nobody: it is never treated as the original guest. It is replaced by a brand new
         // anonymous identity (rate limited by the guest-create policy) with a fresh cookie.
@@ -114,12 +119,12 @@ public class GuestCookieSecurityTests
     public async Task CookieOfADeletedGuest_AsAfterLoginClaim_IsRejected_AndReplaced()
     {
         var (cookies, guests) = NewService();
-        var created = await cookies.EnsureAsync(NewContext());
+        var created = await cookies.EnsureAsync(NewContext(), NewKey());
         guests.Delete(guests.All[0]); // what claiming the guest at sign-in does
 
         var http = NewContext();
         http.Request.Headers.Cookie = $"{GuestCookieService.CookieName}={created.RawTokenToSet}";
-        var result = await cookies.EnsureAsync(http);
+        var result = await cookies.EnsureAsync(http, NewKey());
 
         Assert.NotEqual(created.GuestId, result.GuestId);
         Assert.Single(guests.All);
@@ -135,7 +140,7 @@ public class GuestCookieSecurityTests
 
         var http = NewContext();
         http.Request.Headers.Cookie = $"{GuestCookieService.CookieName}={raw}";
-        var result = await cookies.EnsureAsync(http);
+        var result = await cookies.EnsureAsync(http, NewKey());
 
         Assert.NotNull(result.RawTokenToSet);
         Assert.NotEqual(raw, result.RawTokenToSet);

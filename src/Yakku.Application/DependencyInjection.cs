@@ -95,6 +95,17 @@ namespace Yakku.Application
             services.AddSingleton<IDisplayNameGenerator, DisplayNameGenerator>();
             services.AddSingleton<IGuestTokenGenerator, GuestTokenGenerator>();
             services.AddSingleton<IGuestTokenHasher, GuestTokenHasher>();
+            services.AddSingleton<IGuestSessionTokenFactory>(sp =>
+            {
+                var secret = sp.GetRequiredService<IOptions<JwtSettings>>().Value.Secret?.Trim().Trim('"');
+                if (string.IsNullOrWhiteSpace(secret))
+                {
+                    throw new InvalidOperationException(
+                        "Jwt:Secret is not set. Add JWT_SECRET to your .env file or environment variables.");
+                }
+
+                return new GuestSessionTokenFactory(secret);
+            });
             services.AddSingleton<ITokenService>(sp =>
             {
                 var secret = sp.GetRequiredService<IOptions<JwtSettings>>().Value.Secret?.Trim().Trim('"');

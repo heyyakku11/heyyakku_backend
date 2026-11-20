@@ -86,6 +86,14 @@ Authorization: Bearer {{accessToken}}
 DELETE {{Yakku.API_HostAddress}}/api/v1/saved-cards/poll/00000000-0000-0000-0000-000000000000
 Authorization: Bearer {{accessToken}}
 
+### Create or reuse a guest (idempotent)
+POST {{Yakku.API_HostAddress}}/api/v1/guests
+Content-Type: application/json
+
+{
+  "idempotencyKey": "550e8400-e29b-41d4-a716-446655440000"
+}
+
 ### Open a share link (poll or check; optional auth to see hasVoted / myVote)
 GET {{Yakku.API_HostAddress}}/api/v1/shares/replace-with-share-code
 X-Guest-Token: {{guestToken}}

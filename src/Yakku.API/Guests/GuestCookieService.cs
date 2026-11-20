@@ -24,6 +24,7 @@ namespace Yakku.API.Guests
 
         public async Task<GuestEstablishResult> EnsureAsync(
             HttpContext httpContext,
+            string? idempotencyKey = null,
             CancellationToken cancellationToken = default)
         {
             var stopwatch = Stopwatch.StartNew(); //remove later
@@ -33,7 +34,11 @@ namespace Yakku.API.Guests
             LogStep("read guest token from request", stopwatch);
             var client = GuestClientInfoReader.From(httpContext);
             LogStep("read client info from headers", stopwatch);
-            var result = await _guestIdentityService.EstablishAsync(rawToken, client, cancellationToken);
+            var result = await _guestIdentityService.EstablishAsync(
+                rawToken,
+                idempotencyKey,
+                client,
+                cancellationToken);
             LogStep("establish guest identity (total)", stopwatch);
 
             if (result.RawTokenToSet is not null)

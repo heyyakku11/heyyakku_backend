@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Net;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.Audit;
+using Yakku.Application.Common.Exceptions;
+using Yakku.Application.Common.Responses;
 using Yakku.Application.Guests.DTOs;
 using Yakku.Application.Guests.Interfaces;
 using Yakku.Domain.Entities;
@@ -12,20 +14,20 @@ namespace Yakku.Application.Guests.Services
     public class GuestIdentityService : IGuestIdentityService
     {
         private readonly IGuestRepository _guestRepository;
-        private readonly IGuestTokenGenerator _tokenGenerator;
+        private readonly IGuestSessionTokenFactory _sessionTokenFactory;
         private readonly IGuestTokenHasher _tokenHasher;
         private readonly IAuditLogWriter _audit;
         private readonly ILogger<GuestIdentityService>? _logger;
 
         public GuestIdentityService(
             IGuestRepository guestRepository,
-            IGuestTokenGenerator tokenGenerator,
+            IGuestSessionTokenFactory sessionTokenFactory,
             IGuestTokenHasher tokenHasher,
             IAuditLogWriter audit,
             ILogger<GuestIdentityService>? logger = null)
         {
             _guestRepository = guestRepository;
-            _tokenGenerator = tokenGenerator;
+            _sessionTokenFactory = sessionTokenFactory;
             _tokenHasher = tokenHasher;
             _audit = audit;
             _logger = logger;
@@ -33,6 +35,7 @@ namespace Yakku.Application.Guests.Services
 
         public async Task<GuestEstablishResult> EstablishAsync(
             string? rawToken,
+            string? idempotencyKey = null,
             GuestClientInfo? client = null,
             CancellationToken cancellationToken = default)
         {
@@ -67,8 +70,36 @@ namespace Yakku.Application.Guests.Services
                 }
             }
 
-            var token = _tokenGenerator.Generate();
-            var guest = new Guest(_tokenHasher.Hash(token));
+            var key = NormalizeIdempotencyKey(idempotencyKey);
+            if (key is null)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "idempotencyKey is required to create a guest identity.",
+                    "idempotencyKey");
+            }
+
+            var byKey = await _guestRepository.FindByIdempotencyKeyAsync(key, cancellationToken);
+            LogStep("db lookup by idempotency key", stopwatch);
+            if (byKey is not null)
+            {
+                if (!byKey.IsExpired(DateTime.UtcNow))
+                {
+                    byKey.Touch();
+                    await _guestRepository.SaveChangesAsync(cancellationToken);
+                    LogStep("db save (touch idempotent guest)", stopwatch);
+                    return ToResult(byKey, _sessionTokenFactory.FromIdempotencyKey(key));
+                }
+
+                // Free the unique index so the same key can mint a replacement. Never revive the expired row.
+                byKey.ClearIdempotencyKey();
+                await _guestRepository.SaveChangesAsync(cancellationToken);
+                LogStep("db save (clear expired idempotency key)", stopwatch);
+            }
+
+            var token = _sessionTokenFactory.FromIdempotencyKey(key);
+            var guest = new Guest(_tokenHasher.Hash(token), key);
             // Client details are recorded only when a guest is created; a reused guest keeps what it was created with.
             if (client is not null)
             {
@@ -84,21 +115,53 @@ namespace Yakku.Application.Guests.Services
                     client.CookiesEnabled);
             }
             LogStep("generate + hash new token", stopwatch);
-            await _guestRepository.AddAsync(guest, cancellationToken);
-            LogStep("db add (tracked in memory)", stopwatch);
-            await _guestRepository.SaveChangesAsync(cancellationToken);
-            LogStep("db save (insert new guest)", stopwatch);
+
+            var saved = await _guestRepository.TryAddAsync(guest, cancellationToken);
+            LogStep("db try-add (insert new guest)", stopwatch);
+            if (saved is null)
+            {
+                // Concurrent duplicate idempotency key: return the winner.
+                var raced = await _guestRepository.FindByIdempotencyKeyAsync(key, cancellationToken)
+                    ?? throw new AppException(
+                        409,
+                        ApiErrorCodes.Conflict,
+                        "A guest with this idempotency key already exists.",
+                        "idempotencyKey");
+
+                if (raced.IsExpired(DateTime.UtcNow))
+                {
+                    throw new AppException(
+                        409,
+                        ApiErrorCodes.Conflict,
+                        "A guest with this idempotency key already exists.",
+                        "idempotencyKey");
+                }
+
+                raced.Touch();
+                await _guestRepository.SaveChangesAsync(cancellationToken);
+                return ToResult(raced, token);
+            }
 
             await _audit.WriteAuthenticationAsync(
                 new AuthenticationAuditEntry(
                     AuditActorType.Guest,
-                    guest.Id,
+                    saved.Id,
                     AuditEvents.Auth.GuestCreated,
                     AuditOutcome.Success),
                 CancellationToken.None);
             LogStep("audit write (guest created)", stopwatch);
 
-            return ToResult(guest, token);
+            return ToResult(saved, token);
+        }
+
+        private static string? NormalizeIdempotencyKey(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            return value.Trim();
         }
 
         // Logs the time since the previous step and restarts the stopwatch.

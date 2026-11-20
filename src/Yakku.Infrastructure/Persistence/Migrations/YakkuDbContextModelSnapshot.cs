@@ -1407,6 +1407,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("idempotency_key");
+
                     b.Property<IPAddress>("IpAddress")
                         .HasColumnType("inet");
 
@@ -1434,6 +1439,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExpiresAt")
                         .HasDatabaseName("IX_Guests_ExpiresAt");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Guests_IdempotencyKey")
+                        .HasFilter("idempotency_key IS NOT NULL");
 
                     b.HasIndex("SessionTokenHash")
                         .IsUnique()

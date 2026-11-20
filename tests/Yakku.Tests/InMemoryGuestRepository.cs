@@ -20,12 +20,52 @@ internal sealed class InMemoryGuestRepository : IGuestRepository
         return Task.CompletedTask;
     }
 
+    /// <summary>When true, the next <see cref="TryAddAsync"/> reports an idempotency conflict.</summary>
+    public bool ForceIdempotencyConflict { get; set; }
+
+    /// <summary>
+    /// How many <see cref="FindByIdempotencyKeyAsync"/> calls should miss so a race after insert can be simulated.
+    /// </summary>
+    public int SuppressIdempotencyLookupCount { get; set; }
+
+    public Task<Guest?> TryAddAsync(Guest guest, CancellationToken cancellationToken = default)
+    {
+        if (ForceIdempotencyConflict)
+        {
+            ForceIdempotencyConflict = false;
+            return Task.FromResult<Guest?>(null);
+        }
+
+        if (guest.IdempotencyKey is not null
+            && _guests.Any(existing => existing.IdempotencyKey == guest.IdempotencyKey))
+        {
+            return Task.FromResult<Guest?>(null);
+        }
+
+        _guests.Add(guest);
+        return Task.FromResult<Guest?>(guest);
+    }
+
     public Task<Guest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => Task.FromResult(_guests.FirstOrDefault(guest => guest.Id == id));
 
     public Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(_guests.FirstOrDefault(guest => guest.SessionTokenHash == tokenHash));
+    }
+
+    public Task<Guest?> FindByIdempotencyKeyAsync(
+        string idempotencyKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (SuppressIdempotencyLookupCount > 0)
+        {
+            SuppressIdempotencyLookupCount--;
+            return Task.FromResult<Guest?>(null);
+        }
+
+        return Task.FromResult(
+            _guests.FirstOrDefault(guest => guest.IdempotencyKey == idempotencyKey));
     }
 
     public Task<Guest?> GetByTokenHashForUpdateAsync(string tokenHash, CancellationToken cancellationToken = default)

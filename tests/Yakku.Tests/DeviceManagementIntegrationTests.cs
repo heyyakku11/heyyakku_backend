@@ -891,9 +891,13 @@ public sealed class DeviceManagementIntegrationTests
 
         public Task AddAsync(Guest guest, CancellationToken cancellationToken = default) => _inner.AddAsync(guest, cancellationToken);
 
+        public Task<Guest?> TryAddAsync(Guest guest, CancellationToken cancellationToken = default) => _inner.TryAddAsync(guest, cancellationToken);
+
         public Task<Guest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => _inner.GetByIdAsync(id, cancellationToken);
 
         public Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default) => _inner.GetByTokenHashAsync(tokenHash, cancellationToken);
+
+        public Task<Guest?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken = default) => _inner.FindByIdempotencyKeyAsync(idempotencyKey, cancellationToken);
 
         public Task<Guest?> GetByTokenHashForUpdateAsync(string tokenHash, CancellationToken cancellationToken = default) => _inner.GetByTokenHashForUpdateAsync(tokenHash, cancellationToken);
 

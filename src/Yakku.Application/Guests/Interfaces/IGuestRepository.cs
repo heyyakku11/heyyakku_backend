@@ -5,8 +5,19 @@ namespace Yakku.Application.Guests.Interfaces
     public interface IGuestRepository
     {
         Task AddAsync(Guest guest, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Inserts the guest. Returns null when <see cref="Guest.IdempotencyKey"/> already exists
+        /// (<c>IX_Guests_IdempotencyKey</c>).
+        /// </summary>
+        Task<Guest?> TryAddAsync(Guest guest, CancellationToken cancellationToken = default);
+
         Task<Guest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<Guest?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
+
+        Task<Guest?> FindByIdempotencyKeyAsync(
+            string idempotencyKey,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Loads the guest and takes a row lock until the surrounding transaction ends, so two claims of the
