@@ -12,8 +12,8 @@ namespace Yakku.Infrastructure.Push
     /// <summary>
     /// Sends the push rows written with each Ask Back message. Rows are claimed with a conditional update and a
     /// lease (like the vote notification outbox), so several instances can run it and a crashed claim becomes
-    /// claimable again. A recipient who is viewing the conversation gets no push and the linked unread inbox row
-    /// is removed so the inbox stays aligned with delivered pushes.
+    /// claimable again. A recipient who is viewing the conversation gets no push; the inbox notification row is
+    /// kept so Activity still shows the start/reply event.
     /// </summary>
     public sealed class AskBackPushDispatcher
     {
@@ -91,13 +91,7 @@ namespace Yakku.Infrastructure.Push
                     await Finish(owned, AskBackOutboxStatus.Sent, now, cancellationToken);
                     break;
                 case PushOutcome.Skipped:
-                    if (row.NotificationId is { } notificationId)
-                    {
-                        await _db.Notifications
-                            .Where(n => n.Id == notificationId && !n.IsRead)
-                            .ExecuteDeleteAsync(cancellationToken);
-                    }
-
+                    // Viewing suppresses push only; leave the inbox notification in place.
                     await Finish(owned, AskBackOutboxStatus.Skipped, now, cancellationToken);
                     break;
                 default:

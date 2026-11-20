@@ -260,17 +260,21 @@ Server to client (target is the user, so every device of that user gets it, join
 Delivery is best effort and happens after the message is committed. The in-memory presence used to skip pushes and
 the SignalR user targeting are per server instance; see Limitations.
 
-## Push
+## Push and inbox
 
-A message writes an `ask_back_outbox` row in the same transaction. `AskBackPushWorker` claims due rows with a lease
-(like the vote notification outbox), waits `PushDelay` (3 s), and sends through the existing
-`IPushNotificationService` (same device eligibility rules). It is **skipped** when the recipient has a connection
-joined to the conversation. The payload carries no text or name:
+A message always writes an inbox `notifications` row (`AskBackStarted` or `AskBackReply`) and an `ask_back_outbox`
+row in the same transaction. `AskBackPushWorker` claims due rows with a lease (like the vote notification outbox),
+waits `PushDelay` (3 s), and sends through the existing `IPushNotificationService` (same device eligibility rules).
+**Push is skipped** when the recipient has a connection joined to the conversation; the inbox row is **kept** so
+Activity still lists the start/reply. Marking the chat read marks those conversation notifications as read.
+
+The push payload carries no text or name:
 
 ```json
 { "title": "Yakku", "body": "You have a new message",
-  "data": { "type": "normal", "eventType": "AskBackMessage",
-            "conversationId": "uuid", "deepLink": "yakku://ask-back/<conversationId>" } }
+  "data": { "type": "normal", "eventType": "AskBackStarted|AskBackReply",
+            "conversationId": "uuid", "notificationId": "uuid",
+            "deepLink": "yakku://ask-back/<conversationId>" } }
 ```
 
 Retries use the shared backoff (4 attempts), then `FAILED`.

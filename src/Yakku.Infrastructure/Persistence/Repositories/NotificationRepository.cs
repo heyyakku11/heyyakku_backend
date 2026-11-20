@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Yakku.Application.Notifications.Interfaces;
 using Yakku.Domain.Entities;
+using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Persistence.Repositories
 {
@@ -94,6 +95,28 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return await _context.Notifications
                 .Where(notification => notification.UserId == userId
                                        && !notification.IsRead
+                                       && notification.Data != null
+                                       && EF.Functions.JsonContains(notification.Data, target))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(notification => notification.IsRead, true)
+                        .SetProperty(notification => notification.ReadAt, now),
+                    cancellationToken);
+        }
+
+        public async Task<int> MarkAskBackConversationReadAsync(
+            Guid userId,
+            Guid conversationId,
+            CancellationToken cancellationToken = default)
+        {
+            // Ask Back inbox rows carry { conversationId } in their data JSON.
+            var target = JsonSerializer.Serialize(new { conversationId });
+            var now = DateTime.UtcNow;
+            return await _context.Notifications
+                .Where(notification => notification.UserId == userId
+                                       && !notification.IsRead
+                                       && (notification.EventType == NotificationEventType.AskBackStarted
+                                           || notification.EventType == NotificationEventType.AskBackReply)
                                        && notification.Data != null
                                        && EF.Functions.JsonContains(notification.Data, target))
                 .ExecuteUpdateAsync(

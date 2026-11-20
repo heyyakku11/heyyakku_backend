@@ -28,6 +28,14 @@ namespace Yakku.Application.Notifications.Interfaces
         /// </summary>
         Task<int> MarkContentReadAsync(Guid userId, string contentType, Guid contentId, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Marks the user's unread Ask Back start/reply notifications for one conversation as read.
+        /// </summary>
+        Task<int> MarkAskBackConversationReadAsync(
+            Guid userId,
+            Guid conversationId,
+            CancellationToken cancellationToken = default);
+
         Task AddAsync(Notification notification, CancellationToken cancellationToken = default);
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);

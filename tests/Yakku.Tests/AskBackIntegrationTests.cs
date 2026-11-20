@@ -838,15 +838,33 @@ public sealed class AskBackIntegrationTests
         Assert.Equal(1, await context.Notifications.CountAsync(n =>
             n.UserId == scene.Voter.Id && n.EventType == NotificationEventType.AskBackStarted));
 
-        // Viewing: nothing is sent for this conversation; outbox skipped and unread inbox row removed.
+        // Viewing: push is skipped for this conversation; inbox row stays so Activity still shows it.
         await DrainAsync(context, conversationId, push, new FixedPresence(conversationId, scene.Voter.Id));
 
         Assert.Empty(push.For(conversationId));
         Assert.All(
             await context.AskBackOutbox.AsNoTracking().Where(o => o.ConversationId == conversationId).ToListAsync(),
             o => Assert.Equal(AskBackOutboxStatus.Skipped, o.Status));
-        Assert.Equal(0, await context.Notifications.CountAsync(n =>
-            n.UserId == scene.Voter.Id && n.EventType == NotificationEventType.AskBackStarted));
+        Assert.Equal(1, await context.Notifications.CountAsync(n =>
+            n.UserId == scene.Voter.Id
+            && n.EventType == NotificationEventType.AskBackStarted
+            && !n.IsRead));
+
+        // Reading the chat marks the related Ask Back inbox rows as read.
+        var firstMessageId = await context.AskBackMessages
+            .AsNoTracking()
+            .Where(m => m.ConversationId == conversationId)
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => m.Id)
+            .FirstAsync();
+        await service.MarkReadAsync(
+            scene.Voter.Id,
+            conversationId,
+            new MarkAskBackReadRequest { LastReadMessageId = firstMessageId });
+        Assert.Equal(1, await context.Notifications.CountAsync(n =>
+            n.UserId == scene.Voter.Id
+            && n.EventType == NotificationEventType.AskBackStarted
+            && n.IsRead));
 
         // Not viewing: a generic push with notificationId and no message text. The voter's reply and the
         // asker's next question each notify the other side.
@@ -870,7 +888,8 @@ public sealed class AskBackIntegrationTests
             Assert.DoesNotContain(scene.Asker.PhoneNumber, serialized);
         }
 
-        Assert.Equal(2, await context.Notifications.CountAsync(n =>
+        // First start (read) + voter reply to asker + asker reply to voter = 3 inbox rows.
+        Assert.Equal(3, await context.Notifications.CountAsync(n =>
             (n.EventType == NotificationEventType.AskBackStarted
              || n.EventType == NotificationEventType.AskBackReply)
             && (n.UserId == scene.Asker.Id || n.UserId == scene.Voter.Id)));
@@ -958,7 +977,7 @@ public sealed class AskBackIntegrationTests
         return new AskBackService(
             new AskBackRepository(context),
             realtime ?? new NullAskBackRealtime(),
-            new NullAskBackPresence(),
+            new NotificationRepository(context),
             new CreateAskBackConversationRequestValidator(),
             new SendAskBackMessageRequestValidator(),
             new MarkAskBackReadRequestValidator(),

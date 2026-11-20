@@ -7,6 +7,7 @@ using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Entitlements;
+using Yakku.Application.Notifications.Interfaces;
 using Yakku.Application.PushNotifications;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
@@ -22,7 +23,7 @@ namespace Yakku.Application.AskBack.Services
     {
         private readonly IAskBackRepository _repository;
         private readonly IAskBackRealtime _realtime;
-        private readonly IAskBackPresence _presence;
+        private readonly INotificationRepository _notifications;
         private readonly IValidator<CreateAskBackConversationRequest> _createValidator;
         private readonly IValidator<SendAskBackMessageRequest> _sendValidator;
         private readonly IValidator<MarkAskBackReadRequest> _readValidator;
@@ -34,7 +35,7 @@ namespace Yakku.Application.AskBack.Services
         public AskBackService(
             IAskBackRepository repository,
             IAskBackRealtime realtime,
-            IAskBackPresence presence,
+            INotificationRepository notifications,
             IValidator<CreateAskBackConversationRequest> createValidator,
             IValidator<SendAskBackMessageRequest> sendValidator,
             IValidator<MarkAskBackReadRequest> readValidator,
@@ -46,7 +47,7 @@ namespace Yakku.Application.AskBack.Services
             _entitlements = entitlements;
             _repository = repository;
             _realtime = realtime;
-            _presence = presence;
+            _notifications = notifications;
             _createValidator = createValidator;
             _sendValidator = sendValidator;
             _readValidator = readValidator;
@@ -322,7 +323,9 @@ namespace Yakku.Application.AskBack.Services
             Notification? notification = null;
             AskBackOutboxEvent? outbox = null;
 
-            if (recipientId is { } recipient && !_presence.IsViewing(conversationId, recipient))
+            // Always write an inbox row for the recipient. Presence only skips the push
+            // (AskBackPushDispatcher); the Activity list must still show start/reply events.
+            if (recipientId is { } recipient)
             {
                 var senderNameForInbox = await _repository.GetAnonymousNameAsync(userId, cancellationToken)
                     ?? AskBackOptions.DeletedUserName;
@@ -404,6 +407,8 @@ namespace Yakku.Application.AskBack.Services
             if (advanced)
             {
                 await _repository.SaveAsync(cancellationToken);
+                await _notifications.MarkAskBackConversationReadAsync(
+                    userId, conversationId, cancellationToken);
                 await TryPublishAsync(
                     () => _realtime.MessageReadAsync(
                         conversationId, conversation.OtherParticipant(userId), message.Id, now, cancellationToken),
