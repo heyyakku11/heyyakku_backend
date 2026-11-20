@@ -317,13 +317,13 @@ public sealed class AuditIntegrationTests
 
         // Same age (200 days), different windows: auth 180d => gone, poll 730d => kept.
         var oldAuth = new AuthenticationAuditLog(
-            AuditActorType.User, null, tag, "login.succeeded", AuditOutcome.Success, null, null, null, null, null, null, now.AddDays(-200));
+            AuditActorType.User, null, tag, "login.succeeded", AuditOutcome.Success, null, null, null, null, null, null, latencyMs: null, createdAt: now.AddDays(-200));
         var freshAuth = new AuthenticationAuditLog(
-            AuditActorType.User, null, tag, "login.succeeded", AuditOutcome.Success, null, null, null, null, null, null, now.AddDays(-10));
+            AuditActorType.User, null, tag, "login.succeeded", AuditOutcome.Success, null, null, null, null, null, null, latencyMs: null, createdAt: now.AddDays(-10));
         var pollRow = new PollAuditLog(
-            Guid.NewGuid(), AuditActorType.User, Guid.NewGuid(), null, "poll.created", AuditOutcome.Success, null, "active", null, null, null, now.AddDays(-200));
+            Guid.NewGuid(), AuditActorType.User, Guid.NewGuid(), null, "poll.created", AuditOutcome.Success, null, "active", null, null, null, latencyMs: null, createdAt: now.AddDays(-200));
         var ancientPollRow = new PollAuditLog(
-            Guid.NewGuid(), AuditActorType.User, Guid.NewGuid(), null, "poll.created", AuditOutcome.Success, null, "active", null, null, null, now.AddDays(-800));
+            Guid.NewGuid(), AuditActorType.User, Guid.NewGuid(), null, "poll.created", AuditOutcome.Success, null, "active", null, null, null, latencyMs: null, createdAt: now.AddDays(-800));
         var oldSystem = new SystemLog(
             SystemLogCategory.Latency, SystemLogSeverity.Warning, tag, "Slow request.", null, null, null, null, null, null, null, now.AddDays(-45));
         var oldNotification = new NotificationAuditLog(

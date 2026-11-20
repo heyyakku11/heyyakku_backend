@@ -5,7 +5,6 @@ using Yakku.Application.Checks.Themes;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
-using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Checks.Services
 {
@@ -49,7 +48,6 @@ namespace Yakku.Application.Checks.Services
                 throw new AppException(400, ApiErrorCodes.ValidationError, "Check type is required.", "checkTypeId");
             }
 
-            // The type decides the look; the heading and color are also copied onto the check for older clients.
             var theme = await _themes.ResolveForNewCheckAsync(request.CheckTypeId.Value, cancellationToken);
 
             var week = CheckWeek.StartOf(request.WeekStart);
@@ -57,15 +55,13 @@ namespace Yakku.Application.Checks.Services
                 week,
                 theme.Config.Heading,
                 request.Question.Trim(),
-                theme.Config.BackgroundColor,
                 request.Options.Select(option => option.Trim()),
                 theme.CardThemeId);
             if (!request.IsActive)
             {
-                check.Update(week, check.Title, check.Question, check.BackgroundColor, false);
+                check.Update(week, check.Title, check.Question, false);
             }
 
-            // The check and its options are saved together in one SaveChanges (a single transaction).
             await _repository.AddCheckAsync(check, cancellationToken);
             await _repository.SaveChecksAsync(cancellationToken);
 
@@ -91,14 +87,12 @@ namespace Yakku.Application.Checks.Services
                 .Select(option => option.Text)
                 .SequenceEqual(options);
 
-            // Omitting the type keeps the current one; only an explicit different type changes it.
             ResolvedCheckTheme? newTheme = null;
             if (request.CheckTypeId is { } requested && requested != check.CardThemeId)
             {
                 newTheme = await _themes.ResolveForNewCheckAsync(requested, cancellationToken);
             }
 
-            // Votes point at options, so the content can only change while nobody has used the check.
             var used = await _repository.HasUserChecksAsync(id, cancellationToken);
             var contentChanged = optionsChanged ||
                 check.Question != request.Question.Trim() ||
@@ -118,24 +112,19 @@ namespace Yakku.Application.Checks.Services
 
             if (newTheme is not null)
             {
-                check.AssignTheme(
-                    newTheme.CardThemeId,
-                    newTheme.Config.Heading,
-                    newTheme.Config.BackgroundColor);
+                check.AssignTheme(newTheme.CardThemeId, newTheme.Config.Heading);
             }
 
             check.Update(
                 week,
                 check.Title,
                 used ? check.Question : request.Question.Trim(),
-                check.BackgroundColor,
                 request.IsActive);
 
             await _repository.SaveChecksAsync(cancellationToken);
 
             if (newTheme is not null)
             {
-                // Reload so the response carries the newly assigned type navigation.
                 check = await _repository.GetForUpdateAsync(id, cancellationToken) ?? check;
             }
 
@@ -145,12 +134,11 @@ namespace Yakku.Application.Checks.Services
         public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
         {
             var check = await _repository.GetForUpdateAsync(id, cancellationToken);
-            if (check is null || check.Kind != CheckKind.Weekly)
+            if (check is null || check.IsFun)
             {
                 throw CheckExceptions.NotFound();
             }
 
-            // Any check can be deleted, used or not. Users' made copies of it, and their answers, are deleted with it.
             await _repository.DeleteWithUsageAsync(check, cancellationToken);
         }
 
@@ -163,7 +151,7 @@ namespace Yakku.Application.Checks.Services
                 WeekStart = check.LiveWeekStart ?? default,
                 Title = check.Title,
                 Question = check.Question,
-                BackgroundColor = check.BackgroundColor,
+                BackgroundColor = theme.Config.BackgroundColor,
                 LabelColor = theme.Config.LabelColor,
                 IsActive = check.IsActive,
                 Status = check.LiveWeekStart is { } live && live <= CheckWeek.Current() ? "live" : "upcoming",

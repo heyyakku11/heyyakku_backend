@@ -11,6 +11,9 @@ namespace Yakku.Domain.Enums
         SpecialOffer = 6,
         SystemUpdate = 7,
         ContentFlagged = 8,
-        PersonalityReady = 9
+        PersonalityReady = 9,
+        AskBackStarted = 10,
+        AskBackReply = 11,
+        NoVotesYet = 12
     }
 }

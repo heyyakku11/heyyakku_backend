@@ -24,6 +24,11 @@ namespace Yakku.Application.PushNotifications.Interfaces
             return Task.CompletedTask;
         }
 
+        public Task NotifyShareNudgeAsync(DateTime utcNow, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public void Wake()
         {
         }

@@ -21,9 +21,9 @@ public class FunCardTests
     {
         var theme = CardTheme.Create(CardThemeKind.Fun, "Just for fun", "#FFEFC2", "#6B4B00", "movies, jail, silly ones");
 
-        var card = Check.CreateFun(theme.Name, "Q?", theme.BackgroundColor, ["A", "B"], theme.Id);
+        var card = Check.CreateFun(theme.Name, "Q?", ["A", "B"], theme.Id);
 
-        Assert.Equal(CheckKind.Fun, card.Kind);
+        Assert.True(card.IsFun);
         Assert.Null(card.LiveWeekStart);
         Assert.True(card.IsActive);
         Assert.Equal(theme.Id, card.CardThemeId);
@@ -33,9 +33,9 @@ public class FunCardTests
     [Fact]
     public void AWeeklyCheck_StillHasALiveWeek()
     {
-        var check = Check.Create(Yakku.Application.Checks.CheckWeek.Current(), "T", "Q?", "#FFFFFF", ["A", "B"]);
+        var check = Check.Create(Yakku.Application.Checks.CheckWeek.Current(), "T", "Q?", ["A", "B"], Guid.NewGuid());
 
-        Assert.Equal(CheckKind.Weekly, check.Kind);
+        Assert.False(check.IsFun);
         Assert.NotNull(check.LiveWeekStart);
     }
 

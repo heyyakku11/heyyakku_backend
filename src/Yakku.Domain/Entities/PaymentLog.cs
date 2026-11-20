@@ -20,6 +20,7 @@ namespace Yakku.Domain.Entities
         public string? RazorpayOrderId { get; private set; }
         public string? RazorpayPaymentId { get; private set; }
         public string? Metadata { get; private set; }
+        public int? LatencyMs { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
         private PaymentLog()
@@ -38,7 +39,8 @@ namespace Yakku.Domain.Entities
             string? correlationId = null,
             string? razorpayOrderId = null,
             string? razorpayPaymentId = null,
-            string? metadataJson = null)
+            string? metadataJson = null,
+            int? latencyMs = null)
         {
             if (string.IsNullOrWhiteSpace(eventType))
             {
@@ -69,6 +71,7 @@ namespace Yakku.Domain.Entities
                 RazorpayOrderId = NormalizeOptional(razorpayOrderId),
                 RazorpayPaymentId = NormalizeOptional(razorpayPaymentId),
                 Metadata = string.IsNullOrWhiteSpace(metadataJson) ? null : metadataJson,
+                LatencyMs = latencyMs,
                 CreatedAt = utcNow
             };
         }

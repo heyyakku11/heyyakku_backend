@@ -226,7 +226,7 @@ public sealed class AskBackIntegrationTests
         var owner = await AddUserAsync(context);
         var voter = await AddUserAsync(context);
         var check = await context.Checks.Include(c => c.Options).FirstAsync();
-        var userCheck = UserCheck.Create(owner.Id, check.Id, $"chk{Interlocked.Increment(ref _sequence)}abcdef");
+        var userCheck = UserCheck.Create(owner.Id, check.Id, $"chk{Interlocked.Increment(ref _sequence):D7}");
         context.UserChecks.Add(userCheck);
         var vote = UserCheckVote.ForOption(userCheck.Id, check.Id, check.Options[0].Id, voter.Id, "check reason");
         context.UserCheckVotes.Add(vote);
@@ -728,6 +728,8 @@ public sealed class AskBackIntegrationTests
         await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("why?"));
         await service.SendMessageAsync(scene.Voter.Id, conversationId, Send("my last words"));
 
+        // Match AccountDeletionRepository: Restrict FKs (notifications) must go before the user row.
+        await context.Notifications.Where(n => n.UserId == scene.Voter.Id).ExecuteDeleteAsync();
         await context.Users.Where(u => u.Id == scene.Voter.Id).ExecuteDeleteAsync();
 
         var details = await service.GetConversationAsync(scene.Asker.Id, conversationId);
@@ -833,15 +835,20 @@ public sealed class AskBackIntegrationTests
 
         var push = new RecordingPush();
 
-        // Viewing: nothing is sent for this conversation and its rows are closed out as skipped.
+        Assert.Equal(1, await context.Notifications.CountAsync(n =>
+            n.UserId == scene.Voter.Id && n.EventType == NotificationEventType.AskBackStarted));
+
+        // Viewing: nothing is sent for this conversation; outbox skipped and unread inbox row removed.
         await DrainAsync(context, conversationId, push, new FixedPresence(conversationId, scene.Voter.Id));
 
         Assert.Empty(push.For(conversationId));
         Assert.All(
             await context.AskBackOutbox.AsNoTracking().Where(o => o.ConversationId == conversationId).ToListAsync(),
             o => Assert.Equal(AskBackOutboxStatus.Skipped, o.Status));
+        Assert.Equal(0, await context.Notifications.CountAsync(n =>
+            n.UserId == scene.Voter.Id && n.EventType == NotificationEventType.AskBackStarted));
 
-        // Not viewing: a generic push with the conversation id and no message text. The voter's reply and the
+        // Not viewing: a generic push with notificationId and no message text. The voter's reply and the
         // asker's next question each notify the other side.
         await service.SendMessageAsync(scene.Voter.Id, conversationId, Send("secret reply"));
         await service.SendMessageAsync(scene.Asker.Id, conversationId, Send("third secret"));
@@ -855,12 +862,18 @@ public sealed class AskBackIntegrationTests
             sent.Select(item => item.UserId).OrderBy(id => id));
         foreach (var (_, payload) in sent)
         {
-            Assert.Equal("AskBackMessage", payload.Data!["eventType"]);
+            Assert.Contains(payload.Data!["eventType"], new[] { "AskBackStarted", "AskBackReply" });
+            Assert.True(payload.Data.ContainsKey("notificationId"));
             var serialized = JsonSerializer.Serialize(payload);
             Assert.DoesNotContain("secret", serialized);
             Assert.DoesNotContain(scene.Asker.Profile.AnonymousName, serialized);
             Assert.DoesNotContain(scene.Asker.PhoneNumber, serialized);
         }
+
+        Assert.Equal(2, await context.Notifications.CountAsync(n =>
+            (n.EventType == NotificationEventType.AskBackStarted
+             || n.EventType == NotificationEventType.AskBackReply)
+            && (n.UserId == scene.Asker.Id || n.UserId == scene.Voter.Id)));
     }
 
     [SkippableFact]
@@ -945,6 +958,7 @@ public sealed class AskBackIntegrationTests
         return new AskBackService(
             new AskBackRepository(context),
             realtime ?? new NullAskBackRealtime(),
+            new NullAskBackPresence(),
             new CreateAskBackConversationRequestValidator(),
             new SendAskBackMessageRequestValidator(),
             new MarkAskBackReadRequestValidator(),

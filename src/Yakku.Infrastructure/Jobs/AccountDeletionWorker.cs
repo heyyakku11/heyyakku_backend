@@ -16,7 +16,7 @@ namespace Yakku.Infrastructure.Jobs
                 logger,
                 AuditEvents.Jobs.AccountDeletion,
                 initialDelay: TimeSpan.FromMinutes(OperationalSettings.AccountDeletion.InitialDelayMinutes),
-                interval: TimeSpan.FromMinutes(OperationalSettings.AccountDeletion.IntervalMinutes))
+                interval: TimeSpan.FromHours(OperationalSettings.AccountDeletion.IntervalHours))
         {
         }
 

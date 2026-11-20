@@ -100,7 +100,7 @@ namespace Yakku.Application.Checks.Services
             MakeCheckRequest request,
             CancellationToken cancellationToken = default)
         {
-            return _checks.MakeAsync(userId, request, CheckKind.Fun, cancellationToken);
+            return _checks.MakeAsync(userId, request, requireFun: true, cancellationToken);
         }
 
         internal static FunCardResponse ToResponse(Check card, bool used, bool saved = false)
@@ -111,7 +111,7 @@ namespace Yakku.Application.Checks.Services
                 Id = card.Id,
                 Title = card.Title,
                 Question = card.Question,
-                BackgroundColor = card.BackgroundColor,
+                BackgroundColor = theme.Config.BackgroundColor,
                 Options = ToOptions(card),
                 Used = used,
                 IsSaved = saved,
@@ -235,12 +235,11 @@ namespace Yakku.Application.Checks.Services
             var card = Check.CreateFun(
                 theme.Name,
                 request.Question.Trim(),
-                theme.BackgroundColor,
                 request.Options.Select(option => option.Trim()),
                 theme.Id);
             if (!request.IsActive)
             {
-                card.Update(null, card.Title, card.Question, card.BackgroundColor, false);
+                card.Update(null, card.Title, card.Question, false);
             }
 
             await _repository.AddCheckAsync(card, cancellationToken);
@@ -257,7 +256,7 @@ namespace Yakku.Application.Checks.Services
         public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
         {
             var card = await _repository.GetForUpdateAsync(id, cancellationToken);
-            if (card is null || card.Kind != CheckKind.Fun)
+            if (card is null || !card.IsFun)
             {
                 throw CheckExceptions.NotFound();
             }
@@ -271,7 +270,8 @@ namespace Yakku.Application.Checks.Services
             Name = theme.Name,
             BackgroundColor = theme.BackgroundColor,
             LabelColor = theme.LabelColor,
-            Tag = theme.Tag
+            Tag = theme.Tag,
+            IsActive = theme.IsActive
         };
 
 
@@ -280,7 +280,7 @@ namespace Yakku.Application.Checks.Services
             Id = card.Id,
             Title = card.Title,
             Question = card.Question,
-            BackgroundColor = card.BackgroundColor,
+            BackgroundColor = CheckThemeMapper.ToResponse(card).Config.BackgroundColor,
             IsActive = card.IsActive,
             Options = FunCardService.ToOptions(card),
             Theme = CheckThemeMapper.ToResponse(card),

@@ -3,9 +3,9 @@ using Yakku.Domain.Enums;
 namespace Yakku.Domain.Entities
 {
     /// <summary>
-    /// The push for one message, written in the same transaction as the message so it cannot be lost. A worker
-    /// claims it with a lease and sends it unless the recipient is viewing the conversation. No foreign keys, like
-    /// the vote notification outbox: stale rows end up skipped and purged.
+    /// The push for one message, written in the same transaction as the message and inbox row so it cannot be lost.
+    /// A worker claims it with a lease and sends it unless the recipient is viewing the conversation. No foreign keys,
+    /// like the vote notification outbox: stale rows end up skipped and purged.
     /// </summary>
     public class AskBackOutboxEvent
     {
@@ -13,6 +13,10 @@ namespace Yakku.Domain.Entities
         public Guid ConversationId { get; private set; }
         public Guid MessageId { get; private set; }
         public Guid RecipientUserId { get; private set; }
+
+        /// <summary>Inbox row created with this push; removed if presence skips delivery.</summary>
+        public Guid? NotificationId { get; private set; }
+
         public AskBackOutboxStatus Status { get; private set; }
         public int Attempts { get; private set; }
         public DateTime NextAttemptAt { get; private set; }
@@ -29,6 +33,7 @@ namespace Yakku.Domain.Entities
             Guid conversationId,
             Guid messageId,
             Guid recipientUserId,
+            Guid notificationId,
             DateTime utcNow,
             TimeSpan delay)
         {
@@ -38,6 +43,7 @@ namespace Yakku.Domain.Entities
                 ConversationId = conversationId,
                 MessageId = messageId,
                 RecipientUserId = recipientUserId,
+                NotificationId = notificationId,
                 Status = AskBackOutboxStatus.Pending,
                 NextAttemptAt = utcNow + delay,
                 CreatedAt = utcNow

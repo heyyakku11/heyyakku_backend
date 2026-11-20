@@ -47,7 +47,7 @@ namespace Yakku.Application.Users.Services
 
             if (!user.IsPendingDeletion)
             {
-                user.RequestDeletion(DateTime.UtcNow, GracePeriod);
+                var request = user.RequestDeletion(DateTime.UtcNow, GracePeriod);
                 await _users.SaveChangesAsync(cancellationToken);
 
                 await _audit.WriteAuthenticationAsync(
@@ -58,7 +58,7 @@ namespace Yakku.Application.Users.Services
                         AuditOutcome.Success,
                         Metadata: new Dictionary<string, string?>
                         {
-                            ["scheduledFor"] = user.DeletionScheduledFor!.Value.ToString("O")
+                            ["scheduledFor"] = request.ScheduledFor.ToString("O")
                         }),
                     CancellationToken.None);
             }
@@ -69,8 +69,8 @@ namespace Yakku.Application.Users.Services
 
             return new AccountDeletionResponse
             {
-                RequestedAt = user.DeletionRequestedAt!.Value,
-                ScheduledFor = user.DeletionScheduledFor!.Value
+                RequestedAt = user.DeletionRequest!.RequestedAt,
+                ScheduledFor = user.DeletionRequest!.ScheduledFor
             };
         }
 

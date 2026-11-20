@@ -20,6 +20,7 @@ namespace Yakku.Domain.Entities
         public string? ErrorCode { get; private set; }
         public string? TraceId { get; private set; }
         public string? Metadata { get; private set; }
+        public int? LatencyMs { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
         private PollAuditLog()
@@ -38,6 +39,7 @@ namespace Yakku.Domain.Entities
             string? errorCode,
             string? traceId,
             string? metadata,
+            int? latencyMs = null,
             DateTime? createdAt = null)
         {
             Id = Guid.NewGuid();
@@ -52,6 +54,7 @@ namespace Yakku.Domain.Entities
             ErrorCode = errorCode;
             TraceId = traceId;
             Metadata = metadata;
+            LatencyMs = latencyMs;
             CreatedAt = createdAt ?? DateTime.UtcNow;
         }
     }

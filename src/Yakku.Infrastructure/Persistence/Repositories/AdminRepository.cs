@@ -18,12 +18,16 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public async Task<Admin?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            return await _context.Admins.FirstOrDefaultAsync(admin => admin.Id == id, cancellationToken);
+            return await _context.Admins
+                .Include(admin => admin.Password)
+                .FirstOrDefaultAsync(admin => admin.Id == id, cancellationToken);
         }
 
         public async Task<Admin?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
         {
-            return await _context.Admins.FirstOrDefaultAsync(admin => admin.Email == email, cancellationToken);
+            return await _context.Admins
+                .Include(admin => admin.Password)
+                .FirstOrDefaultAsync(admin => admin.Email == email, cancellationToken);
         }
 
         public async Task AddAsync(Admin admin, CancellationToken cancellationToken = default)

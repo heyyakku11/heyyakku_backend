@@ -16,7 +16,7 @@ namespace Yakku.Infrastructure.Jobs
                 logger,
                 AuditEvents.Jobs.GuestCleanup,
                 initialDelay: TimeSpan.FromMinutes(OperationalSettings.Guests.CleanupInitialDelayMinutes),
-                interval: TimeSpan.FromMinutes(OperationalSettings.Guests.CleanupIntervalMinutes))
+                interval: TimeSpan.FromHours(OperationalSettings.Guests.CleanupIntervalHours))
         {
         }
 

@@ -17,11 +17,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             int batchSize,
             CancellationToken cancellationToken = default)
         {
-            return await _context.Users
+            return await _context.UserDeletionRequests
                 .AsNoTracking()
-                .Where(user => user.DeletionScheduledFor != null && user.DeletionScheduledFor <= utcNow)
-                .OrderBy(user => user.DeletionScheduledFor)
-                .Select(user => user.Id)
+                .Where(request => request.ScheduledFor <= utcNow)
+                .OrderBy(request => request.ScheduledFor)
+                .Select(request => request.UserId)
                 .Take(batchSize)
                 .ToListAsync(cancellationToken);
         }
@@ -37,8 +37,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 var phoneNumber = await _context.Users
                     .AsNoTracking()
                     .Where(user => user.Id == userId
-                                   && user.DeletionScheduledFor != null
-                                   && user.DeletionScheduledFor <= utcNow)
+                                   && user.DeletionRequest != null
+                                   && user.DeletionRequest.ScheduledFor <= utcNow)
                     .Select(user => user.PhoneNumber)
                     .FirstOrDefaultAsync(cancellationToken);
 
@@ -98,8 +98,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 // deletion wins: nothing is deleted and the whole transaction rolls back.
                 var removed = await _context.Users
                     .Where(user => user.Id == userId
-                                   && user.DeletionScheduledFor != null
-                                   && user.DeletionScheduledFor <= utcNow)
+                                   && user.DeletionRequest != null
+                                   && user.DeletionRequest.ScheduledFor <= utcNow)
                     .ExecuteDeleteAsync(cancellationToken);
 
                 if (removed == 0)

@@ -90,7 +90,7 @@ public class GuestMediaUploadTests
 
         var stored = await harness.SessionStore.GetByIdAsync(session.SessionId);
         Assert.Equal(harness.UserId, stored!.UserId);
-        Assert.Null(stored.GuestId);
+        Assert.False(stored.BelongsToGuest(harness.GuestId));
         Assert.Null(await harness.Guests.GetByTokenHashAsync(harness.TokenHash));
 
         var request = new CreatePollRequest

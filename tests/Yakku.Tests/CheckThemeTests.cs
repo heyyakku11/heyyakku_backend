@@ -122,13 +122,13 @@ public class CheckThemeUnitTests
     [Fact]
     public void LegacyChecks_RenderFromTheirOwnFields()
     {
-        var legacy = Check.Create(CheckWeek.Current(), "Loyalty Check", "Q?", "#FFEFC2", ["A", "B"]);
+        var legacy = Check.Create(CheckWeek.Current(), "Loyalty Check", "Q?", ["A", "B"], Guid.NewGuid());
         var theme = CheckThemeMapper.ToResponse(legacy);
 
         Assert.True(theme.IsLegacy);
         Assert.Null(theme.CheckTypeId);
         Assert.Equal("Loyalty Check", theme.Config.Heading);
-        Assert.Equal("#FFEFC2", theme.Config.BackgroundColor);
+        Assert.Equal("#FFFFFF", theme.Config.BackgroundColor);
     }
 
     [Fact]

@@ -45,11 +45,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -75,6 +70,118 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_Admins_Email");
 
                     b.ToTable("admins", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AdminAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ActorRole")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("actor_role");
+
+                    b.Property<Guid?>("AdminId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("admin_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("error_code");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("ip_address");
+
+                    b.Property<int?>("LatencyMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("latency_ms");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("outcome");
+
+                    b.Property<Guid?>("TargetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_id");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target_type");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("trace_id");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_admin_audit_logs_created_at");
+
+                    b.HasIndex("AdminId", "CreatedAt")
+                        .HasDatabaseName("IX_admin_audit_logs_admin_id_created_at")
+                        .HasFilter("\"admin_id\" IS NOT NULL");
+
+                    b.HasIndex("EventType", "CreatedAt")
+                        .HasDatabaseName("IX_admin_audit_logs_event_type_created_at");
+
+                    b.ToTable("admin_audit_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_admin_audit_logs_event_type_not_blank", "char_length(btrim(\"event_type\")) > 0");
+
+                            t.HasCheckConstraint("CK_admin_audit_logs_latency_non_negative", "\"latency_ms\" IS NULL OR \"latency_ms\" >= 0");
+
+                            t.HasCheckConstraint("CK_admin_audit_logs_outcome", "\"outcome\" IN ('SUCCESS', 'FAILURE', 'DENIED', 'SUSPICIOUS')");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AdminPassword", b =>
+                {
+                    b.Property<Guid>("AdminId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("admin_id");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("password_hash");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("AdminId");
+
+                    b.ToTable("admin_passwords", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
@@ -331,6 +438,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("next_attempt_at");
 
+                    b.Property<Guid?>("NotificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("notification_id");
+
                     b.Property<Guid>("RecipientUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("recipient_user_id");
@@ -353,6 +464,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("NextAttemptAt")
                         .HasDatabaseName("IX_ask_back_outbox_due")
                         .HasFilter("\"status\" IN ('PENDING', 'PROCESSING')");
+
+                    b.HasIndex("NotificationId")
+                        .HasDatabaseName("IX_ask_back_outbox_notification_id")
+                        .HasFilter("\"notification_id\" IS NOT NULL");
 
                     b.ToTable("ask_back_outbox", null, t =>
                         {
@@ -476,6 +591,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("inet")
                         .HasColumnName("ip_address");
 
+                    b.Property<int?>("LatencyMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("latency_ms");
+
                     b.Property<string>("Metadata")
                         .HasColumnType("jsonb")
                         .HasColumnName("metadata");
@@ -534,6 +653,123 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.CardCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("IX_card_categories_code");
+
+                    b.HasIndex("SortOrder")
+                        .HasDatabaseName("IX_card_categories_sort_order");
+
+                    b.ToTable("card_categories", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_card_categories_code_not_blank", "char_length(btrim(\"code\")) > 0");
+
+                            t.HasCheckConstraint("CK_card_categories_name_not_blank", "char_length(btrim(\"name\")) > 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("b1000001-0000-4000-8000-000000000001"),
+                            Code = "family",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Family",
+                            SortOrder = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("b1000001-0000-4000-8000-000000000002"),
+                            Code = "money",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Money",
+                            SortOrder = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("b1000001-0000-4000-8000-000000000003"),
+                            Code = "love",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Love",
+                            SortOrder = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("b1000001-0000-4000-8000-000000000004"),
+                            Code = "career",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Career",
+                            SortOrder = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("b1000001-0000-4000-8000-000000000005"),
+                            Code = "friendship",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Friendship",
+                            SortOrder = 5
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.CardTag", b =>
+                {
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("question_id");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.HasKey("QuestionId", "CategoryId");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("IX_card_tags_category_id");
+
+                    b.ToTable("card_tags", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.CardTheme", b =>
                 {
                     b.Property<Guid>("Id")
@@ -552,6 +788,12 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -577,6 +819,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnName("tag");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_card_themes_is_active");
 
                     b.HasIndex("Kind", "Name")
                         .IsUnique()
@@ -665,12 +910,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("BackgroundColor")
-                        .IsRequired()
-                        .HasMaxLength(7)
-                        .HasColumnType("character varying(7)")
-                        .HasColumnName("background_color");
-
                     b.Property<Guid?>("CardThemeId")
                         .HasColumnType("uuid")
                         .HasColumnName("card_theme_id");
@@ -686,14 +925,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasColumnName("is_active");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("WEEKLY")
-                        .HasColumnName("kind");
 
                     b.Property<DateOnly?>("LiveWeekStart")
                         .HasColumnType("date")
@@ -727,9 +958,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.ToTable("checks", null, t =>
                         {
-                            t.HasCheckConstraint("CK_checks_background_color", "\"background_color\" ~ '^#[0-9A-Fa-f]{6}$'");
-
-                            t.HasCheckConstraint("CK_checks_kind_live_week_start", "(\"kind\" = 'WEEKLY' AND \"live_week_start\" IS NOT NULL AND EXTRACT(ISODOW FROM \"live_week_start\") = 1) OR (\"kind\" = 'FUN' AND \"live_week_start\" IS NULL)");
+                            t.HasCheckConstraint("CK_checks_live_week_start", "(\"live_week_start\" IS NULL) OR (EXTRACT(ISODOW FROM \"live_week_start\") = 1)");
                         });
                 });
 
@@ -803,28 +1032,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Yakku.Domain.Entities.CommunityQueuedQuestionTag", b =>
-                {
-                    b.Property<Guid>("QuestionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("question_id");
-
-                    b.Property<string>("Tag")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("tag");
-
-                    b.HasKey("QuestionId", "Tag");
-
-                    b.HasIndex("Tag")
-                        .HasDatabaseName("IX_community_queued_question_tags_tag");
-
-                    b.ToTable("community_queued_question_tags", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_community_queued_question_tags_tag", "\"tag\" IN ('friendships', 'career', 'family', 'love', 'money')");
-                        });
-                });
-
             modelBuilder.Entity("Yakku.Domain.Entities.CommunityWaitlistEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -856,6 +1063,107 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_community_waitlist_notified_at_created_at");
 
                     b.ToTable("community_waitlist", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.ContentAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("actor_type");
+
+                    b.Property<Guid?>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("error_code");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("from_status");
+
+                    b.Property<int?>("LatencyMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("latency_ms");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("outcome");
+
+                    b.Property<string>("ToStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("to_status");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("trace_id");
+
+                    b.Property<string>("VoterRef")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("voter_ref");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_content_audit_logs_created_at");
+
+                    b.HasIndex("EventType", "CreatedAt")
+                        .HasDatabaseName("IX_content_audit_logs_event_type_created_at");
+
+                    b.HasIndex("ContentType", "ContentId", "CreatedAt")
+                        .HasDatabaseName("IX_content_audit_logs_content");
+
+                    b.ToTable("content_audit_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_content_audit_logs_actor_type", "\"actor_type\" IN ('USER', 'GUEST', 'ADMIN', 'SYSTEM')");
+
+                            t.HasCheckConstraint("CK_content_audit_logs_content_type_not_blank", "char_length(btrim(\"content_type\")) > 0");
+
+                            t.HasCheckConstraint("CK_content_audit_logs_event_type_not_blank", "char_length(btrim(\"event_type\")) > 0");
+
+                            t.HasCheckConstraint("CK_content_audit_logs_latency_non_negative", "\"latency_ms\" IS NULL OR \"latency_ms\" >= 0");
+
+                            t.HasCheckConstraint("CK_content_audit_logs_outcome", "\"outcome\" IN ('SUCCESS', 'FAILURE', 'DENIED', 'SUSPICIOUS')");
+                        });
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
@@ -974,6 +1282,99 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.EntitlementAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ContentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("content_id");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("EntitlementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entitlement_id");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("error_code");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<int?>("LatencyMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("latency_ms");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("outcome");
+
+                    b.Property<Guid?>("PaymentOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_order_id");
+
+                    b.Property<Guid?>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("trace_id");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_entitlement_audit_logs_created_at");
+
+                    b.HasIndex("EventType", "CreatedAt")
+                        .HasDatabaseName("IX_entitlement_audit_logs_event_type_created_at");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_entitlement_audit_logs_user_id_created_at")
+                        .HasFilter("\"user_id\" IS NOT NULL");
+
+                    b.ToTable("entitlement_audit_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_entitlement_audit_logs_event_type_not_blank", "char_length(btrim(\"event_type\")) > 0");
+
+                            t.HasCheckConstraint("CK_entitlement_audit_logs_latency_non_negative", "\"latency_ms\" IS NULL OR \"latency_ms\" >= 0");
+
+                            t.HasCheckConstraint("CK_entitlement_audit_logs_outcome", "\"outcome\" IN ('SUCCESS', 'FAILURE', 'DENIED', 'SUSPICIOUS')");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.Guest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1083,10 +1484,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("failure_reason");
 
-                    b.Property<Guid?>("GuestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("guest_id");
-
                     b.Property<string>("MediaType")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1142,10 +1539,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_media_upload_sessions_poll_id")
                         .HasFilter("\"poll_id\" IS NOT NULL");
 
-                    b.HasIndex("GuestId", "Status")
-                        .HasDatabaseName("IX_media_upload_sessions_guest_id_status")
-                        .HasFilter("\"guest_id\" IS NOT NULL");
-
                     b.HasIndex("UserId", "Status", "ExpiresAt")
                         .HasDatabaseName("IX_media_upload_sessions_user_id_status_expires_at");
 
@@ -1166,8 +1559,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_media_upload_sessions_mime_type_not_blank", "char_length(btrim(\"mime_type\")) > 0");
 
                             t.HasCheckConstraint("CK_media_upload_sessions_object_key_not_blank", "char_length(btrim(\"object_key\")) > 0");
-
-                            t.HasCheckConstraint("CK_media_upload_sessions_owner_xor", "(\"user_id\" IS NOT NULL AND \"guest_id\" IS NULL) OR (\"user_id\" IS NULL AND \"guest_id\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_media_upload_sessions_selection_version_positive", "\"selection_version\" > 0");
 
@@ -1480,6 +1871,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("event_type");
 
+                    b.Property<int?>("LatencyMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("latency_ms");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -1763,8 +2158,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ShareCode")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
                         .HasColumnName("share_code");
 
                     b.Property<bool>("ShareToCommunity")
@@ -2080,8 +2475,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ShareCode")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
                         .HasColumnName("share_code");
 
                     b.Property<string>("Status")
@@ -2166,6 +2561,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("from_status");
 
+                    b.Property<int?>("LatencyMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("latency_ms");
+
                     b.Property<string>("Metadata")
                         .HasColumnType("jsonb")
                         .HasColumnName("metadata");
@@ -2228,7 +2627,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.PollMedia", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -2564,8 +2962,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Yakku.Domain.Entities.ShareCode", b =>
                 {
                     b.Property<string>("Code")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
                         .HasColumnName("code");
 
                     b.Property<string>("ContentType")
@@ -2720,12 +3118,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("DeletionRequestedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DeletionScheduledFor")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTime?>("LoginAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2756,10 +3148,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DeletionScheduledFor")
-                        .HasDatabaseName("IX_Users_DeletionScheduledFor")
-                        .HasFilter("\"DeletionScheduledFor\" IS NOT NULL");
 
                     b.HasIndex("PhoneNumber")
                         .IsUnique()
@@ -2862,8 +3250,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ShareCode")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
                         .HasColumnName("share_code");
 
                     b.Property<Guid>("UserId")
@@ -2956,6 +3344,36 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_user_check_votes_reason_not_blank", "\"reason\" IS NULL OR char_length(btrim(\"reason\")) > 0");
                         });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserDeletionRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<DateTime>("ScheduledFor")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scheduled_for");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScheduledFor")
+                        .HasDatabaseName("IX_user_deletion_requests_scheduled_for");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_user_deletion_requests_user_id");
+
+                    b.ToTable("user_deletion_requests", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserPlanEntitlement", b =>
@@ -3480,6 +3898,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.AdminPassword", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Admin", "Admin")
+                        .WithOne("Password")
+                        .HasForeignKey("Yakku.Domain.Entities.AdminPassword", "AdminId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.AdminSession", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.Admin", "Admin")
@@ -3536,6 +3965,25 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Conversation");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.CardTag", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.CardCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.CommunityQueuedQuestion", "Question")
+                        .WithMany("Tags")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Question");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.CardUnlock", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.User", null)
@@ -3587,17 +4035,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Yakku.Domain.Entities.CommunityQueuedQuestionTag", b =>
-                {
-                    b.HasOne("Yakku.Domain.Entities.CommunityQueuedQuestion", "Question")
-                        .WithMany("Tags")
-                        .HasForeignKey("QuestionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Question");
-                });
-
             modelBuilder.Entity("Yakku.Domain.Entities.CommunityWaitlistEntry", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.User", "User")
@@ -3635,11 +4072,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.MediaUploadSession", b =>
                 {
-                    b.HasOne("Yakku.Domain.Entities.Guest", "Guest")
-                        .WithMany()
-                        .HasForeignKey("GuestId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Yakku.Domain.Entities.Poll", "Poll")
                         .WithMany("UploadSessions")
                         .HasForeignKey("PollId")
@@ -3649,8 +4081,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .WithMany("UploadSessions")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Guest");
 
                     b.Navigation("Poll");
 
@@ -3963,6 +4393,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("UserCheck");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserDeletionRequest", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithOne("DeletionRequest")
+                        .HasForeignKey("Yakku.Domain.Entities.UserDeletionRequest", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserPlanEntitlement", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.PaymentOrder", null)
@@ -4025,6 +4466,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.Admin", b =>
                 {
+                    b.Navigation("Password");
+
                     b.Navigation("Sessions");
                 });
 
@@ -4099,6 +4542,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.User", b =>
                 {
+                    b.Navigation("DeletionRequest");
+
                     b.Navigation("Devices");
 
                     b.Navigation("Notifications");

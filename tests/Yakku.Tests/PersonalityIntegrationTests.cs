@@ -189,7 +189,7 @@ public sealed class PersonalityIntegrationTests
         var result = await ServiceFor(context).SubmitSelfAssessmentAsync(user.Id, Traits(3, 1, 2));
 
         Assert.Equal("Collecting", result.Status);
-        Assert.Matches("^[0-9a-f]{6}$", result.ShareCode);
+        Assert.Matches("^[0-9a-f]{10}$", result.ShareCode);
         var mine = await ServiceFor(context).GetMyCardAsync(user.Id);
         Assert.Equal(new[] { 1, 2, 3 }, mine.SelfTraits.Select(t => N(t.Id)));
     }
@@ -579,7 +579,7 @@ public sealed class PersonalityIntegrationTests
         await new PersonalityRepository(context).EnsureCardAsync(user.Id);
 
         var card = await context.PersonalityCards.AsNoTracking().SingleAsync(c => c.UserId == user.Id);
-        Assert.Matches("^[0-9a-f]{6}$", card.ShareCode);
+        Assert.Matches("^[0-9a-f]{10}$", card.ShareCode);
         var entry = await context.ShareCodes.AsNoTracking().SingleAsync(s => s.Code == card.ShareCode);
         Assert.Equal(ShareContentType.Personality, entry.ContentType);
         Assert.Equal(card.Id, entry.PersonalityCardId);

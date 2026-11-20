@@ -39,14 +39,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.UpdatedAt)
                 .IsRequired();
 
-            builder.Property(x => x.DeletionRequestedAt);
-            builder.Property(x => x.DeletionScheduledFor);
-
-            // The purge job scans for due rows; only users pending deletion are indexed.
-            builder.HasIndex(x => x.DeletionScheduledFor)
-                .HasDatabaseName("IX_Users_DeletionScheduledFor")
-                .HasFilter("\"DeletionScheduledFor\" IS NOT NULL");
-
             builder.HasIndex(x => x.PhoneNumber)
                 .IsUnique()
                 .HasDatabaseName("IX_Users_PhoneNumber");
@@ -55,6 +47,34 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .WithOne(x => x.User)
                 .HasForeignKey<UserProfile>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(x => x.DeletionRequest)
+                .WithOne(x => x.User)
+                .HasForeignKey<UserDeletionRequest>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+    }
+
+    internal class UserDeletionRequestConfiguration : IEntityTypeConfiguration<UserDeletionRequest>
+    {
+        public void Configure(EntityTypeBuilder<UserDeletionRequest> builder)
+        {
+            builder.ToTable("user_deletion_requests");
+            builder.HasKey(x => x.Id);
+
+            // Client-assigned Guids: without this, attaching a new request to an existing user is tracked as
+            // Modified and the UPDATE hits 0 rows (DbUpdateConcurrencyException).
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            builder.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
+            builder.Property(x => x.RequestedAt).HasColumnName("requested_at").IsRequired();
+            builder.Property(x => x.ScheduledFor).HasColumnName("scheduled_for").IsRequired();
+
+            builder.HasIndex(x => x.UserId)
+                .IsUnique()
+                .HasDatabaseName("IX_user_deletion_requests_user_id");
+
+            builder.HasIndex(x => x.ScheduledFor)
+                .HasDatabaseName("IX_user_deletion_requests_scheduled_for");
         }
     }
 }

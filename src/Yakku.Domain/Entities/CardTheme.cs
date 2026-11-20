@@ -20,6 +20,7 @@ namespace Yakku.Domain.Entities
         /// <summary>Short descriptor of what the theme is about (for example "how people see you"); null when none.</summary>
         public string? Tag { get; private set; }
 
+        public bool IsActive { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
         private CardTheme()
@@ -31,7 +32,8 @@ namespace Yakku.Domain.Entities
             string name,
             string backgroundColor,
             string labelColor,
-            string? tag = null)
+            string? tag = null,
+            bool isActive = true)
         {
             return new CardTheme
             {
@@ -41,8 +43,14 @@ namespace Yakku.Domain.Entities
                 BackgroundColor = backgroundColor,
                 LabelColor = labelColor,
                 Tag = tag,
+                IsActive = isActive,
                 CreatedAt = DateTime.UtcNow
             };
+        }
+
+        public void SetActive(bool isActive)
+        {
+            IsActive = isActive;
         }
     }
 }

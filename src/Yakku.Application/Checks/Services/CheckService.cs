@@ -72,7 +72,7 @@ namespace Yakku.Application.Checks.Services
         public async Task<UserCheckResponse> MakeAsync(
             Guid userId,
             MakeCheckRequest request,
-            CheckKind kind = CheckKind.Weekly,
+            bool requireFun = false,
             CancellationToken cancellationToken = default)
         {
             if (request.CheckId == Guid.Empty)
@@ -95,7 +95,7 @@ namespace Yakku.Application.Checks.Services
             // Only checks that are already live can be made; upcoming ones stay hidden until their week.
             var check = await _repository.GetLiveByIdAsync(request.CheckId, CheckWeek.Current(), cancellationToken)
                 ?? throw CheckExceptions.NotFound();
-            if (check.Kind != kind)
+            if (check.IsFun != requireFun)
             {
                 throw CheckExceptions.NotFound();
             }
@@ -109,7 +109,7 @@ namespace Yakku.Application.Checks.Services
             for (var attempt = 0; attempt < ShareCodeAttempts; attempt++)
             {
                 // A card made from a fun card stays open for 24 hours; a made weekly check has no expiry.
-                var expiresAt = kind == CheckKind.Fun ? DateTime.UtcNow + UserCheck.FunCardLifetime : (DateTime?)null;
+                var expiresAt = check.IsFun ? DateTime.UtcNow + UserCheck.FunCardLifetime : (DateTime?)null;
                 var userCheck = UserCheck.Create(userId, check.Id, ShareCodeGenerator.New(), expiresAt);
 
                 // The maker's own answer is saved together with the check, so a check is never used without one.
@@ -294,7 +294,7 @@ namespace Yakku.Application.Checks.Services
                 WeekStart = check.LiveWeekStart ?? default,
                 Title = check.Title,
                 Question = check.Question,
-                BackgroundColor = check.BackgroundColor,
+                BackgroundColor = theme.Config.BackgroundColor,
                 Options = check.Options
                     .OrderBy(option => option.SortOrder)
                     .Select(option => new CheckOptionResponse { Id = option.Id, Text = option.Text })
@@ -329,7 +329,7 @@ namespace Yakku.Application.Checks.Services
                 CheckId = item.CheckId,
                 Title = item.Check.Title,
                 Question = item.Check.Question,
-                BackgroundColor = item.Check.BackgroundColor,
+                BackgroundColor = theme.Config.BackgroundColor,
                 ShareCode = item.ShareCode,
                 ExpiresAt = item.ExpiresAt,
                 IsClosed = item.IsClosed,

@@ -11,28 +11,17 @@ namespace Yakku.Infrastructure.Persistence.Configurations
         {
             builder.ToTable("checks", table =>
             {
+                // Weekly checks go live on a Monday; just-for-fun cards have no live date.
                 table.HasCheckConstraint(
-                    "CK_checks_background_color",
-                    "\"background_color\" ~ '^#[0-9A-Fa-f]{6}$'");
-                // Weekly checks go live on a Monday; just-for-fun cards have no live date at all.
-                table.HasCheckConstraint(
-                    "CK_checks_kind_live_week_start",
-                    "(\"kind\" = 'WEEKLY' AND \"live_week_start\" IS NOT NULL AND EXTRACT(ISODOW FROM \"live_week_start\") = 1) " +
-                    "OR (\"kind\" = 'FUN' AND \"live_week_start\" IS NULL)");
+                    "CK_checks_live_week_start",
+                    "(\"live_week_start\" IS NULL) OR (EXTRACT(ISODOW FROM \"live_week_start\") = 1)");
             });
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Id).HasColumnName("id");
-            builder.Property(x => x.Kind)
-                .HasColumnName("kind")
-                .HasUppercaseEnumConversion()
-                .HasMaxLength(20)
-                .IsRequired()
-                .HasDefaultValue(CheckKind.Weekly);
             builder.Property(x => x.LiveWeekStart).HasColumnName("live_week_start").HasColumnType("date");
             builder.Property(x => x.Title).HasColumnName("title").HasMaxLength(100).IsRequired();
             builder.Property(x => x.Question).HasColumnName("question").HasMaxLength(500).IsRequired();
-            builder.Property(x => x.BackgroundColor).HasColumnName("background_color").HasMaxLength(7).IsRequired();
             builder.Property(x => x.IsActive).HasColumnName("is_active").IsRequired().HasDefaultValue(true);
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired().HasDefaultValueSql("now()");
@@ -55,6 +44,8 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .WithOne(x => x.Check)
                 .HasForeignKey(x => x.CheckId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Ignore(x => x.IsFun);
         }
     }
 

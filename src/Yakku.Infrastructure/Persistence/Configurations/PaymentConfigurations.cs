@@ -296,6 +296,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.RazorpayOrderId).HasColumnName("razorpay_order_id").HasMaxLength(64);
             builder.Property(x => x.RazorpayPaymentId).HasColumnName("razorpay_payment_id").HasMaxLength(64);
             builder.Property(x => x.Metadata).HasColumnName("metadata").HasColumnType("jsonb");
+            builder.Property(x => x.LatencyMs).HasColumnName("latency_ms");
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
 
             // Soft references only: payment audit must survive order cleanup and never block financial deletes.

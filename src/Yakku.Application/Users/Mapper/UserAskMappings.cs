@@ -61,7 +61,7 @@ namespace Yakku.Application.Users.Mapper
                     CheckType = Checks.Themes.CheckThemeMapper.ToResponse(item.Check).CheckType,
                     Theme = Checks.Themes.CheckThemeMapper.ToResponse(item.Check),
                     Title = item.Check.Title,
-                    BackgroundColor = item.Check.BackgroundColor
+                    BackgroundColor = item.Check.CardTheme?.BackgroundColor ?? "#FFFFFF"
                 }
             };
         }

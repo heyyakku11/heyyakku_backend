@@ -23,7 +23,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             CancellationToken cancellationToken = default) =>
             _context.CommunityQueuedQuestions
                 .AsNoTracking()
-                .Include(question => question.Tags)
+                .Include(question => question.Tags).ThenInclude(tag => tag.Category)
                 .Where(question => question.UserId == userId)
                 .OrderBy(question => question.CreatedAt)
                 .ThenBy(question => question.Id)
@@ -34,7 +34,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             Guid userId,
             CancellationToken cancellationToken = default) =>
             _context.CommunityQueuedQuestions
-                .Include(question => question.Tags)
+                .Include(question => question.Tags).ThenInclude(tag => tag.Category)
                 .FirstOrDefaultAsync(
                     question => question.Id == id && question.UserId == userId,
                     cancellationToken);

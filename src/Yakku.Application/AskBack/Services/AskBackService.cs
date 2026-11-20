@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.AskBack.DTOs;
@@ -6,6 +7,7 @@ using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Entitlements;
+using Yakku.Application.PushNotifications;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -20,6 +22,7 @@ namespace Yakku.Application.AskBack.Services
     {
         private readonly IAskBackRepository _repository;
         private readonly IAskBackRealtime _realtime;
+        private readonly IAskBackPresence _presence;
         private readonly IValidator<CreateAskBackConversationRequest> _createValidator;
         private readonly IValidator<SendAskBackMessageRequest> _sendValidator;
         private readonly IValidator<MarkAskBackReadRequest> _readValidator;
@@ -31,6 +34,7 @@ namespace Yakku.Application.AskBack.Services
         public AskBackService(
             IAskBackRepository repository,
             IAskBackRealtime realtime,
+            IAskBackPresence presence,
             IValidator<CreateAskBackConversationRequest> createValidator,
             IValidator<SendAskBackMessageRequest> sendValidator,
             IValidator<MarkAskBackReadRequest> readValidator,
@@ -42,6 +46,7 @@ namespace Yakku.Application.AskBack.Services
             _entitlements = entitlements;
             _repository = repository;
             _realtime = realtime;
+            _presence = presence;
             _createValidator = createValidator;
             _sendValidator = sendValidator;
             _readValidator = readValidator;
@@ -314,11 +319,51 @@ namespace Yakku.Application.AskBack.Services
                 conversationId, userId, request.ClientMessageId, request.Content.Trim(), now);
 
             var recipientId = conversation.OtherParticipant(userId);
-            var outbox = recipientId is { } recipient
-                ? AskBackOutboxEvent.ForMessage(conversationId, message.Id, recipient, now, AskBackOptions.PushDelay)
-                : null;
+            Notification? notification = null;
+            AskBackOutboxEvent? outbox = null;
 
-            var (messageId, created) = await _repository.AddMessageAsync(conversation, message, outbox, cancellationToken);
+            if (recipientId is { } recipient && !_presence.IsViewing(conversationId, recipient))
+            {
+                var senderNameForInbox = await _repository.GetAnonymousNameAsync(userId, cancellationToken)
+                    ?? AskBackOptions.DeletedUserName;
+                var isFirstMessage = conversation.AskerMessageCount + conversation.VoterMessageCount == 1;
+                var eventType = isFirstMessage
+                    ? NotificationEventType.AskBackStarted
+                    : NotificationEventType.AskBackReply;
+                var copy = isFirstMessage
+                    ? CardActivityCopy.ForAskBackStarted(message.Content, SourceLabel(conversation.ContentType))
+                    : CardActivityCopy.ForAskBackReply(message.Content);
+
+                notification = new Notification(
+                    recipient,
+                    NotificationType.Normal,
+                    eventType,
+                    copy.Title,
+                    copy.Body,
+                    data: JsonSerializer.Serialize(new
+                    {
+                        kind = isFirstMessage ? "ask_back_started" : "ask_back_reply",
+                        conversationId,
+                        messageId = message.Id,
+                        actorUserId = userId,
+                        actorAnonymousName = senderNameForInbox,
+                        avatarTone = CardActivityCopy.AvatarToneFor(userId),
+                        contentType = conversation.ContentType.ToString().ToLowerInvariant(),
+                        contentId = conversation.ContentId,
+                        deepLink = $"yakku://ask-back/{conversationId}"
+                    }));
+
+                outbox = AskBackOutboxEvent.ForMessage(
+                    conversationId,
+                    message.Id,
+                    recipient,
+                    notification.Id,
+                    now,
+                    AskBackOptions.PushDelay);
+            }
+
+            var (messageId, created) = await _repository.AddMessageAsync(
+                conversation, message, notification, outbox, cancellationToken);
             if (!created)
             {
                 return await _repository.FindByClientMessageIdAsync(
@@ -577,6 +622,15 @@ namespace Yakku.Application.AskBack.Services
                 _logger.LogWarning(exception, "Ask Back real-time {Event} delivery failed.", what);
             }
         }
+
+        private static string SourceLabel(ShareContentType contentType) =>
+            contentType switch
+            {
+                ShareContentType.Check => "Mirror Check",
+                ShareContentType.Poll => "poll",
+                ShareContentType.Personality => "personality card",
+                _ => contentType.ToString().ToLowerInvariant()
+            };
 
         private static AskBackMessageResponse ToResponse(AskBackMessage message, string senderName, bool isMine)
         {

@@ -155,6 +155,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.ConversationId).HasColumnName("conversation_id").IsRequired();
             builder.Property(x => x.MessageId).HasColumnName("message_id").IsRequired();
             builder.Property(x => x.RecipientUserId).HasColumnName("recipient_user_id").IsRequired();
+            builder.Property(x => x.NotificationId).HasColumnName("notification_id");
             builder.Property(x => x.Status)
                 .HasColumnName("status")
                 .HasUppercaseEnumConversion()
@@ -174,6 +175,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasDatabaseName("IX_ask_back_outbox_due");
             builder.HasIndex(x => x.CreatedAt)
                 .HasDatabaseName("IX_ask_back_outbox_created_at");
+            builder.HasIndex(x => x.NotificationId)
+                .HasFilter("\"notification_id\" IS NOT NULL")
+                .HasDatabaseName("IX_ask_back_outbox_notification_id");
         }
     }
 

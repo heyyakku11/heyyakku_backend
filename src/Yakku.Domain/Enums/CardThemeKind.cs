@@ -10,6 +10,12 @@ namespace Yakku.Domain.Enums
         Check = 0,
 
         /// <summary>"Just for fun" cards: system-made, no live or expiry date, users pick one and make it their own.</summary>
-        Fun = 1
+        Fun = 1,
+
+        /// <summary>Personality / 10-trait cards.</summary>
+        Personality = 2,
+
+        /// <summary>User-written poll questions.</summary>
+        Poll = 3
     }
 }

@@ -21,7 +21,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return _context.Checks
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
-                    check => check.Id == checkId && check.Kind == CheckKind.Fun && check.IsActive,
+                    check => check.Id == checkId && check.LiveWeekStart == null && check.IsActive,
                     cancellationToken);
         }
 
@@ -95,7 +95,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .Include(saved => saved.Check).ThenInclude(check => check!.Options)
                 .Where(saved => saved.UserId == userId
                     && (saved.CardType == SavedCardType.Poll
-                        || (saved.Check != null && saved.Check.Kind == CheckKind.Fun && saved.Check.IsActive)));
+                        || (saved.Check != null && saved.Check.LiveWeekStart == null && saved.Check.IsActive)));
 
             if (cursorSavedAt is not null && cursorId is not null)
             {

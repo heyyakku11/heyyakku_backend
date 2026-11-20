@@ -50,6 +50,10 @@ namespace Yakku.Application.Checks.Services
         {
             var type = await _repository.GetTypeByIdAsync(checkTypeId, cancellationToken)
                 ?? throw new AppException(400, ApiErrorCodes.ValidationError, "Unknown check type.", "checkTypeId");
+            if (!type.IsActive)
+            {
+                throw new AppException(400, ApiErrorCodes.ValidationError, "This check type is inactive.", "checkTypeId");
+            }
 
             return new ResolvedCheckTheme(type.Id, CheckThemeMapper.ConfigOf(type));
         }
@@ -60,7 +64,8 @@ namespace Yakku.Application.Checks.Services
             Name = type.Name,
             BackgroundColor = type.BackgroundColor,
             LabelColor = type.LabelColor,
-            Tag = type.Tag
+            Tag = type.Tag,
+            IsActive = type.IsActive
         };
     }
 }

@@ -109,6 +109,129 @@ namespace Yakku.Infrastructure.Push
             }
         }
 
+        public async Task NotifyShareNudgeAsync(DateTime utcNow, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await NotifyShareNudgeCoreAsync(utcNow, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _logger.LogWarning(exception, "Could not record share-nudge notifications.");
+            }
+        }
+
+        private async Task NotifyShareNudgeCoreAsync(DateTime utcNow, CancellationToken cancellationToken)
+        {
+            var dueBefore = utcNow - TimeSpan.FromHours(OperationalSettings.CardShareNudge.AfterHours);
+            var dueAfter = utcNow - TimeSpan.FromHours(OperationalSettings.CardShareNudge.LookbackHours);
+            var batch = OperationalSettings.CardShareNudge.BatchSize;
+
+            var pollIds = await _db.Polls
+                .AsNoTracking()
+                .Where(poll => poll.Status == PollStatus.Active
+                               && poll.CreatedAt <= dueBefore
+                               && poll.CreatedAt >= dueAfter)
+                .OrderBy(poll => poll.CreatedAt)
+                .Select(poll => poll.Id)
+                .Take(batch)
+                .ToListAsync(cancellationToken);
+
+            foreach (var pollId in pollIds)
+            {
+                await NotifyPollShareNudgeAsync(pollId, cancellationToken);
+            }
+
+            var checkIds = await _db.UserChecks
+                .AsNoTracking()
+                .Where(item => item.ClosedAt == null
+                               && (item.ExpiresAt == null || item.ExpiresAt > utcNow)
+                               && item.CreatedAt <= dueBefore
+                               && item.CreatedAt >= dueAfter)
+                .OrderBy(item => item.CreatedAt)
+                .Select(item => item.Id)
+                .Take(batch)
+                .ToListAsync(cancellationToken);
+
+            foreach (var checkId in checkIds)
+            {
+                await NotifyCheckShareNudgeAsync(checkId, cancellationToken);
+            }
+        }
+
+        private async Task NotifyPollShareNudgeAsync(Guid pollId, CancellationToken cancellationToken)
+        {
+            if (await AlreadySentAsync("NoVotesYet", "poll", pollId, cancellationToken))
+            {
+                return;
+            }
+
+            var poll = await _db.Polls.AsNoTracking().FirstOrDefaultAsync(item => item.Id == pollId, cancellationToken);
+            if (poll is null || poll.Status != PollStatus.Active)
+            {
+                return;
+            }
+
+            var friendVotes = await _db.PollVotes.CountAsync(
+                vote => vote.PollId == poll.Id && vote.VoterId != poll.CreatorId,
+                cancellationToken);
+            if (friendVotes > 0)
+            {
+                return;
+            }
+
+            var copy = CardActivityCopy.ForNoVotesYet(poll.Question);
+            await SaveAsync(
+                poll.CreatorId,
+                NotificationEventType.NoVotesYet,
+                copy.Title,
+                copy.Body,
+                ShareContentType.Poll,
+                "poll",
+                poll.Id,
+                poll.ShareCode,
+                sequence: 0,
+                cancellationToken);
+        }
+
+        private async Task NotifyCheckShareNudgeAsync(Guid userCheckId, CancellationToken cancellationToken)
+        {
+            if (await AlreadySentAsync("NoVotesYet", "check", userCheckId, cancellationToken))
+            {
+                return;
+            }
+
+            var item = await _db.UserChecks
+                .AsNoTracking()
+                .Include(check => check.Check)
+                .Include(check => check.Votes)
+                .FirstOrDefaultAsync(check => check.Id == userCheckId, cancellationToken);
+            if (item is null || item.ClosedAt is not null)
+            {
+                return;
+            }
+
+            var friendVotes = item.Votes.Count(vote => vote.VoterId != item.UserId);
+            if (friendVotes > 0)
+            {
+                return;
+            }
+
+            var question = string.IsNullOrWhiteSpace(item.Check.Question) ? item.Check.Title : item.Check.Question;
+            var copy = CardActivityCopy.ForNoVotesYet(question);
+            await SaveAsync(
+                item.UserId,
+                NotificationEventType.NoVotesYet,
+                copy.Title,
+                copy.Body,
+                ShareContentType.Check,
+                "check",
+                item.Id,
+                item.ShareCode,
+                sequence: 0,
+                cancellationToken);
+        }
+
         private async Task NotifyPollClosedCoreAsync(Guid pollId, CancellationToken cancellationToken)
         {
             if (await AlreadySentAsync("PollClosed", "poll", pollId, cancellationToken))

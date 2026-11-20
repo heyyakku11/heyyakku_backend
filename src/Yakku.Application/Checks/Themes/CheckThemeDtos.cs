@@ -20,6 +20,7 @@ namespace Yakku.Application.Checks.Themes
         public string BackgroundColor { get; set; } = string.Empty;
         public string LabelColor { get; set; } = string.Empty;
         public string? Tag { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 
     /// <summary>The theme a check renders with. IsLegacy means it was derived from a check made before types existed.</summary>

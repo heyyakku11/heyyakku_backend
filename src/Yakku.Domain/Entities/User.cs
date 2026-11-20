@@ -11,13 +11,10 @@ namespace Yakku.Domain.Entities
         public DateTime UpdatedAt { get; private set; }
         public DateTime? LoginAt { get; private set; }
 
-        /// <summary>When the user asked to delete the account. Null while the account is not pending deletion.</summary>
-        public DateTime? DeletionRequestedAt { get; private set; }
+        /// <summary>Pending deletion ticket, if any. Null while the account is not pending deletion.</summary>
+        public UserDeletionRequest? DeletionRequest { get; private set; }
 
-        /// <summary>When the account is permanently purged unless the user logs in again before then.</summary>
-        public DateTime? DeletionScheduledFor { get; private set; }
-
-        public bool IsPendingDeletion => DeletionScheduledFor.HasValue;
+        public bool IsPendingDeletion => DeletionRequest is not null;
 
         /// <summary>The user's current plan. Every user has one; new users start on the free plan.</summary>
         public Guid PlanId { get; private set; } = Plan.FreeId;
@@ -93,15 +90,17 @@ namespace Yakku.Domain.Entities
             UpdatedAt = LoginAt.Value;
         }
 
-        /// <summary>Schedules the account for permanent deletion after <paramref name="gracePeriod"/>.</summary>
-        public void RequestDeletion(DateTime utcNow, TimeSpan gracePeriod)
+        /// <summary>Schedules the account for permanent deletion after <paramref name="gracePeriod"/> and suspends the user.</summary>
+        public UserDeletionRequest RequestDeletion(DateTime utcNow, TimeSpan gracePeriod)
         {
-            DeletionRequestedAt = utcNow;
-            DeletionScheduledFor = utcNow + gracePeriod;
+            var request = UserDeletionRequest.Create(Id, utcNow, gracePeriod);
+            DeletionRequest = request;
+            Status = UserStatus.Suspended;
             UpdatedAt = utcNow;
+            return request;
         }
 
-        /// <summary>Discards a pending deletion. Returns false when none was pending.</summary>
+        /// <summary>Discards a pending deletion and restores Active. Returns false when none was pending.</summary>
         public bool CancelDeletion()
         {
             if (!IsPendingDeletion)
@@ -109,8 +108,8 @@ namespace Yakku.Domain.Entities
                 return false;
             }
 
-            DeletionRequestedAt = null;
-            DeletionScheduledFor = null;
+            DeletionRequest = null;
+            Status = UserStatus.Active;
             UpdatedAt = DateTime.UtcNow;
             return true;
         }

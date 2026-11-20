@@ -94,7 +94,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .AsNoTracking()
                 .Where(user => ids.Contains(user.Id)
                                && user.Status == UserStatus.Active
-                               && user.DeletionScheduledFor == null)
+                               && user.DeletionRequest == null)
                 .Select(user => user.Id)
                 .ToListAsync(cancellationToken);
             return usable.ToHashSet();
@@ -574,11 +574,17 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         public async Task<(Guid MessageId, bool Created)> AddMessageAsync(
             AskBackConversation conversation,
             AskBackMessage message,
+            Notification? notification,
             AskBackOutboxEvent? outbox,
             CancellationToken cancellationToken = default)
         {
-            // Message, outbox row and the conversation's last-message time are one SaveChanges: one transaction.
+            // Message, inbox row, outbox and the conversation's last-message time are one SaveChanges.
             _context.AskBackMessages.Add(message);
+            if (notification is not null)
+            {
+                _context.Notifications.Add(notification);
+            }
+
             if (outbox is not null)
             {
                 _context.AskBackOutbox.Add(outbox);

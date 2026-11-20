@@ -12,6 +12,15 @@ namespace Yakku.Application.Community.Services
 {
     public class CommunityQueuedQuestionService : ICommunityQueuedQuestionService
     {
+        private static readonly Dictionary<string, Guid> CodeToCategoryId = new(StringComparer.Ordinal)
+        {
+            [CardCategory.Family] = CardCategory.FamilyId,
+            [CardCategory.Money] = CardCategory.MoneyId,
+            [CardCategory.Love] = CardCategory.LoveId,
+            [CardCategory.Career] = CardCategory.CareerId,
+            [CardCategory.Friendship] = CardCategory.FriendshipId
+        };
+
         private readonly ICommunityQueuedQuestionRepository _repository;
         private readonly IPersonalityRepository _personality;
         private readonly IValidator<UpsertCommunityQueuedQuestionRequest> _validator;
@@ -51,8 +60,8 @@ namespace Yakku.Application.Community.Services
                     $"You can queue at most {CommunityQueuedQuestion.MaxPerUser} questions.");
             }
 
-            var tags = NormalizeTags(request.Tags);
-            var entity = CommunityQueuedQuestion.Create(userId, request.Question, tags);
+            var categoryIds = ResolveCategoryIds(request.Tags);
+            var entity = CommunityQueuedQuestion.Create(userId, request.Question, categoryIds);
             _repository.Add(entity);
             await _repository.SaveChangesAsync(cancellationToken);
 
@@ -71,7 +80,7 @@ namespace Yakku.Application.Community.Services
             var entity = await _repository.GetByIdForUserAsync(id, userId, cancellationToken)
                 ?? throw new AppException(404, ApiErrorCodes.NotFound, "Queued question not found.");
 
-            entity.Update(request.Question, NormalizeTags(request.Tags));
+            entity.Update(request.Question, ResolveCategoryIds(request.Tags));
             await _repository.SaveChangesAsync(cancellationToken);
 
             var traits = await ResolvePersonalityTraitsAsync(userId, cancellationToken);
@@ -117,12 +126,13 @@ namespace Yakku.Application.Community.Services
                 .ToList();
         }
 
-        private static List<string> NormalizeTags(IEnumerable<string> tags) =>
+        private static List<Guid> ResolveCategoryIds(IEnumerable<string> tags) =>
             tags
-                .Select(CommunityQueuedQuestionCategories.Normalize)
+                .Select(CardCategory.Normalize)
                 .Where(tag => tag is not null)
                 .Cast<string>()
                 .Distinct(StringComparer.Ordinal)
+                .Select(code => CodeToCategoryId[code])
                 .ToList();
 
         private static CommunityQueuedQuestionResponse Map(
@@ -133,8 +143,9 @@ namespace Yakku.Application.Community.Services
                 Id = question.Id,
                 Question = question.Question,
                 Tags = question.Tags
-                    .Select(tag => tag.Tag)
-                    .OrderBy(CommunityQueuedQuestionCategories.SortKey)
+                    .Select(tag => tag.Category?.Code ?? string.Empty)
+                    .Where(code => code.Length > 0)
+                    .OrderBy(CardCategory.SortKey)
                     .ThenBy(tag => tag, StringComparer.Ordinal)
                     .ToList(),
                 CreatedAt = question.CreatedAt,

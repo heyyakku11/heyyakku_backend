@@ -69,6 +69,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasColumnName("metadata")
                 .HasColumnType("jsonb");
 
+            builder.Property(x => x.LatencyMs)
+                .HasColumnName("latency_ms");
+
             builder.Property(x => x.CreatedAt)
                 .HasColumnName("created_at")
                 .IsRequired();

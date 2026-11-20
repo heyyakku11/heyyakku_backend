@@ -31,7 +31,7 @@ public sealed class PersonalityUnitTests
     {
         var codes = Enumerable.Range(0, 50).Select(i => new User($"+91000001{i:D4}", $"Fox {i}").PersonalityCard.ShareCode).ToList();
 
-        Assert.All(codes, code => Assert.Matches("^[0-9a-f]{6}$", code));
+        Assert.All(codes, code => Assert.Matches("^[0-9a-f]{10}$", code));
         Assert.True(codes.Distinct().Count() > 45);
     }
 

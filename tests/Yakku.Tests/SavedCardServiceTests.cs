@@ -179,7 +179,7 @@ public class SavedCardServiceTests
 
         public Check ActiveFunCard()
         {
-            var card = Check.CreateFun("Just for fun", "Q?", "#FFEFC2", ["A", "B"], Guid.NewGuid());
+            var card = Check.CreateFun("Just for fun", "Q?", ["A", "B"], Guid.NewGuid());
             Store.FunCards.Add(card);
             return card;
         }
@@ -193,7 +193,7 @@ internal sealed class InMemorySavedCards : ISavedCardRepository
     public List<Check> FunCards { get; } = [];
 
     public Task<Check?> GetActiveFunCardAsync(Guid checkId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(FunCards.FirstOrDefault(c => c.Id == checkId && c.Kind == CheckKind.Fun && c.IsActive));
+        Task.FromResult(FunCards.FirstOrDefault(c => c.Id == checkId && c.IsFun && c.IsActive));
 
     public Task<SavedCard?> GetAsync(Guid userId, SavedCardType cardType, Guid cardId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Rows.FirstOrDefault(r => r.UserId == userId && r.CardType == cardType && r.CardId == cardId));

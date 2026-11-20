@@ -8,6 +8,11 @@ namespace Yakku.Application.PushNotifications
         public const string ResultReadyTitle = "Your result is ready";
         public const string PersonalityTitle = "Who you are is in";
         public const string ClosedTitle = "Closed";
+        public const string AskBackStartedTitle = "Someone asked you back";
+        public const string AskBackReplyTitle = "They replied";
+        public const string NoVotesYetTitle = "No votes yet";
+
+        private const int AskBackPreviewMaxLength = 120;
 
         /// <summary>
         /// A vote from someone other than the owner. Below the reveal threshold it is the live progress line.
@@ -68,6 +73,50 @@ namespace Yakku.Application.PushNotifications
         public static (string Title, string Body) ForPersonality(int friendVotes)
         {
             return (PersonalityTitle, Fit($"{Friends(friendVotes)} described you. Your top 3 are ready."));
+        }
+
+        /// <summary>First Ask Back message to the other participant (usually the voter).</summary>
+        public static (string Title, string Body) ForAskBackStarted(string messagePreview, string? sourceLabel = null)
+        {
+            var preview = TruncatePreview(messagePreview);
+            if (string.IsNullOrWhiteSpace(sourceLabel))
+            {
+                return (AskBackStartedTitle, Fit(preview));
+            }
+
+            return (AskBackStartedTitle, Fit($"{preview} — on a {sourceLabel.Trim()} you answered"));
+        }
+
+        /// <summary>A later reply in an Ask Back conversation.</summary>
+        public static (string Title, string Body) ForAskBackReply(string messagePreview)
+        {
+            return (AskBackReplyTitle, Fit(TruncatePreview(messagePreview)));
+        }
+
+        /// <summary>One-shot nudge when a card still has no friend votes an hour after creation.</summary>
+        public static (string Title, string Body) ForNoVotesYet(string question)
+        {
+            return (NoVotesYetTitle, Fit($"{Quote(question)} is waiting. Share it again?"));
+        }
+
+        /// <summary>Stable avatar tone for Ask Back inbox rows (no profile photo yet).</summary>
+        public static string AvatarToneFor(Guid userId)
+        {
+            ReadOnlySpan<string> tones = ["pink", "blue", "lavender", "mint", "peach"];
+            var hash = userId.GetHashCode();
+            var index = (hash == int.MinValue ? 0 : Math.Abs(hash)) % tones.Length;
+            return tones[index];
+        }
+
+        private static string TruncatePreview(string message)
+        {
+            var text = (message ?? string.Empty).Trim();
+            if (text.Length <= AskBackPreviewMaxLength)
+            {
+                return text;
+            }
+
+            return text[..(AskBackPreviewMaxLength - 3)] + "...";
         }
 
         private static string ResultReady(int friendVotes, string question)

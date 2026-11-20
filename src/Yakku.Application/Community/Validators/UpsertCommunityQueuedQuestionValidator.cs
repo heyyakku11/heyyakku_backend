@@ -19,7 +19,7 @@ namespace Yakku.Application.Community.Validators
                 .NotNull().WithMessage("tags is required.")
                 .Must(tags => tags is not null && tags.Count >= 1)
                 .WithMessage("Select at least one category tag.")
-                .Must(tags => tags is null || tags.All(CommunityQueuedQuestionCategories.IsAllowed))
+                .Must(tags => tags is null || tags.All(CardCategory.IsAllowed))
                 .WithMessage("One or more tags are not allowed.")
                 .Must(tags =>
                 {
@@ -29,7 +29,7 @@ namespace Yakku.Application.Community.Validators
                     }
 
                     var normalized = tags
-                        .Select(CommunityQueuedQuestionCategories.Normalize)
+                        .Select(CardCategory.Normalize)
                         .Where(tag => tag is not null)
                         .Cast<string>()
                         .ToList();

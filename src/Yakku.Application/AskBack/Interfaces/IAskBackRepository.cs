@@ -113,6 +113,7 @@ namespace Yakku.Application.AskBack.Interfaces
         Task<(Guid MessageId, bool Created)> AddMessageAsync(
             AskBackConversation conversation,
             AskBackMessage message,
+            Notification? notification,
             AskBackOutboxEvent? outbox,
             CancellationToken cancellationToken = default);
 

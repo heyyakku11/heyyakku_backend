@@ -90,6 +90,7 @@ namespace Yakku.Application.Audit
             public const string SessionCleanup = "session_cleanup";
             public const string VoteNotificationRetention = "vote_notification_retention";
             public const string CardCloseNotification = "card_close_notification";
+            public const string CardShareNudge = "card_share_nudge";
         }
     }
 }

@@ -28,10 +28,12 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.BackgroundColor).HasColumnName("background_color").HasMaxLength(7).IsRequired();
             builder.Property(x => x.LabelColor).HasColumnName("label_color").HasMaxLength(7).IsRequired();
             builder.Property(x => x.Tag).HasColumnName("tag").HasMaxLength(100);
+            builder.Property(x => x.IsActive).HasColumnName("is_active").IsRequired().HasDefaultValue(true);
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
 
             // One theme per name within a kind (the repository also rejects names that differ only by case).
             builder.HasIndex(x => new { x.Kind, x.Name }).IsUnique().HasDatabaseName("IX_card_themes_kind_name");
+            builder.HasIndex(x => x.IsActive).HasDatabaseName("IX_card_themes_is_active");
         }
     }
 }

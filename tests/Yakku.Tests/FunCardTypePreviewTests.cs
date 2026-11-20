@@ -77,7 +77,7 @@ public class FunCardTypePreviewTests
         var h = new Harness(fun: 3, emotional: 0);
         var made = h.Cards[0];
         h.MarkMade([made]);
-        var weekly = Check.Create(Yakku.Application.Checks.CheckWeek.Current(), "Weekly", "Q?", "#FFFFFF", ["A", "B"]);
+        var weekly = Check.Create(Yakku.Application.Checks.CheckWeek.Current(), "Weekly", "Q?", ["A", "B"], Guid.NewGuid());
         h.Cards.Add(weekly);
 
         await h.Admin.DeleteAsync(made.Id);
@@ -160,13 +160,13 @@ public class FunCardTypePreviewTests
         {
             foreach (var card in cards)
             {
-                Repository.Used[card.Id] = UserCheck.Create(UserId, card.Id, $"code-{card.Id:N}"[..16]);
+                Repository.Used[card.Id] = UserCheck.Create(UserId, card.Id, $"code-{card.Id:N}"[..10]);
             }
         }
 
         private static Check NewCard(CardTheme theme, string question, DateTime createdAt)
         {
-            var card = Check.CreateFun(theme.Name, question, theme.BackgroundColor, ["A", "B"], theme.Id);
+            var card = Check.CreateFun(theme.Name, question, ["A", "B"], theme.Id);
             typeof(Check).GetProperty(nameof(Check.CardTheme))!.SetValue(card, theme);
             typeof(Check).GetProperty(nameof(Check.CreatedAt))!.SetValue(card, createdAt);
             return card;
@@ -206,7 +206,7 @@ public class FunCardTypePreviewTests
         public Dictionary<Guid, UserCheck> Used { get; } = [];
 
         public Task<List<Check>> GetFunCardsAsync(bool activeOnly, CancellationToken cancellationToken = default) =>
-            Task.FromResult(cards.Where(c => c.Kind == CheckKind.Fun && (!activeOnly || c.IsActive)).OrderBy(c => c.CreatedAt).ToList());
+            Task.FromResult(cards.Where(c => c.IsFun && (!activeOnly || c.IsActive)).OrderBy(c => c.CreatedAt).ToList());
 
         public Task<Dictionary<Guid, UserCheck>> GetUserChecksByCheckAsync(Guid userId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Used);

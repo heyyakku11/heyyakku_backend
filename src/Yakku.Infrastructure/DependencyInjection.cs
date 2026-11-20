@@ -116,14 +116,12 @@ namespace Yakku.Infrastructure
                 MediaUploadPolicyFactory.Create(sp.GetRequiredService<IOptions<MediaUploadOptions>>().Value));
             services.AddSingleton<IObjectStorage, NeonObjectStorage>();
             services.AddSingleton<IMediaInspector, TagLibMediaInspector>();
-            services.AddHostedService<MediaUploadCleanupWorker>();
             services.AddSingleton<IAuditLogWriter, AuditLogWriter>();
             services.AddSingleton(GuestCleanupOptions.Default);
             services.AddSingleton(AuditRetentionOptions.Default);
             services.AddScoped<AuditRetentionService>();
             services.AddHostedService<GuestCleanupWorker>();
             services.AddHostedService<SessionCleanupWorker>();
-            services.AddHostedService<AuditRetentionWorker>();
             services.AddScoped<Yakku.Application.SavedCards.Interfaces.ISavedCardRepository, SavedCardRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<Yakku.Application.Auth.Interfaces.ILoginSnapshotReader, LoginSnapshotReader>();
@@ -226,6 +224,7 @@ namespace Yakku.Infrastructure
             services.AddScoped<VoteNotificationDispatcher>();
             services.AddHostedService<VoteNotificationWorker>();
             services.AddHostedService<CardCloseNotificationWorker>();
+            services.AddHostedService<CardShareNudgeWorker>();
             services.AddHostedService<VoteNotificationRetentionWorker>();
             services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackRepository, AskBackRepository>();
             services.AddScoped<Yakku.Application.AskBack.Interfaces.IUserBlockLookup, UserBlockRepository>();

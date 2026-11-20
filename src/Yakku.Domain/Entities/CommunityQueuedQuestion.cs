@@ -2,7 +2,7 @@ namespace Yakku.Domain.Entities
 {
     /// <summary>
     /// A question the user queued for Community before it opens. Each user may hold at most
-    /// <see cref="MaxPerUser"/>; category tags live on <see cref="CommunityQueuedQuestionTag"/>.
+    /// <see cref="MaxPerUser"/>; category tags live on <see cref="CardTag"/>.
     /// </summary>
     public class CommunityQueuedQuestion
     {
@@ -16,13 +16,13 @@ namespace Yakku.Domain.Entities
         public DateTime UpdatedAt { get; private set; }
 
         public User User { get; private set; } = null!;
-        public ICollection<CommunityQueuedQuestionTag> Tags { get; private set; } = new List<CommunityQueuedQuestionTag>();
+        public ICollection<CardTag> Tags { get; private set; } = new List<CardTag>();
 
         private CommunityQueuedQuestion()
         {
         }
 
-        public static CommunityQueuedQuestion Create(Guid userId, string question, IEnumerable<string> tags)
+        public static CommunityQueuedQuestion Create(Guid userId, string question, IEnumerable<Guid> categoryIds)
         {
             var now = DateTime.UtcNow;
             var entity = new CommunityQueuedQuestion
@@ -33,27 +33,23 @@ namespace Yakku.Domain.Entities
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            entity.ReplaceTags(tags);
+            entity.ReplaceTags(categoryIds);
             return entity;
         }
 
-        public void Update(string question, IEnumerable<string> tags)
+        public void Update(string question, IEnumerable<Guid> categoryIds)
         {
             Question = question.Trim();
-            ReplaceTags(tags);
+            ReplaceTags(categoryIds);
             UpdatedAt = DateTime.UtcNow;
         }
 
-        private void ReplaceTags(IEnumerable<string> tags)
+        private void ReplaceTags(IEnumerable<Guid> categoryIds)
         {
             Tags.Clear();
-            foreach (var tag in tags
-                         .Select(CommunityQueuedQuestionCategories.Normalize)
-                         .Where(tag => tag is not null)
-                         .Cast<string>()
-                         .Distinct(StringComparer.Ordinal))
+            foreach (var categoryId in categoryIds.Distinct())
             {
-                Tags.Add(CommunityQueuedQuestionTag.Create(Id, tag));
+                Tags.Add(CardTag.Create(Id, categoryId));
             }
         }
     }

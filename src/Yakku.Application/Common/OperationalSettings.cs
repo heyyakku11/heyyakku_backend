@@ -12,7 +12,7 @@ namespace Yakku.Application.Common
             public const int CleanupGraceDays = 7;
 
             /// <summary>How often the guest cleanup job runs.</summary>
-            public const int CleanupIntervalMinutes = 60;
+            public const int CleanupIntervalHours = 24;
 
             /// <summary>Guests handled per cleanup run.</summary>
             public const int CleanupBatchSize = 100;
@@ -39,7 +39,7 @@ namespace Yakku.Application.Common
             public const int GraceDays = 30;
 
             /// <summary>How often the purge job runs.</summary>
-            public const int IntervalMinutes = 60;
+            public const int IntervalHours = 24;
 
             /// <summary>Accounts purged per run.</summary>
             public const int BatchSize = 25;
@@ -51,7 +51,7 @@ namespace Yakku.Application.Common
         public static class Sessions
         {
             /// <summary>How often ended sessions are cleaned up and stale device associations released.</summary>
-            public const int CleanupIntervalMinutes = 60;
+            public const int CleanupIntervalHours = 24;
 
             /// <summary>Delay before the first cleanup run after startup.</summary>
             public const int CleanupInitialDelayMinutes = 2;
@@ -102,6 +102,24 @@ namespace Yakku.Application.Common
         {
             /// <summary>Votes from others a poll or check needs before its results are revealed.</summary>
             public const int MinVotesToReveal = 3;
+        }
+
+        public static class CardShareNudge
+        {
+            /// <summary>Hours after creation before a still-open card with zero friend votes gets a reshare nudge.</summary>
+            public const int AfterHours = 1;
+
+            /// <summary>Only cards created within this many hours are scanned (avoids endless backfill).</summary>
+            public const int LookbackHours = 24;
+
+            /// <summary>How often the share-nudge job runs.</summary>
+            public const int IntervalMinutes = 3;
+
+            /// <summary>Delay before the first share-nudge run after startup.</summary>
+            public const int InitialDelayMinutes = 2;
+
+            /// <summary>Cards examined per content type per run.</summary>
+            public const int BatchSize = 40;
         }
 
         public static class Monitoring

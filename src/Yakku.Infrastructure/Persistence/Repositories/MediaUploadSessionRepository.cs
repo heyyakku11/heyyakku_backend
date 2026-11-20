@@ -363,12 +363,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             // Reassign every guest-owned row (including terminal) so the guest FK can be cleared/deleted.
             var utcNow = DateTime.UtcNow;
+            var prefix = MediaUploadSession.GuestObjectKeyPrefix(guestId);
             return await _context.MediaUploadSessions
-                .Where(session => session.GuestId == guestId)
+                .Where(session => session.UserId == null && session.ObjectKey.StartsWith(prefix))
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(session => session.UserId, userId)
-                        .SetProperty(session => session.GuestId, (Guid?)null)
                         .SetProperty(session => session.UpdatedAt, utcNow),
                     cancellationToken);
         }
@@ -378,9 +378,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
+            var prefix = MediaUploadSession.GuestObjectKeyPrefix(guestId);
             return await _context.MediaUploadSessions
                 .Where(session =>
-                    session.GuestId == guestId
+                    session.UserId == null
+                    && session.ObjectKey.StartsWith(prefix)
                     && session.PurgedAt == null
                     && (session.Status == MediaUploadStatus.Pending
                         || session.Status == MediaUploadStatus.Uploading
@@ -398,8 +400,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             Guid guestId,
             CancellationToken cancellationToken = default)
         {
+            var prefix = MediaUploadSession.GuestObjectKeyPrefix(guestId);
             return await _context.MediaUploadSessions
-                .Where(session => session.GuestId == guestId && session.PurgedAt != null)
+                .Where(session => session.UserId == null
+                                  && session.ObjectKey.StartsWith(prefix)
+                                  && session.PurgedAt != null)
                 .ExecuteDeleteAsync(cancellationToken);
         }
 
@@ -407,8 +412,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             Guid guestId,
             CancellationToken cancellationToken = default)
         {
+            var prefix = MediaUploadSession.GuestObjectKeyPrefix(guestId);
             return await _context.MediaUploadSessions
-                .CountAsync(session => session.GuestId == guestId, cancellationToken);
+                .CountAsync(
+                    session => session.UserId == null && session.ObjectKey.StartsWith(prefix),
+                    cancellationToken);
         }
 
         public async Task MarkPurgedAsync(Guid sessionId, CancellationToken cancellationToken = default)
@@ -452,7 +460,9 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
             if (owner.GuestId is Guid guestId)
             {
-                return _context.MediaUploadSessions.Where(session => session.GuestId == guestId);
+                var prefix = MediaUploadSession.GuestObjectKeyPrefix(guestId);
+                return _context.MediaUploadSessions.Where(session =>
+                    session.UserId == null && session.ObjectKey.StartsWith(prefix));
             }
 
             return _context.MediaUploadSessions.Where(_ => false);
@@ -488,9 +498,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 }
                 else if (owner.GuestId is Guid guestId)
                 {
+                    var prefix = MediaUploadSession.GuestObjectKeyPrefix(guestId);
                     query = query.Where(session =>
                         !_context.MediaUploadSessions.Any(other =>
-                            other.GuestId == guestId
+                            other.UserId == null
+                            && other.ObjectKey.StartsWith(prefix)
                             && other.PollId == session.PollId
                             && other.Id != session.Id
                             && other.SelectionVersion > session.SelectionVersion

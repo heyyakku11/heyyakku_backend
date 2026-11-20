@@ -8,7 +8,6 @@ namespace Yakku.Domain.Entities
 
         public Guid Id { get; private set; }
         public Guid? UserId { get; private set; }
-        public Guid? GuestId { get; private set; }
         public Guid? PollId { get; private set; }
         public PollMediaType MediaType { get; private set; }
         public string BucketName { get; private set; } = string.Empty;
@@ -27,8 +26,10 @@ namespace Yakku.Domain.Entities
         public DateTime? PurgedAt { get; private set; }
 
         public User? User { get; private set; }
-        public Guest? Guest { get; private set; }
         public Poll? Poll { get; private set; }
+
+        /// <summary>True when this pending upload was created for a guest (keyed under guests/ in object path).</summary>
+        public bool IsGuestOwned => UserId is null && ObjectKey.Contains("/guests/", StringComparison.Ordinal);
 
         private MediaUploadSession()
         {
@@ -76,7 +77,6 @@ namespace Yakku.Domain.Entities
                 expectedFileSize,
                 selectionVersion,
                 expiresAt);
-            session.GuestId = guestId;
             session.ObjectKey = BuildGuestObjectKey(guestId, session.Id, extension);
             return session;
         }
@@ -97,10 +97,15 @@ namespace Yakku.Domain.Entities
             return $"polls/pending/{userId:D}/{sessionId:D}{extension}";
         }
 
+        public static string GuestObjectKeyPrefix(Guid guestId) =>
+            $"polls/pending/guests/{guestId:D}/";
+
+        public bool BelongsToGuest(Guid guestId) =>
+            UserId is null && ObjectKey.StartsWith(GuestObjectKeyPrefix(guestId), StringComparison.Ordinal);
+
         internal void ClaimToUser(Guid userId)
         {
             UserId = userId;
-            GuestId = null;
             UpdatedAt = DateTime.UtcNow;
         }
 

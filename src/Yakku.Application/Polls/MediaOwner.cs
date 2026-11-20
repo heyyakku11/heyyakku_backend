@@ -19,7 +19,7 @@ namespace Yakku.Application.Polls
 
             if (GuestId is Guid guestId)
             {
-                return session.GuestId == guestId;
+                return session.BelongsToGuest(guestId);
             }
 
             return false;

@@ -4,7 +4,6 @@ using Yakku.Application.Checks;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Votes;
 using Yakku.Domain.Entities;
-using Yakku.Domain.Enums;
 
 namespace Yakku.Infrastructure.Persistence.Repositories
 {
@@ -38,7 +37,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var query = _context.Checks
                 .AsNoTracking()
                 .Include(check => check.Options)
-                .Where(check => check.Kind == CheckKind.Fun);
+                .Where(check => check.LiveWeekStart == null);
             if (activeOnly)
             {
                 query = query.Where(check => check.IsActive);
@@ -57,7 +56,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .Include(check => check.Options)
                 .FirstOrDefaultAsync(
                     check => check.Id == id && check.IsActive
-                        && (check.Kind == CheckKind.Fun || check.LiveWeekStart <= throughWeek),
+                        && (check.LiveWeekStart == null || check.LiveWeekStart <= throughWeek),
                     cancellationToken);
         }
 
@@ -66,7 +65,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             var query = _context.Checks
                 .AsNoTracking()
                 .Include(check => check.Options)
-                .Where(check => check.Kind == CheckKind.Weekly);
+                .Where(check => check.LiveWeekStart != null);
             if (weekStart is not null)
             {
                 query = query.Where(check => check.LiveWeekStart == weekStart);

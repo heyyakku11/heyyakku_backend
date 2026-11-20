@@ -29,7 +29,12 @@ namespace Yakku.Application.PushNotifications
                 data["deliveryId"] = id.ToString();
             }
 
-            if (TryReadTarget(notification.Data, out var contentType, out var contentId))
+            if (TryReadConversationId(notification.Data, out var conversationId))
+            {
+                data["conversationId"] = conversationId;
+                data["deepLink"] = $"yakku://ask-back/{conversationId}";
+            }
+            else if (TryReadTarget(notification.Data, out var contentType, out var contentId))
             {
                 data["contentType"] = contentType;
                 data["contentId"] = contentId;
@@ -40,7 +45,10 @@ namespace Yakku.Application.PushNotifications
             return new NotificationPayload
             {
                 Title = "Yakku",
-                Body = "You have a new notification",
+                Body = notification.EventType is Domain.Enums.NotificationEventType.AskBackStarted
+                    or Domain.Enums.NotificationEventType.AskBackReply
+                    ? "You have a new message"
+                    : "You have a new notification",
                 Data = data
             };
         }
@@ -97,6 +105,42 @@ namespace Yakku.Application.PushNotifications
             };
         }
 
+        /// <summary>Reads Ask Back <c>conversationId</c> from notification data JSON.</summary>
+        private static bool TryReadConversationId(string? json, out string conversationId)
+        {
+            conversationId = string.Empty;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(json);
+                var root = document.RootElement;
+                if (root.ValueKind != JsonValueKind.Object
+                    || !root.TryGetProperty("conversationId", out var idElement))
+                {
+                    return false;
+                }
+
+                var id = idElement.ValueKind == JsonValueKind.String
+                    ? idElement.GetString()
+                    : idElement.GetRawText().Trim('"');
+                if (!Guid.TryParse(id, out var parsed))
+                {
+                    return false;
+                }
+
+                conversationId = parsed.ToString();
+                return true;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
         /// <summary>Reads <c>{ contentType, contentId }</c> out of a notification's data JSON; false when absent or malformed.</summary>
         private static bool TryReadTarget(string? json, out string contentType, out string contentId)
         {
@@ -119,7 +163,9 @@ namespace Yakku.Application.PushNotifications
                 }
 
                 var type = typeElement.GetString()?.ToLowerInvariant();
-                var id = idElement.GetString();
+                var id = idElement.ValueKind == JsonValueKind.String
+                    ? idElement.GetString()
+                    : idElement.GetRawText().Trim('"');
                 if ((type != "poll" && type != "check" && type != "personality") || !Guid.TryParse(id, out var parsed))
                 {
                     return false;

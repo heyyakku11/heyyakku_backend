@@ -199,7 +199,7 @@ Uploads use a single presigned PUT (no multipart). Actual size is enforced on co
 
 ### Guest expiry and cleanup
 
-Guests expire 15 days after creation (`Guest.Lifetime`; the cookie lifetime follows it). A background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
+Guests expire 15 days after creation (`Guest.Lifetime`; the cookie lifetime follows it). A daily background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
 
 ## Devices
 
@@ -229,7 +229,7 @@ An installation (`installationId` + platform) has **one owner**, taken from the 
 | `notification_audit_logs` | One row per push / email / SMS / WhatsApp attempt: provider, attempt number, retry flag, latency, sanitized error. `status` is **provider acceptance**; `delivery_status` stays `UNKNOWN` until a delivery report is recorded (FCM and Resend acceptance are not delivery) |
 | `system_logs` | Unhandled exceptions, slow requests (over 1.5 s), 5xx responses, rate-limit rejections, and background-job runs / failures |
 
-Credentials, tokens, OTPs, cookies and raw identifiers are never written: emails and phone numbers are masked or hashed, free text is redacted, and request paths are stored without IDs or query strings. Audit writes are best-effort and can never fail the request they describe. A retention job (`AuditRetentionWorker`) deletes rows past their retention window. Only the SMS and WhatsApp *schema* exists; no SMS/WhatsApp provider is wired up yet.
+Credentials, tokens, OTPs, cookies and raw identifiers are never written: emails and phone numbers are masked or hashed, free text is redacted, and request paths are stored without IDs or query strings. Audit writes are best-effort and can never fail the request they describe. Retention windows are defined in code (`OperationalSettings.Retention`); there is no automatic audit-purge worker. Only the SMS and WhatsApp *schema* exists; no SMS/WhatsApp provider is wired up yet.
 
 ## Tests
 

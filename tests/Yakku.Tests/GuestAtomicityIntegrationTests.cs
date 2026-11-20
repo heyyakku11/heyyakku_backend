@@ -36,7 +36,7 @@ public sealed class GuestAtomicityIntegrationTests
         Assert.False(await verify.Guests.AnyAsync(g => g.Id == guest.Id));
         var sessions = await verify.MediaUploadSessions.Where(s => s.UserId == user.Id).ToListAsync();
         Assert.Equal(3, sessions.Count);
-        Assert.All(sessions, s => Assert.Null(s.GuestId));
+        Assert.All(sessions, s => Assert.False(s.BelongsToGuest(guest.Id)));
     }
 
     [SkippableFact]
@@ -57,7 +57,10 @@ public sealed class GuestAtomicityIntegrationTests
         Assert.True(failing.SaveWasAttempted);
         await using var verify = _fixture.CreateContext();
         Assert.True(await verify.Guests.AnyAsync(g => g.Id == guest.Id));
-        var sessions = await verify.MediaUploadSessions.Where(s => s.GuestId == guest.Id).ToListAsync();
+        var guestPrefix = MediaUploadSession.GuestObjectKeyPrefix(guest.Id);
+        var sessions = await verify.MediaUploadSessions
+            .Where(s => s.UserId == null && s.ObjectKey.StartsWith(guestPrefix))
+            .ToListAsync();
         Assert.Equal(2, sessions.Count);
         Assert.All(sessions, s => Assert.Null(s.UserId));
         Assert.Single(audit.Authentication, entry => entry.EventType == "guest.claim_failed");
@@ -102,8 +105,9 @@ public sealed class GuestAtomicityIntegrationTests
         Assert.Equal(GuestClaimResult.Expired, result);
         await using var verify = _fixture.CreateContext();
         Assert.True(await verify.Guests.AnyAsync(g => g.Id == guest.Id));
+        var guestPrefix = MediaUploadSession.GuestObjectKeyPrefix(guest.Id);
         Assert.All(
-            await verify.MediaUploadSessions.Where(s => s.GuestId == guest.Id).ToListAsync(),
+            await verify.MediaUploadSessions.Where(s => s.UserId == null && s.ObjectKey.StartsWith(guestPrefix)).ToListAsync(),
             s => Assert.Null(s.UserId));
     }
 
@@ -159,8 +163,9 @@ public sealed class GuestAtomicityIntegrationTests
         var (active, _) = await AddGuestAsync(context, sessions: 1);
         var (insideGrace, _) = await AddGuestAsync(context, sessions: 1, createdDaysAgo: 18);
         var storage = new FakeObjectStorage();
+        var expiredPrefix = MediaUploadSession.GuestObjectKeyPrefix(expired.Id);
         var expiredKeys = await context.MediaUploadSessions
-            .Where(s => s.GuestId == expired.Id)
+            .Where(s => s.UserId == null && s.ObjectKey.StartsWith(expiredPrefix))
             .Select(s => s.ObjectKey)
             .ToListAsync();
 
@@ -169,14 +174,15 @@ public sealed class GuestAtomicityIntegrationTests
         Assert.True(result.GuestsDeleted >= 1);
         await using var verify = _fixture.CreateContext();
         Assert.False(await verify.Guests.AnyAsync(g => g.Id == expired.Id));
-        Assert.False(await verify.MediaUploadSessions.AnyAsync(s => s.GuestId == expired.Id));
+        Assert.False(await verify.MediaUploadSessions.AnyAsync(s => s.UserId == null && s.ObjectKey.StartsWith(expiredPrefix)));
         Assert.All(expiredKeys, key => Assert.Contains(key, storage.Deleted));
         // Active and in-grace guests are untouched, sessions included.
         Assert.True(await verify.Guests.AnyAsync(g => g.Id == active.Id));
         Assert.True(await verify.Guests.AnyAsync(g => g.Id == insideGrace.Id));
+        var insideGracePrefix = MediaUploadSession.GuestObjectKeyPrefix(insideGrace.Id);
         Assert.Equal(
             MediaUploadStatus.Pending,
-            (await verify.MediaUploadSessions.SingleAsync(s => s.GuestId == insideGrace.Id)).Status);
+            (await verify.MediaUploadSessions.SingleAsync(s => s.UserId == null && s.ObjectKey.StartsWith(insideGracePrefix))).Status);
     }
 
     [SkippableFact]
@@ -194,8 +200,9 @@ public sealed class GuestAtomicityIntegrationTests
         {
             Assert.True(await verify.Guests.AnyAsync(g => g.Id == guest.Id));
             // Sessions were invalidated up front even though the objects could not be purged yet.
+            var guestPrefix = MediaUploadSession.GuestObjectKeyPrefix(guest.Id);
             Assert.All(
-                await verify.MediaUploadSessions.Where(s => s.GuestId == guest.Id).ToListAsync(),
+                await verify.MediaUploadSessions.Where(s => s.UserId == null && s.ObjectKey.StartsWith(guestPrefix)).ToListAsync(),
                 s => Assert.Equal(MediaUploadStatus.Expired, s.Status));
         }
 
@@ -204,8 +211,9 @@ public sealed class GuestAtomicityIntegrationTests
         await NewCleanupService(retryContext, storage).CleanupAsync();
 
         await using var final = _fixture.CreateContext();
+        var finalPrefix = MediaUploadSession.GuestObjectKeyPrefix(guest.Id);
         Assert.False(await final.Guests.AnyAsync(g => g.Id == guest.Id));
-        Assert.False(await final.MediaUploadSessions.AnyAsync(s => s.GuestId == guest.Id));
+        Assert.False(await final.MediaUploadSessions.AnyAsync(s => s.UserId == null && s.ObjectKey.StartsWith(finalPrefix)));
     }
 
     [SkippableFact]

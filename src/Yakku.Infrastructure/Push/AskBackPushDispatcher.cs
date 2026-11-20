@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.AskBack;
 using Yakku.Application.AskBack.Interfaces;
-using Yakku.Application.Common.Exceptions;
 using Yakku.Application.PushNotifications;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Domain.Enums;
@@ -13,7 +12,8 @@ namespace Yakku.Infrastructure.Push
     /// <summary>
     /// Sends the push rows written with each Ask Back message. Rows are claimed with a conditional update and a
     /// lease (like the vote notification outbox), so several instances can run it and a crashed claim becomes
-    /// claimable again. A recipient who is viewing the conversation gets no push.
+    /// claimable again. A recipient who is viewing the conversation gets no push and the linked unread inbox row
+    /// is removed so the inbox stays aligned with delivered pushes.
     /// </summary>
     public sealed class AskBackPushDispatcher
     {
@@ -81,7 +81,7 @@ namespace Yakku.Infrastructure.Push
         {
             var row = await _db.AskBackOutbox.AsNoTracking().FirstAsync(e => e.Id == id, cancellationToken);
 
-            var outcome = await DecideAndSendAsync(row.ConversationId, row.RecipientUserId, cancellationToken);
+            var outcome = await DecideAndSendAsync(row, cancellationToken);
 
             var now = _time.GetUtcNow().UtcDateTime;
             var owned = _db.AskBackOutbox.Where(e => e.Id == id && e.LeaseToken == token);
@@ -91,6 +91,13 @@ namespace Yakku.Infrastructure.Push
                     await Finish(owned, AskBackOutboxStatus.Sent, now, cancellationToken);
                     break;
                 case PushOutcome.Skipped:
+                    if (row.NotificationId is { } notificationId)
+                    {
+                        await _db.Notifications
+                            .Where(n => n.Id == notificationId && !n.IsRead)
+                            .ExecuteDeleteAsync(cancellationToken);
+                    }
+
                     await Finish(owned, AskBackOutboxStatus.Skipped, now, cancellationToken);
                     break;
                 default:
@@ -114,27 +121,48 @@ namespace Yakku.Infrastructure.Push
         }
 
         private async Task<PushOutcome> DecideAndSendAsync(
-            Guid conversationId,
-            Guid recipientId,
+            Domain.Entities.AskBackOutboxEvent row,
             CancellationToken cancellationToken)
         {
-            if (_presence.IsViewing(conversationId, recipientId))
+            if (_presence.IsViewing(row.ConversationId, row.RecipientUserId))
             {
                 return PushOutcome.Skipped;
             }
 
             try
             {
-                var result = await _push.SendToUserAsync(
-                    recipientId, PushPayloads.ForAskBackMessage(conversationId), cancellationToken);
-                return VoteNotificationDispatcher.Classify(result, null);
+                if (row.NotificationId is { } notificationId)
+                {
+                    var notification = await _db.Notifications
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(n => n.Id == notificationId, cancellationToken);
+                    if (notification is null)
+                    {
+                        return PushOutcome.Skipped;
+                    }
+
+                    var result = await _push.SendToUserAsync(
+                        row.RecipientUserId,
+                        PushPayloads.ForNotification(notification, deliveryId: row.Id),
+                        cancellationToken);
+                    return VoteNotificationDispatcher.Classify(result, null);
+                }
+
+                var legacy = await _push.SendToUserAsync(
+                    row.RecipientUserId,
+                    PushPayloads.ForAskBackMessage(row.ConversationId),
+                    cancellationToken);
+                return VoteNotificationDispatcher.Classify(legacy, null);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 var outcome = VoteNotificationDispatcher.Classify(null, exception);
                 if (outcome == PushOutcome.Retry)
                 {
-                    _logger.LogWarning(exception, "Ask Back push failed for conversation {ConversationId}.", conversationId);
+                    _logger.LogWarning(
+                        exception,
+                        "Ask Back push failed for conversation {ConversationId}.",
+                        row.ConversationId);
                 }
 
                 return outcome;

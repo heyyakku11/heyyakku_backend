@@ -218,7 +218,7 @@ namespace Yakku.Application.AdminAuth.Services
             // An unknown email still pays for a hash check so response time does not reveal which emails exist.
             var passwordOk = AdminPasswordHasher.Verify(
                 request.Password,
-                admin?.PasswordHash ?? AdminPasswordHasher.DummyHash);
+                admin?.Password?.PasswordHash ?? AdminPasswordHasher.DummyHash);
             if (admin is null || !passwordOk)
             {
                 await _throttle.RecordFailureAsync(email, client.IpAddress, cancellationToken);
@@ -324,7 +324,7 @@ namespace Yakku.Application.AdminAuth.Services
                 throw new AppException(401, ApiErrorCodes.Unauthorized, "Admin not found.");
             }
 
-            if (!AdminPasswordHasher.Verify(request.CurrentPassword, admin.PasswordHash))
+            if (!AdminPasswordHasher.Verify(request.CurrentPassword, admin.Password?.PasswordHash ?? AdminPasswordHasher.DummyHash))
             {
                 await AuditAsync(AuditEvents.Auth.PasswordChangeFailed, AuditOutcome.Suspicious, ApiErrorCodes.ValidationError, admin.Email, admin.Id);
                 throw new AppException(

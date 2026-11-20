@@ -99,7 +99,7 @@ public sealed class CommunityQueuedQuestionIntegrationTests
 
         Assert.NotEqual(Guid.Empty, created.Id);
         Assert.Equal("What do I do about a flaky friend?", created.Question);
-        Assert.Equal(new[] { "friendships", "family" }, created.Tags);
+        Assert.Equal(new[] { "friendship", "family" }, created.Tags);
         Assert.Empty(created.PersonalityTraits);
 
         var listed = await QueuedService(context).ListAsync(user.Id);
@@ -208,7 +208,7 @@ public sealed class CommunityQueuedQuestionIntegrationTests
         var withoutShare = await QueuedService(context).ListAsync(owner.Id);
         Assert.Single(withoutShare);
         Assert.Empty(withoutShare[0].PersonalityTraits);
-        Assert.Equal(new[] { "friendships" }, withoutShare[0].Tags);
+        Assert.Equal(new[] { "friendship" }, withoutShare[0].Tags);
     }
 
     [SkippableFact]
@@ -222,6 +222,6 @@ public sealed class CommunityQueuedQuestionIntegrationTests
             user.Id,
             Request("Tag order?", "Money", "Friendships", "CAREER"));
 
-        Assert.Equal(new[] { "friendships", "career", "money" }, created.Tags);
+        Assert.Equal(new[] { "friendship", "career", "money" }, created.Tags);
     }
 }

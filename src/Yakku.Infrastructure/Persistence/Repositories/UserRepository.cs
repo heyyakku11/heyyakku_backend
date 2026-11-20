@@ -26,6 +26,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return await _context.Users
                 .Include(user => user.Profile)
                 .Include(user => user.Plan)
+                .Include(user => user.DeletionRequest)
                 .FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
         }
 
@@ -33,6 +34,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             return await _context.Users
                 .Include(user => user.Profile)
+                .Include(user => user.DeletionRequest)
                 .FirstOrDefaultAsync(user => user.PhoneNumber == phoneNumber, cancellationToken);
         }
 

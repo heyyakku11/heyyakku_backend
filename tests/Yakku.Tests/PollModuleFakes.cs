@@ -476,7 +476,7 @@ internal sealed class InMemorySessionRepository : IMediaUploadSessionRepository
         CancellationToken cancellationToken = default)
     {
         var count = 0;
-        foreach (var session in _sessions.Where(session => session.GuestId == guestId).ToList())
+        foreach (var session in _sessions.Where(session => session.BelongsToGuest(guestId)).ToList())
         {
             session.ClaimToUser(userId);
             count++;
@@ -489,7 +489,7 @@ internal sealed class InMemorySessionRepository : IMediaUploadSessionRepository
     {
         var count = 0;
         foreach (var session in _sessions.Where(session =>
-                     session.GuestId == guestId
+                     session.BelongsToGuest(guestId)
                      && session.PurgedAt == null
                      && session.Status is MediaUploadStatus.Pending
                          or MediaUploadStatus.Uploading
@@ -505,12 +505,12 @@ internal sealed class InMemorySessionRepository : IMediaUploadSessionRepository
 
     public Task<int> DeletePurgedGuestSessionsAsync(Guid guestId, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(_sessions.RemoveAll(session => session.GuestId == guestId && session.PurgedAt != null));
+        return Task.FromResult(_sessions.RemoveAll(session => session.BelongsToGuest(guestId) && session.PurgedAt != null));
     }
 
     public Task<int> CountGuestSessionsAsync(Guid guestId, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(_sessions.Count(session => session.GuestId == guestId));
+        return Task.FromResult(_sessions.Count(session => session.BelongsToGuest(guestId)));
     }
 
     public Task MarkPurgedAsync(Guid sessionId, CancellationToken cancellationToken = default)
@@ -543,12 +543,46 @@ internal sealed class InMemorySessionRepository : IMediaUploadSessionRepository
     private bool HasNewer(MediaUploadSession session)
     {
         return _sessions.Any(other =>
-            other.UserId == session.UserId
-            && other.GuestId == session.GuestId
+            SameOwner(other, session)
             && other.PollId == session.PollId
             && other.Id != session.Id
             && other.SelectionVersion > session.SelectionVersion
             && !Inactive.Contains(other.Status));
+    }
+
+    private static bool SameOwner(MediaUploadSession a, MediaUploadSession b)
+    {
+        if (a.UserId != b.UserId)
+        {
+            return false;
+        }
+
+        if (a.UserId is not null)
+        {
+            return true;
+        }
+
+        var guestA = TryParseGuestId(a);
+        var guestB = TryParseGuestId(b);
+        return guestA is not null && guestA == guestB;
+    }
+
+    private static Guid? TryParseGuestId(MediaUploadSession session)
+    {
+        var prefix = "polls/pending/guests/";
+        if (!session.ObjectKey.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var rest = session.ObjectKey[prefix.Length..];
+        var slash = rest.IndexOf('/');
+        if (slash <= 0)
+        {
+            return null;
+        }
+
+        return Guid.TryParse(rest[..slash], out var guestId) ? guestId : null;
     }
 }
 

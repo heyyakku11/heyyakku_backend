@@ -35,7 +35,8 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Id)
-                .HasColumnName("id");
+                .HasColumnName("id")
+                .ValueGeneratedNever();
 
             builder.Property(x => x.PollId)
                 .HasColumnName("poll_id")

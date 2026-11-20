@@ -53,7 +53,7 @@ public sealed class LoginSnapshotTests
 
         var snapshot = await ReaderFor(context).GetAsync(user.Id, "unknown-installation");
 
-        Assert.Matches("^[0-9a-f]{6}$", snapshot.CardShareCode);
+        Assert.Matches("^[0-9a-f]{10}$", snapshot.CardShareCode);
         Assert.Equal(1, await context.PersonalityCards.CountAsync(c => c.UserId == user.Id));
         Assert.Equal("Unknown", snapshot.NotificationPermission);
     }

@@ -497,7 +497,7 @@ public class UnifiedVotingTests
             {
                 ContentType = type,
                 ContentId = Guid.NewGuid(),
-                ShareCode = Guid.NewGuid().ToString("N"),
+                ShareCode = Guid.NewGuid().ToString("N")[..10],
                 OwnerId = owner,
                 Question = "Which one?",
                 Status = open ? "ACTIVE" : (isPoll ? "CLOSED" : "INACTIVE"),

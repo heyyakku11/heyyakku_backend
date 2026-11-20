@@ -304,7 +304,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 Check = new VotableCheckDetails(
                     item.Check.Id,
                     item.Check.Title,
-                    item.Check.BackgroundColor,
+                    item.Check.CardTheme != null ? item.Check.CardTheme.BackgroundColor : "#FFFFFF",
                     Yakku.Application.Checks.Themes.CheckThemeMapper.ToResponse(item.Check))
             };
         }

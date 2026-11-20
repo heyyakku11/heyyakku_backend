@@ -19,6 +19,11 @@ namespace Yakku.Application.PushNotifications.Interfaces
         /// <summary>Writes a close row for cards whose time ran out and that do not already have one.</summary>
         Task NotifyExpiredAsync(DateTime utcNow, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// One-shot inbox+push for open polls and made checks that still have zero friend votes an hour after creation.
+        /// </summary>
+        Task NotifyShareNudgeAsync(DateTime utcNow, CancellationToken cancellationToken = default);
+
         /// <summary>Wakes the push dispatcher after a commit.</summary>
         void Wake();
     }

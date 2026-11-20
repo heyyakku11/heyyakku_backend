@@ -93,7 +93,7 @@ public class GuestLifecycleTests
         Assert.Empty(h.Guests.All);
         var stored = await h.Sessions.GetByIdAsync(session.Id);
         Assert.Equal(h.UserId, stored!.UserId);
-        Assert.Null(stored.GuestId);
+        Assert.False(stored.BelongsToGuest(guest.Id));
 
         var audit = Assert.Single(h.Audit.Authentication, entry => entry.EventType == AuditEvents.Auth.GuestClaimed);
         Assert.Equal(AuditOutcome.Success, audit.Outcome);
@@ -113,7 +113,7 @@ public class GuestLifecycleTests
         Assert.Equal(GuestClaimResult.Expired, result);
         Assert.Single(h.Guests.All);
         var stored = await h.Sessions.GetByIdAsync(session.Id);
-        Assert.Equal(guest.Id, stored!.GuestId);
+        Assert.True(stored!.BelongsToGuest(guest.Id));
         Assert.Null(stored.UserId);
         var rejected = Assert.Single(h.Audit.Authentication, entry => entry.EventType == AuditEvents.Auth.GuestClaimRejected);
         Assert.Equal("guest_expired", rejected.FailureReason);

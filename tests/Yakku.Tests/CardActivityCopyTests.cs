@@ -89,6 +89,33 @@ public class CardActivityCopyTests
         Assert.Equal("5 friends described you. Your top 3 are ready.", body);
     }
 
+    [Fact]
+    public void AskBackStarted_IncludesSourceLabel_WhenProvided()
+    {
+        var (title, body) = CardActivityCopy.ForAskBackStarted("What small stuff?", "Mirror Check");
+
+        Assert.Equal("Someone asked you back", title);
+        Assert.Equal("What small stuff? — on a Mirror Check you answered", body);
+    }
+
+    [Fact]
+    public void AskBackReply_UsesPreviewAsBody()
+    {
+        var (title, body) = CardActivityCopy.ForAskBackReply("You remembered my exam date");
+
+        Assert.Equal("They replied", title);
+        Assert.Equal("You remembered my exam date", body);
+    }
+
+    [Fact]
+    public void NoVotesYet_AsksToShareAgain()
+    {
+        var (title, body) = CardActivityCopy.ForNoVotesYet("Which firecracker am I?");
+
+        Assert.Equal("No votes yet", title);
+        Assert.Equal("\"Which firecracker am I?\" is waiting. Share it again?", body);
+    }
+
     [Theory]
     [InlineData(2, "2h")]
     [InlineData(26, "1d")]

@@ -40,9 +40,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 table.HasCheckConstraint(
                     "CK_media_upload_sessions_failure_reason_not_blank",
                     "\"failure_reason\" IS NULL OR char_length(btrim(\"failure_reason\")) > 0");
-                table.HasCheckConstraint(
-                    "CK_media_upload_sessions_owner_xor",
-                    "(\"user_id\" IS NOT NULL AND \"guest_id\" IS NULL) OR (\"user_id\" IS NULL AND \"guest_id\" IS NOT NULL)");
             });
             builder.HasKey(x => x.Id);
 
@@ -51,9 +48,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.UserId)
                 .HasColumnName("user_id");
-
-            builder.Property(x => x.GuestId)
-                .HasColumnName("guest_id");
 
             builder.Property(x => x.PollId)
                 .HasColumnName("poll_id");
@@ -121,16 +115,14 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.PurgedAt)
                 .HasColumnName("purged_at");
 
+            builder.Ignore(x => x.IsGuestOwned);
+
             builder.HasIndex(x => x.ObjectKey)
                 .IsUnique()
                 .HasDatabaseName("IX_media_upload_sessions_object_key");
 
             builder.HasIndex(x => new { x.UserId, x.Status, x.ExpiresAt })
                 .HasDatabaseName("IX_media_upload_sessions_user_id_status_expires_at");
-
-            builder.HasIndex(x => new { x.GuestId, x.Status })
-                .HasFilter("\"guest_id\" IS NOT NULL")
-                .HasDatabaseName("IX_media_upload_sessions_guest_id_status");
 
             builder.HasIndex(x => x.PollId)
                 .HasFilter("\"poll_id\" IS NOT NULL")
@@ -139,11 +131,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasOne(x => x.User)
                 .WithMany(x => x.UploadSessions)
                 .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.Guest)
-                .WithMany()
-                .HasForeignKey(x => x.GuestId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(x => x.Poll)

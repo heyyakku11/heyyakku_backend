@@ -28,10 +28,12 @@ public class AccountDeletionTests
         user.RequestDeletion(now, TimeSpan.FromDays(OperationalSettings.AccountDeletion.GraceDays));
 
         Assert.True(user.IsPendingDeletion);
-        Assert.Equal(now.AddDays(30), user.DeletionScheduledFor);
+        Assert.Equal(now.AddDays(30), user.DeletionRequest!.ScheduledFor);
+        Assert.Equal(UserStatus.Suspended, user.Status);
         Assert.True(user.CancelDeletion());
         Assert.False(user.IsPendingDeletion);
-        Assert.Null(user.DeletionRequestedAt);
+        Assert.Null(user.DeletionRequest);
+        Assert.Equal(UserStatus.Active, user.Status);
         Assert.False(user.CancelDeletion());
     }
 

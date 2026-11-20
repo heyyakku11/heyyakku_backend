@@ -17,8 +17,10 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<SavedCard> SavedCards => Set<SavedCard>();
         public DbSet<CommunityWaitlistEntry> CommunityWaitlist => Set<CommunityWaitlistEntry>();
         public DbSet<CommunityQueuedQuestion> CommunityQueuedQuestions => Set<CommunityQueuedQuestion>();
-        public DbSet<CommunityQueuedQuestionTag> CommunityQueuedQuestionTags => Set<CommunityQueuedQuestionTag>();
+        public DbSet<CardTag> CardTags => Set<CardTag>();
+        public DbSet<CardCategory> CardCategories => Set<CardCategory>();
         public DbSet<User> Users => Set<User>();
+        public DbSet<UserDeletionRequest> UserDeletionRequests => Set<UserDeletionRequest>();
         public DbSet<Plan> Plans => Set<Plan>();
         public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
         public DbSet<UserSession> UserSessions => Set<UserSession>();
@@ -28,10 +30,14 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<UserActivityDay> UserActivityDays => Set<UserActivityDay>();
         public DbSet<UserStreak> UserStreaks => Set<UserStreak>();
         public DbSet<Admin> Admins => Set<Admin>();
+        public DbSet<AdminPassword> AdminPasswords => Set<AdminPassword>();
         public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
         public DbSet<AuthenticationAuditLog> AuthenticationAuditLogs => Set<AuthenticationAuditLog>();
         public DbSet<PollAuditLog> PollAuditLogs => Set<PollAuditLog>();
         public DbSet<NotificationAuditLog> NotificationAuditLogs => Set<NotificationAuditLog>();
+        public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
+        public DbSet<ContentAuditLog> ContentAuditLogs => Set<ContentAuditLog>();
+        public DbSet<EntitlementAuditLog> EntitlementAuditLogs => Set<EntitlementAuditLog>();
         public DbSet<SystemLog> SystemLogs => Set<SystemLog>();
         public DbSet<Check> Checks => Set<Check>();
         public DbSet<CardTheme> CardThemes => Set<CardTheme>();

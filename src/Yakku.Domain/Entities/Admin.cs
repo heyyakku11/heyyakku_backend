@@ -6,7 +6,6 @@ namespace Yakku.Domain.Entities
     {
         public Guid Id { get; private set; }
         public string Email { get; private set; } = string.Empty;
-        public string PasswordHash { get; private set; } = string.Empty;
         public AdminRole Role { get; private set; }
         public AdminStatus Status { get; private set; }
         public bool IsVerified { get; private set; }
@@ -15,6 +14,7 @@ namespace Yakku.Domain.Entities
         public DateTime? LastLoginAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
+        public AdminPassword? Password { get; private set; }
         public ICollection<AdminSession> Sessions { get; private set; } = new List<AdminSession>();
 
         private Admin()
@@ -25,22 +25,25 @@ namespace Yakku.Domain.Entities
         {
             Id = Guid.NewGuid();
             Email = email;
-            PasswordHash = passwordHash;
             Role = role;
             Status = AdminStatus.Pending;
             IsVerified = false;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
+            Password = AdminPassword.Create(Id, passwordHash);
         }
 
         public void UpdatePassword(string passwordHash)
         {
-            if (string.IsNullOrWhiteSpace(passwordHash))
+            if (Password is null)
             {
-                throw new ArgumentException("Password hash is required.", nameof(passwordHash));
+                Password = AdminPassword.Create(Id, passwordHash);
+            }
+            else
+            {
+                Password.UpdateHash(passwordHash);
             }
 
-            PasswordHash = passwordHash;
             UpdatedAt = DateTime.UtcNow;
         }
 

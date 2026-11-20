@@ -12,7 +12,7 @@ namespace Yakku.Application.Checks.Themes
             Tag = type.Tag
         };
 
-        /// <summary>The theme of a check: its check type, or one synthesized from the legacy fields.</summary>
+        /// <summary>The theme of a check: its card theme, or a fallback synthesized from the title.</summary>
         public static CheckThemeResponse ToResponse(Check check)
         {
             if (check.CardTheme is { } type)
@@ -20,7 +20,7 @@ namespace Yakku.Application.Checks.Themes
                 return new CheckThemeResponse { CheckTypeId = type.Id, CheckType = type.Name, Config = ConfigOf(type) };
             }
 
-            return Legacy(check.Title, check.BackgroundColor);
+            return Legacy(check.Title, "#FFFFFF");
         }
 
         public static CheckThemeResponse Legacy(string title, string backgroundColor)
