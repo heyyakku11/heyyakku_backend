@@ -134,6 +134,9 @@ namespace Yakku.Application.AskBack.DTOs
 
         /// <summary>Messages the caller can still send; null when unlimited.</summary>
         public int? MessagesLeft { get; set; }
+
+        /// <summary>True when status is blocked and the caller is who blocked (can lift it).</summary>
+        public bool CanUnblock { get; set; }
     }
 
     public class AskBackMessageResponse

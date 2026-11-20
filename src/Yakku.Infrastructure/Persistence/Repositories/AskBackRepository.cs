@@ -312,7 +312,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     LastMessageAt = row.LastMessageAt,
                     LastActivityAt = row.LastActivityAt,
                     UnreadCount = unread.GetValueOrDefault(row.Id),
-                    CreatedAt = row.CreatedAt
+                    CreatedAt = row.CreatedAt,
+                    CanUnblock = row.Status == AskBackStatus.Blocked && row.BlockedByUserId == userId
                 };
             }).ToList();
 
