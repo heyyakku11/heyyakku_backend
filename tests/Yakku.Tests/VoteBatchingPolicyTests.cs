@@ -497,14 +497,14 @@ public class PushPayloadTests
     }
 
     [Fact]
-    public void APersonalityReadyPush_OpensPersonalityResults()
+    public void APersonalityReadyPush_OpensPersonalityReadyCelebration()
     {
         var cardId = Guid.NewGuid();
         var notification = new Notification(
             Guid.NewGuid(),
             NotificationType.Normal,
             NotificationEventType.PersonalityReady,
-            "Who you are is in",
+            CardActivityCopy.PersonalityTitle,
             "Your friends finished describing you. Open your result.",
             data: System.Text.Json.JsonSerializer.Serialize(new
             {
@@ -515,8 +515,32 @@ public class PushPayloadTests
 
         var payload = PushPayloads.ForNotification(notification);
 
-        Assert.Equal("personalityResults", payload.Data!["screen"]);
+        Assert.Equal("personalityReady", payload.Data!["screen"]);
         Assert.Equal("personality", payload.Data["contentType"]);
         Assert.Equal($"yakku://results/personality/{cardId}", payload.Data["deepLink"]);
+    }
+
+    [Fact]
+    public void APollResultReadyVotePush_OpensCardResultsReadyCelebration()
+    {
+        var pollId = Guid.NewGuid();
+        var notification = new Notification(
+            Guid.NewGuid(),
+            NotificationType.Normal,
+            NotificationEventType.PollAnswered,
+            CardActivityCopy.ResultReadyTitle,
+            "3 friends answered. See if they agree with you.",
+            data: System.Text.Json.JsonSerializer.Serialize(new
+            {
+                contentId = pollId,
+                contentType = "poll",
+                shareCode = "abc123def0"
+            }));
+
+        var payload = PushPayloads.ForNotification(notification);
+
+        Assert.Equal("cardResultsReady", payload.Data!["screen"]);
+        Assert.Equal("poll", payload.Data["contentType"]);
+        Assert.Equal($"yakku://results/poll/{pollId}", payload.Data["deepLink"]);
     }
 }

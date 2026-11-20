@@ -23,7 +23,7 @@ namespace Yakku.Application.Notifications.Mapper
                 CreatedAt = notification.CreatedAt,
                 ExpiresAt = notification.ExpiresAt,
                 Actor = BuildActor(notification.EventType, data),
-                Target = BuildTarget(notification.EventType, data)
+                Target = BuildTarget(notification, data)
             };
         }
 
@@ -45,10 +45,10 @@ namespace Yakku.Application.Notifications.Mapper
         }
 
         private static NotificationTargetResponse BuildTarget(
-            NotificationEventType eventType,
+            Notification notification,
             NotificationDataPayload data)
         {
-            return eventType switch
+            return notification.EventType switch
             {
                 NotificationEventType.AskBackStarted or NotificationEventType.AskBackReply => new NotificationTargetResponse
                 {
@@ -61,7 +61,8 @@ namespace Yakku.Application.Notifications.Mapper
                 },
                 NotificationEventType.PersonalityReady => new NotificationTargetResponse
                 {
-                    Screen = "personalityResults",
+                    // Celebration "your card / results ready" — only opened from this ready push.
+                    Screen = "personalityReady",
                     ContentType = data.ContentType ?? "personality",
                     ContentId = data.ContentId,
                     DeepLink = data.DeepLink
@@ -72,6 +73,18 @@ namespace Yakku.Application.Notifications.Mapper
                 NotificationEventType.NoVotesYet => new NotificationTargetResponse
                 {
                     Screen = "cardShare",
+                    ContentType = data.ContentType,
+                    ContentId = data.ContentId,
+                    DeepLink = data.DeepLink
+                        ?? BuildResultsDeepLink(data.ContentType, data.ContentId)
+                },
+                NotificationEventType.PollAnswered
+                    when string.Equals(
+                        notification.Title,
+                        PushNotifications.CardActivityCopy.ResultReadyTitle,
+                        StringComparison.Ordinal) => new NotificationTargetResponse
+                {
+                    Screen = "cardResultsReady",
                     ContentType = data.ContentType,
                     ContentId = data.ContentId,
                     DeepLink = data.DeepLink

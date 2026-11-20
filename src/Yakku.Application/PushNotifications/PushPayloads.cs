@@ -38,7 +38,7 @@ namespace Yakku.Application.PushNotifications
             }
             else if (TryReadTarget(notification.Data, out var contentType, out var contentId))
             {
-                data["screen"] = ScreenFor(notification.EventType);
+                data["screen"] = ScreenFor(notification);
                 data["contentType"] = contentType;
                 data["contentId"] = contentId;
                 // The in-app route the push opens: yakku://results/{poll|check|personality}/{id}.
@@ -112,14 +112,33 @@ namespace Yakku.Application.PushNotifications
 
         /// <summary>
         /// Same screen names the inbox API returns in <c>target.screen</c>
-        /// (askBackConversation | cardResults | personalityResults | cardShare).
+        /// (askBackConversation | cardResults | cardResultsReady | personalityReady | cardShare).
+        /// <c>personalityReady</c> / <c>cardResultsReady</c> are celebration-only entry points from the
+        /// "result is ready" push; ordinary vote taps use <c>cardResults</c>.
         /// </summary>
+        public static string ScreenFor(Notification notification)
+        {
+            return notification.EventType switch
+            {
+                NotificationEventType.AskBackStarted or NotificationEventType.AskBackReply => "askBackConversation",
+                NotificationEventType.PersonalityReady => "personalityReady",
+                NotificationEventType.NoVotesYet => "cardShare",
+                NotificationEventType.PollAnswered
+                    when string.Equals(
+                        notification.Title,
+                        CardActivityCopy.ResultReadyTitle,
+                        StringComparison.Ordinal) => "cardResultsReady",
+                _ => "cardResults"
+            };
+        }
+
+        /// <summary>Legacy overload; prefer <see cref="ScreenFor(Notification)"/>.</summary>
         public static string ScreenFor(NotificationEventType eventType)
         {
             return eventType switch
             {
                 NotificationEventType.AskBackStarted or NotificationEventType.AskBackReply => "askBackConversation",
-                NotificationEventType.PersonalityReady => "personalityResults",
+                NotificationEventType.PersonalityReady => "personalityReady",
                 NotificationEventType.NoVotesYet => "cardShare",
                 _ => "cardResults"
             };

@@ -29,7 +29,10 @@ namespace Yakku.Application.Notifications.DTOs
 
     public class NotificationTargetResponse
     {
-        /// <summary>askBackConversation | cardResults | personalityResults | cardShare</summary>
+        /// <summary>
+        /// askBackConversation | cardResults | cardResultsReady | personalityReady | cardShare.
+        /// <c>personalityReady</c> / <c>cardResultsReady</c> are celebration-only targets from the ready push.
+        /// </summary>
         public string Screen { get; set; } = string.Empty;
 
         public Guid? ConversationId { get; set; }
