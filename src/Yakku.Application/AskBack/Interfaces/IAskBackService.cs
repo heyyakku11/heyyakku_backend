@@ -1,4 +1,5 @@
 using Yakku.Application.AskBack.DTOs;
+using Yakku.Application.Common.Responses;
 
 namespace Yakku.Application.AskBack.Interfaces
 {
@@ -60,6 +61,19 @@ namespace Yakku.Application.AskBack.Interfaces
         Task<AskBackConversationResponse> UnblockAsync(
             Guid userId,
             Guid conversationId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>People the caller blocked, newest first.</summary>
+        Task<(IReadOnlyList<AskBackBlockItemResponse> Items, PaginationMeta Meta)> ListBlocksAsync(
+            Guid userId,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Lift a block by its id; also reactivates Ask Back chats the caller blocked with that person.</summary>
+        Task UnblockByBlockIdAsync(
+            Guid userId,
+            Guid blockId,
             CancellationToken cancellationToken = default);
 
         /// <summary>Whether the user may join the conversation's real-time group. Used by the hub.</summary>

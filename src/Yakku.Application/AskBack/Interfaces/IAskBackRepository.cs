@@ -169,6 +169,27 @@ namespace Yakku.Application.AskBack.Interfaces
             Guid blockedUserId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>Blocks the caller placed, newest first.</summary>
+        Task<(IReadOnlyList<UserBlock> Items, int Total)> ListBlocksForBlockerAsync(
+            Guid blockerUserId,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>A block the caller owns, or null.</summary>
+        Task<UserBlock?> FindOwnedBlockAsync(
+            Guid blockerUserId,
+            Guid blockId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Conversations between the pair that are blocked by <paramref name="blockerUserId"/> (tracked for unblock).
+        /// </summary>
+        Task<IReadOnlyList<AskBackConversation>> ListBlockedConversationsByPairAsync(
+            Guid blockerUserId,
+            Guid blockedUserId,
+            CancellationToken cancellationToken = default);
+
         void AddReport(AskBackReport report);
 
         /// <summary>Saves changes made to tracked entities (status, read position, report).</summary>

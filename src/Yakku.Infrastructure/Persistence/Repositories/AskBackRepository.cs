@@ -848,6 +848,52 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             _context.UserBlocks.RemoveRange(existing);
         }
 
+        public async Task<(IReadOnlyList<UserBlock> Items, int Total)> ListBlocksForBlockerAsync(
+            Guid blockerUserId,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.UserBlocks
+                .AsNoTracking()
+                .Where(block => block.BlockerUserId == blockerUserId);
+
+            var total = await query.CountAsync(cancellationToken);
+            var items = await query
+                .OrderByDescending(block => block.CreatedAt)
+                .ThenByDescending(block => block.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return (items, total);
+        }
+
+        public Task<UserBlock?> FindOwnedBlockAsync(
+            Guid blockerUserId,
+            Guid blockId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.UserBlocks.FirstOrDefaultAsync(
+                block => block.Id == blockId && block.BlockerUserId == blockerUserId,
+                cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<AskBackConversation>> ListBlockedConversationsByPairAsync(
+            Guid blockerUserId,
+            Guid blockedUserId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.AskBackConversations
+                .Where(conversation =>
+                    conversation.Status == AskBackStatus.Blocked
+                    && conversation.BlockedByUserId == blockerUserId
+                    && (
+                        (conversation.CreatorUserId == blockerUserId && conversation.VoterUserId == blockedUserId)
+                        || (conversation.CreatorUserId == blockedUserId && conversation.VoterUserId == blockerUserId)))
+                .ToListAsync(cancellationToken);
+        }
+
         public void AddReport(AskBackReport report)
         {
             _context.AskBackReports.Add(report);

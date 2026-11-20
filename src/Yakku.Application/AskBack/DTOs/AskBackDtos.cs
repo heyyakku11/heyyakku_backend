@@ -169,4 +169,13 @@ namespace Yakku.Application.AskBack.DTOs
         public bool Advanced { get; set; }
         public int UnreadCount { get; set; }
     }
+
+    /// <summary>One person the caller blocked from Ask Back (anonymous name only).</summary>
+    public sealed class AskBackBlockItemResponse
+    {
+        public Guid BlockId { get; set; }
+        public string AnonymousName { get; set; } = string.Empty;
+        public DateTime BlockedAt { get; set; }
+        public Guid? SourceConversationId { get; set; }
+    }
 }

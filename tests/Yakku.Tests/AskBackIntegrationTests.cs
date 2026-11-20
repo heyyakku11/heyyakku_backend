@@ -704,6 +704,36 @@ public sealed class AskBackIntegrationTests
     }
 
     [SkippableFact]
+    public async Task BlocksList_ShowsPeopleIBlocked_AndUnblockByBlockId_LiftsChatAndUserBlock()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (scene, conversationId) = await StartedAsync(context);
+        var service = ServiceFor(context);
+
+        await service.BlockAsync(
+            scene.Voter.Id, conversationId, new BlockAskBackRequest { Reason = "Harassing me" });
+
+        var (items, meta) = await service.ListBlocksAsync(scene.Voter.Id, page: 1, pageSize: 20);
+        Assert.Equal(1, meta.TotalCount);
+        Assert.Single(items);
+        Assert.Equal(scene.Asker.Profile.AnonymousName, items[0].AnonymousName);
+        Assert.Equal(conversationId, items[0].SourceConversationId);
+        Assert.DoesNotContain(scene.Asker.Id.ToString(), JsonSerializer.Serialize(items));
+
+        var (emptyForAsker, _) = await service.ListBlocksAsync(scene.Asker.Id, page: 1, pageSize: 20);
+        Assert.Empty(emptyForAsker);
+
+        await service.UnblockByBlockIdAsync(scene.Voter.Id, items[0].BlockId);
+        Assert.False(await new UserBlockRepository(context).IsBlockedAsync(scene.Voter.Id, scene.Asker.Id));
+        var after = await service.GetConversationAsync(scene.Voter.Id, conversationId);
+        Assert.Equal("active", after.Status);
+
+        Assert.Equal(404, (await Assert.ThrowsAsync<AppException>(
+            () => service.UnblockByBlockIdAsync(scene.Voter.Id, items[0].BlockId))).StatusCode);
+    }
+
+    [SkippableFact]
     public async Task Block_WithoutAReason_StillRecordsAReport()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);

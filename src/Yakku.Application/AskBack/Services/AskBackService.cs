@@ -535,6 +535,64 @@ namespace Yakku.Application.AskBack.Services
             return await GetConversationAsync(userId, conversationId, cancellationToken);
         }
 
+        public const int BlocksDefaultPageSize = 20;
+        public const int BlocksMaxPageSize = 50;
+
+        public async Task<(IReadOnlyList<AskBackBlockItemResponse> Items, PaginationMeta Meta)> ListBlocksAsync(
+            Guid userId,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize <= 0 ? BlocksDefaultPageSize : pageSize, 1, BlocksMaxPageSize);
+
+            var (blocks, total) = await _repository.ListBlocksForBlockerAsync(
+                userId, page, pageSize, cancellationToken);
+
+            var items = new List<AskBackBlockItemResponse>(blocks.Count);
+            foreach (var block in blocks)
+            {
+                var name = await _repository.GetAnonymousNameAsync(block.BlockedUserId, cancellationToken)
+                    ?? AskBackOptions.DeletedUserName;
+                items.Add(new AskBackBlockItemResponse
+                {
+                    BlockId = block.Id,
+                    AnonymousName = name,
+                    BlockedAt = block.CreatedAt,
+                    SourceConversationId = block.SourceConversationId
+                });
+            }
+
+            return (items, PaginationMeta.Create(page, pageSize, total));
+        }
+
+        public async Task UnblockByBlockIdAsync(
+            Guid userId,
+            Guid blockId,
+            CancellationToken cancellationToken = default)
+        {
+            var block = await _repository.FindOwnedBlockAsync(userId, blockId, cancellationToken)
+                ?? throw NotFound("Block not found.");
+
+            var blockedUserId = block.BlockedUserId;
+            var conversations = await _repository.ListBlockedConversationsByPairAsync(
+                userId, blockedUserId, cancellationToken);
+
+            foreach (var conversation in conversations)
+            {
+                conversation.TryUnblock(userId);
+            }
+
+            await _repository.RemoveUserBlockAsync(userId, blockedUserId, cancellationToken);
+            await _repository.SaveAsync(cancellationToken);
+
+            foreach (var conversation in conversations)
+            {
+                await PublishStatusAsync(conversation, cancellationToken);
+            }
+        }
+
         public async Task<bool> CanJoinAsync(
             Guid userId,
             Guid conversationId,
