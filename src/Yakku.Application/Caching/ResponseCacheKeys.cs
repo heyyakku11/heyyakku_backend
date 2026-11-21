@@ -13,11 +13,26 @@ namespace Yakku.Application.Caching
 
         public static string FunCatalog => Prefix + "fun:catalog";
 
+        /// <summary>
+        /// Shared live-week check catalog (no per-user <c>used</c>). One Redis key for every caller.
+        /// </summary>
+        public static string ChecksWeekCatalog(DateOnly weekStart) =>
+            Prefix + $"checks:week:{weekStart:yyyy-MM-dd}:catalog";
+
+        /// <summary>Legacy anon list key; still invalidated so old entries expire immediately.</summary>
         public static string ChecksWeekAnon(DateOnly weekStart) =>
             Prefix + $"checks:week:{weekStart:yyyy-MM-dd}:anon";
 
+        /// <summary>Legacy per-user list key; still invalidated so old entries expire immediately.</summary>
         public static string ChecksWeekUser(DateOnly weekStart, Guid userId) =>
             Prefix + $"checks:week:{weekStart:yyyy-MM-dd}:u:{userId:N}";
+
+        /// <summary>Keys to drop when the live-week schedule changes (admin create/update/delete).</summary>
+        public static IReadOnlyList<string> AfterWeekScheduleChange(DateOnly weekStart) =>
+        [
+            ChecksWeekCatalog(weekStart),
+            ChecksWeekAnon(weekStart)
+        ];
 
         public static string FunList(Guid userId) => Prefix + $"fun:list:u:{userId:N}";
 
@@ -49,7 +64,11 @@ namespace Yakku.Application.Caching
         public static string CheckCustomAnswers(Guid userCheckId, Guid ownerId) =>
             Prefix + $"reasons:check:{userCheckId:N}:custom:u:{ownerId:N}";
 
-        /// <summary>Keys to drop after the user makes a weekly check or fun card.</summary>
+        /// <summary>
+        /// Keys to drop after the user makes a weekly check or fun card.
+        /// Week catalog stays: <c>used</c> is applied from the DB on each list read.
+        /// Legacy per-user week keys are still dropped so stale copies cannot linger.
+        /// </summary>
         public static IReadOnlyList<string> AfterUserMadeCard(
             Guid userId,
             DateOnly weekStart,

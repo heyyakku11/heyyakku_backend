@@ -26,6 +26,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return _context.Checks
                 .AsNoTracking()
                 .Include(check => check.Options)
+                .Include(check => check.CardTheme)
                 .Where(check => check.IsActive && check.LiveWeekStart == weekStart)
                 .OrderBy(check => check.CreatedAt)
                 .ThenBy(check => check.Id)

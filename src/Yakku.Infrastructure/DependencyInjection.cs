@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Yakku.Application.PushNotifications.Batching;
@@ -179,6 +180,8 @@ namespace Yakku.Infrastructure
             services.AddSingleton<IRedisScriptClient>(sp => sp.GetRequiredService<IRedisClient>());
             services.Configure<Yakku.Application.Configuration.ResponseCacheOptions>(
                 configuration.GetSection(Yakku.Application.Configuration.ResponseCacheOptions.SectionName));
+            // Replace Application's NullResponseCache so GET catalogs (including live week) hit Redis.
+            services.RemoveAll<Yakku.Application.Caching.IResponseCache>();
             services.AddSingleton<Yakku.Application.Caching.IResponseCache, Redis.RedisResponseCache>();
 
             var emailChannel = Channel.CreateBounded<EmailJob>(new BoundedChannelOptions(OtpEmailQueueOptions.Capacity)

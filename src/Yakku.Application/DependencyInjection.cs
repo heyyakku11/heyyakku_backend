@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Yakku.Application.AdminAuth;
 using Yakku.Application.AdminAuth.Interfaces;
@@ -34,8 +35,8 @@ namespace Yakku.Application
         public static IServiceCollection AddApplication(this IServiceCollection services)
         {
             services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
-            // Infrastructure replaces this with RedisResponseCache when Redis is configured.
-            services.AddSingleton<IResponseCache, NullResponseCache>();
+            // Default no-op; Infrastructure RemoveAll + registers RedisResponseCache for the API host.
+            services.TryAddSingleton<IResponseCache, NullResponseCache>();
             services.AddScoped<IPollService, PollService>();
             services.AddScoped<IMediaUploadSessionService, MediaUploadSessionService>();
             services.AddScoped<IMediaUploadCleanupService, MediaUploadCleanupService>();

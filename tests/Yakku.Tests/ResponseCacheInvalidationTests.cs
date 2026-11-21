@@ -26,7 +26,35 @@ public sealed class ResponseCacheInvalidationTests
     public ResponseCacheInvalidationTests(PostgresFixture fixture) => _fixture = fixture;
 
     [SkippableFact]
-    public async Task MakeWeeklyCheck_RemovesUserWeekAndFunListKeys()
+    public async Task GetChecks_UsesSharedWeekCatalogKey()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var cache = new RecordingResponseCache();
+        var repository = new CheckRepository(context);
+        var service = new CheckService(repository, new CastCheckVoteValidator(), new NoOpStreakService(), cache: cache);
+
+        var themes = new CheckThemeService(new CheckThemeRepository(context), new CreateCheckThemeValidator());
+        var admin = new AdminCheckService(repository, new SaveCheckValidator(), themes, cache);
+        var theme = await themes.CreateAsync(ThemeSamples.Request($"Cache-{Guid.NewGuid():N}"[..16]));
+        var week = CheckWeek.Current();
+        await admin.CreateAsync(new SaveCheckRequest
+        {
+            CheckTypeId = theme.Id,
+            WeekStart = week,
+            Question = "Cache catalog?",
+            Options = ["A", "B"],
+            IsActive = true
+        });
+
+        cache.GetOrSetKeys.Clear();
+        var user = await AddUserAsync(context);
+        Assert.Single(await service.GetChecksAsync(user.Id));
+        Assert.Contains(ResponseCacheKeys.ChecksWeekCatalog(week), cache.GetOrSetKeys);
+    }
+
+    [SkippableFact]
+    public async Task MakeWeeklyCheck_RemovesFunListKeys_NotWeekCatalog()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
@@ -53,9 +81,35 @@ public sealed class ResponseCacheInvalidationTests
         await service.MakeAsync(user.Id, new MakeCheckRequest { CheckId = check.Id, CustomAnswer = "mine" });
 
         var week = CheckWeek.Current();
+        Assert.DoesNotContain(ResponseCacheKeys.ChecksWeekCatalog(week), cache.Removed);
         Assert.Contains(ResponseCacheKeys.ChecksWeekUser(week, user.Id), cache.Removed);
         Assert.Contains(ResponseCacheKeys.FunList(user.Id), cache.Removed);
         Assert.Contains(ResponseCacheKeys.FunTypes(user.Id), cache.Removed);
+    }
+
+    [SkippableFact]
+    public async Task AdminCreateCheck_RemovesWeekCatalogKey()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var cache = new RecordingResponseCache();
+        var repository = new CheckRepository(context);
+        var themes = new CheckThemeService(new CheckThemeRepository(context), new CreateCheckThemeValidator());
+        var admin = new AdminCheckService(repository, new SaveCheckValidator(), themes, cache);
+        var theme = await themes.CreateAsync(ThemeSamples.Request($"Cache-{Guid.NewGuid():N}"[..16]));
+        var week = CheckWeek.Current();
+
+        await admin.CreateAsync(new SaveCheckRequest
+        {
+            CheckTypeId = theme.Id,
+            WeekStart = week,
+            Question = "Invalidate catalog?",
+            Options = ["A", "B"],
+            IsActive = true
+        });
+
+        Assert.Contains(ResponseCacheKeys.ChecksWeekCatalog(week), cache.Removed);
+        Assert.Contains(ResponseCacheKeys.ChecksWeekAnon(week), cache.Removed);
     }
 
     [SkippableFact]
@@ -109,17 +163,21 @@ public sealed class ResponseCacheInvalidationTests
         return user;
     }
 
-    /// <summary>Records removals; GetOrSet always runs the factory (no store).</summary>
+    /// <summary>Records removals and GetOrSet keys; GetOrSet always runs the factory (no store).</summary>
     private sealed class RecordingResponseCache : IResponseCache
     {
         public HashSet<string> Removed { get; } = new(StringComparer.Ordinal);
+        public List<string> GetOrSetKeys { get; } = [];
 
         public Task<T> GetOrSetAsync<T>(
             string key,
             TimeSpan ttl,
             Func<CancellationToken, Task<T>> factory,
-            CancellationToken cancellationToken = default) =>
-            factory(cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            GetOrSetKeys.Add(key);
+            return factory(cancellationToken);
+        }
 
         public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
         {

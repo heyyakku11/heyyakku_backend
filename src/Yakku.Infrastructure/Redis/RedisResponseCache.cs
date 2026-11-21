@@ -62,6 +62,11 @@ namespace Yakku.Infrastructure.Redis
             {
                 var payload = JsonSerializer.Serialize(value, JsonOptions);
                 await _redis.SetAsync(key, payload, ttl, cancellationToken);
+                _logger.LogDebug(
+                    "Response cache SET {Key} ({Bytes} bytes, ttl {TtlSeconds}s).",
+                    key,
+                    payload.Length,
+                    Math.Max(1, (int)ttl.TotalSeconds));
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {

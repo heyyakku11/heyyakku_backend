@@ -49,28 +49,36 @@ namespace Yakku.Application.Checks.Services
             _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
-        public Task<List<CheckResponse>> GetChecksAsync(Guid? userId, CancellationToken cancellationToken = default)
+        public async Task<List<CheckResponse>> GetChecksAsync(
+            Guid? userId,
+            CancellationToken cancellationToken = default)
         {
             var currentWeek = CheckWeek.Current();
-            var key = userId is { } id
-                ? ResponseCacheKeys.ChecksWeekUser(currentWeek, id)
-                : ResponseCacheKeys.ChecksWeekAnon(currentWeek);
-
-            return _cache.GetOrSetAsync(
-                key,
-                _cacheOptions.UserCatalog,
+            // Shared catalog (no per-user Used) so Redis always has one stable week key.
+            var catalog = await _cache.GetOrSetAsync(
+                ResponseCacheKeys.ChecksWeekCatalog(currentWeek),
+                _cacheOptions.WeeklyChecks,
                 async ct =>
                 {
                     var checks = await _repository.GetForWeekAsync(currentWeek, ct);
-                    var used = userId is null
-                        ? new Dictionary<Guid, UserCheck>()
-                        : await _repository.GetUserChecksByCheckAsync(userId.Value, ct);
-
                     return checks
-                        .Select(check => ToCheckResponse(check, used.GetValueOrDefault(check.Id)))
+                        .Select(check => ToCheckResponse(check, used: null))
                         .ToList();
                 },
                 cancellationToken);
+
+            if (userId is null || catalog.Count == 0)
+            {
+                return catalog;
+            }
+
+            var used = await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
+            foreach (var item in catalog)
+            {
+                item.Used = used.ContainsKey(item.Id);
+            }
+
+            return catalog;
         }
 
         public async Task<CheckResponse> GetByIdAsync(Guid id, Guid? userId, CancellationToken cancellationToken = default)

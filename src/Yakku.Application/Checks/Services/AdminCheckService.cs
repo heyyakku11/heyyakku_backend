@@ -68,7 +68,7 @@ namespace Yakku.Application.Checks.Services
 
             await _repository.AddCheckAsync(check, cancellationToken);
             await _repository.SaveChecksAsync(cancellationToken);
-            await _cache.RemoveAsync(ResponseCacheKeys.ChecksWeekAnon(week), cancellationToken);
+            await _cache.RemoveManyAsync(ResponseCacheKeys.AfterWeekScheduleChange(week), cancellationToken);
 
             var saved = await _repository.GetForUpdateAsync(check.Id, cancellationToken) ?? check;
             return ToResponse(saved);
@@ -127,7 +127,7 @@ namespace Yakku.Application.Checks.Services
                 request.IsActive);
 
             await _repository.SaveChecksAsync(cancellationToken);
-            await _cache.RemoveAsync(ResponseCacheKeys.ChecksWeekAnon(week), cancellationToken);
+            await _cache.RemoveManyAsync(ResponseCacheKeys.AfterWeekScheduleChange(week), cancellationToken);
 
             if (newTheme is not null)
             {
@@ -149,7 +149,9 @@ namespace Yakku.Application.Checks.Services
             await _repository.DeleteWithUsageAsync(check, cancellationToken);
             if (week is { } liveWeek)
             {
-                await _cache.RemoveAsync(ResponseCacheKeys.ChecksWeekAnon(liveWeek), cancellationToken);
+                await _cache.RemoveManyAsync(
+                    ResponseCacheKeys.AfterWeekScheduleChange(liveWeek),
+                    cancellationToken);
             }
         }
 

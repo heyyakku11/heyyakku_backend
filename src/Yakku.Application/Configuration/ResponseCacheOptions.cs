@@ -17,6 +17,9 @@ namespace Yakku.Application.Configuration
 
         public int UserCatalogSeconds { get; set; } = 60;
 
+        /// <summary>TTL for the shared live-week checks catalog (<c>checks:week:…:catalog</c>).</summary>
+        public int WeeklyChecksSeconds { get; set; } = 300;
+
         public int ShareSeconds { get; set; } = 30;
 
         public int ReasonsSeconds { get; set; } = 30;
@@ -26,6 +29,7 @@ namespace Yakku.Application.Configuration
         public TimeSpan PersonalityTraits => TimeSpan.FromSeconds(Math.Max(1, PersonalityTraitsSeconds));
         public TimeSpan FunCatalog => TimeSpan.FromSeconds(Math.Max(1, FunCatalogSeconds));
         public TimeSpan UserCatalog => TimeSpan.FromSeconds(Math.Max(1, UserCatalogSeconds));
+        public TimeSpan WeeklyChecks => TimeSpan.FromSeconds(Math.Max(1, WeeklyChecksSeconds));
         public TimeSpan Share => TimeSpan.FromSeconds(Math.Max(1, ShareSeconds));
         public TimeSpan Reasons => TimeSpan.FromSeconds(Math.Max(1, ReasonsSeconds));
     }
