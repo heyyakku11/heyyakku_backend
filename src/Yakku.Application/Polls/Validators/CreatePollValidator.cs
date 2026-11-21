@@ -1,5 +1,6 @@
 using FluentValidation;
 using Yakku.Application.Polls.DTOs;
+using Yakku.Domain;
 using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Polls.Validators
@@ -10,7 +11,9 @@ namespace Yakku.Application.Polls.Validators
         {
             RuleFor(x => x.Question)
                 .Must(question => !string.IsNullOrWhiteSpace(question))
-                .WithMessage("Question is required.");
+                .WithMessage("Question is required.")
+                .Must(question => question is null || question.Trim().Length <= ContentLengthLimits.MaxQuestionLength)
+                .WithMessage($"Question must be {ContentLengthLimits.MaxQuestionLength} characters or fewer.");
 
             RuleFor(x => x.ContentType)
                 .Must(BeValidContentType)
@@ -82,9 +85,9 @@ namespace Yakku.Application.Polls.Validators
                 {
                     context.AddFailure($"options[{i}].text", "Option text is required.");
                 }
-                else if (option.Text.Trim().Length > 500)
+                else if (option.Text.Trim().Length > ContentLengthLimits.MaxAnswerLength)
                 {
-                    context.AddFailure($"options[{i}].text", "Option text must be 500 characters or fewer.");
+                    context.AddFailure($"options[{i}].text", $"Option text must be {ContentLengthLimits.MaxAnswerLength} characters or fewer.");
                 }
             }
 

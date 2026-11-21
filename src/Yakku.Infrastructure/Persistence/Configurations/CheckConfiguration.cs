@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Yakku.Domain;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -21,7 +22,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Id).HasColumnName("id");
             builder.Property(x => x.LiveWeekStart).HasColumnName("live_week_start").HasColumnType("date");
             builder.Property(x => x.Title).HasColumnName("title").HasMaxLength(100).IsRequired();
-            builder.Property(x => x.Question).HasColumnName("question").HasMaxLength(500).IsRequired();
+            builder.Property(x => x.Question).HasColumnName("question").HasMaxLength(ContentLengthLimits.MaxQuestionLength).IsRequired();
             builder.Property(x => x.IsActive).HasColumnName("is_active").IsRequired().HasDefaultValue(true);
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired().HasDefaultValueSql("now()");
@@ -58,7 +59,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Id).HasColumnName("id");
             builder.Property(x => x.CheckId).HasColumnName("check_id").IsRequired();
-            builder.Property(x => x.Text).HasColumnName("text").HasMaxLength(200).IsRequired();
+            builder.Property(x => x.Text).HasColumnName("text").HasMaxLength(ContentLengthLimits.MaxAnswerLength).IsRequired();
             builder.Property(x => x.SortOrder).HasColumnName("sort_order").IsRequired();
 
             builder.HasIndex(x => new { x.CheckId, x.SortOrder })

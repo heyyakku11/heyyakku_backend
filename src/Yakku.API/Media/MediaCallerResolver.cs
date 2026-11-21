@@ -62,6 +62,56 @@ namespace Yakku.API.Media
         }
 
         /// <summary>
+        /// App vote path: signed-in user only. Guest tokens are ignored. Throws 401 when there is no user.
+        /// </summary>
+        public Task<VoterIdentity> ResolveUserVoterAsync(
+            HttpContext httpContext,
+            CancellationToken cancellationToken = default)
+        {
+            _ = cancellationToken;
+            if (!httpContext.User.TryGetUserId(out var userId))
+            {
+                throw new AppException(
+                    StatusCodes.Status401Unauthorized,
+                    ApiErrorCodes.Unauthorized,
+                    "Authentication is required.");
+            }
+
+            return Task.FromResult(VoterIdentity.ForUser(userId));
+        }
+
+        /// <summary>
+        /// Web vote path: guest token only. A signed-in JWT is ignored so share votes stay anonymous.
+        /// Throws 401 when the guest is missing or expired.
+        /// </summary>
+        public async Task<VoterIdentity> ResolveGuestVoterAsync(
+            HttpContext httpContext,
+            CancellationToken cancellationToken = default)
+        {
+            var rawToken = ReadGuestToken(httpContext);
+            if (string.IsNullOrWhiteSpace(rawToken))
+            {
+                throw new AppException(
+                    StatusCodes.Status401Unauthorized,
+                    ApiErrorCodes.Unauthorized,
+                    "Guest authentication is required.");
+            }
+
+            var guest = await _guests.GetByTokenHashAsync(_tokenHasher.Hash(rawToken), cancellationToken);
+            if (guest is null || guest.ExpiresAt <= DateTime.UtcNow)
+            {
+                throw new AppException(
+                    StatusCodes.Status401Unauthorized,
+                    ApiErrorCodes.Unauthorized,
+                    "Guest session is invalid or expired.");
+            }
+
+            guest.Touch();
+            await _guests.SaveChangesAsync(cancellationToken);
+            return VoterIdentity.ForGuest(guest.Id);
+        }
+
+        /// <summary>
         /// For reads: the signed-in user or a valid guest, otherwise null (anonymous). An invalid or expired guest
         /// token is treated as anonymous instead of failing the request, and nothing is written.
         /// </summary>

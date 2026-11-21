@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Yakku.Domain;
 using Yakku.Domain.Entities;
 
 namespace Yakku.Infrastructure.Persistence.Configurations
@@ -28,7 +29,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Text)
                 .HasColumnName("option_text")
-                .HasMaxLength(500)
+                .HasMaxLength(ContentLengthLimits.MaxAnswerLength)
                 .IsRequired();
 
             builder.Property(x => x.SortOrder)

@@ -99,7 +99,7 @@ namespace Yakku.Application.Reasons.DTOs
     {
         /// <summary>
         /// Why the owner is reporting it, as text the client chooses (for example the label of the option they
-        /// picked, or their own words). Required, up to 300 characters.
+        /// picked, or their own words). Required, up to 120 characters.
         /// </summary>
         public string? Reason { get; set; }
     }

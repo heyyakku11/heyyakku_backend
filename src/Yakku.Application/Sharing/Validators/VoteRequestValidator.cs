@@ -1,13 +1,14 @@
 using FluentValidation;
 using Yakku.Application.Sharing.DTOs;
+using Yakku.Domain;
 
 namespace Yakku.Application.Sharing.Validators
 {
     public class VoteRequestValidator : AbstractValidator<VoteRequest>
     {
         public const int MaxShareCodeLength = 64;
-        public const int MaxCustomAnswerLength = 300;
-        public const int MaxReasonLength = 500;
+        public const int MaxCustomAnswerLength = ContentLengthLimits.MaxAnswerLength;
+        public const int MaxReasonLength = ContentLengthLimits.MaxAnswerLength;
 
         public VoteRequestValidator()
         {

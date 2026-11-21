@@ -8,8 +8,8 @@ using Yakku.Application.Sharing.Interfaces;
 
 namespace Yakku.API.Controllers
 {
-    /// <summary>One voting endpoint for polls and checks, for signed-in users and guests.</summary>
-    [AllowAnonymous]
+    /// <summary>User (JWT) voting for polls and checks — used by the mobile app.</summary>
+    [Authorize]
     [ApiController]
     [Route("api/v1/votes")]
     public class VotesController : ControllerBase
@@ -25,8 +25,12 @@ namespace Yakku.API.Controllers
 
         [HttpPost]
         [EnableRateLimiting("poll-votes")]
-        [EndpointSummary("Vote on a Poll or a Check")]
-        [EndpointDescription("Send the content's shareCode (required) and pick exactly one of optionId or customAnswer, with an optional reason. The backend works out whether the share code is a poll or a check. Accepts a Bearer JWT or an X-Guest-Token. One vote per voter per content item (409 otherwise). Returns the content as the voter now sees it.")]
+        [EndpointSummary("Vote on a Poll or a Check (signed-in user)")]
+        [EndpointDescription(
+            "App-only voting. Requires a Bearer JWT. Send the content's shareCode (required) and pick exactly one of "
+            + "optionId or customAnswer, with an optional reason. The backend works out whether the share code is a "
+            + "poll or a check. Guest tokens are ignored. One vote per voter per content item (409 otherwise). "
+            + "Returns the content as the voter now sees it. Web guests use POST /api/v1/guest/votes instead.")]
         [ProducesResponseType(typeof(ApiResponse<SharedContentResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -36,7 +40,7 @@ namespace Yakku.API.Controllers
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]
         public async Task<IActionResult> Vote([FromBody] VoteRequest request, CancellationToken cancellationToken)
         {
-            var voter = await _callerResolver.ResolveVoterAsync(HttpContext, cancellationToken);
+            var voter = await _callerResolver.ResolveUserVoterAsync(HttpContext, cancellationToken);
             var result = await _voting.VoteAsync(request, voter, cancellationToken);
             return StatusCode(
                 StatusCodes.Status201Created,

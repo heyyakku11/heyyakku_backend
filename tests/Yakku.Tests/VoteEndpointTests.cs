@@ -16,18 +16,18 @@ using Yakku.Domain.Enums;
 
 namespace Yakku.Tests;
 
-/// <summary>Wiring of the unified share and vote endpoints: caller resolution and what reaches the services.</summary>
+/// <summary>Wiring of the split share/vote endpoints: guest web votes vs signed-in app votes.</summary>
 public class VoteEndpointTests
 {
     private const string GuestToken = "guest-token-for-endpoint-tests";
 
     [Fact]
-    public async Task Vote_AsAGuest_PassesAGuestIdentity_AndReturns201()
+    public async Task GuestVote_AsAGuest_PassesAGuestIdentity_AndReturns201()
     {
         var h = new Harness();
         h.Http.Request.Headers[MediaCallerResolver.GuestTokenHeaderName] = GuestToken;
 
-        var result = await h.Votes.Vote(new VoteRequest { ShareCode = "abc", OptionId = Guid.NewGuid() }, CancellationToken.None);
+        var result = await h.GuestVotes.Vote(new VoteRequest { ShareCode = "abc", OptionId = Guid.NewGuid() }, CancellationToken.None);
 
         var created = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status201Created, created.StatusCode);
@@ -37,24 +37,24 @@ public class VoteEndpointTests
     }
 
     [Fact]
-    public async Task Vote_AsASignedInUser_PrefersTheUserOverAGuestToken()
+    public async Task GuestVote_IgnoresSignedInUser_AndVotesAsGuest()
     {
         var h = new Harness();
-        var userId = Guid.NewGuid();
-        h.SignIn(userId);
+        h.SignIn(Guid.NewGuid());
         h.Http.Request.Headers[MediaCallerResolver.GuestTokenHeaderName] = GuestToken;
 
-        await h.Votes.Vote(new VoteRequest { ShareCode = "abc", OptionId = Guid.NewGuid() }, CancellationToken.None);
+        await h.GuestVotes.Vote(new VoteRequest { ShareCode = "abc", OptionId = Guid.NewGuid() }, CancellationToken.None);
 
-        Assert.Equal(VoterIdentity.ForUser(userId), h.Voting.LastVoter);
+        Assert.Equal(VoterIdentity.ForGuest(h.Guest.Id), h.Voting.LastVoter);
     }
 
     [Fact]
-    public async Task Vote_WithoutAnyIdentity_Throws401_AndNeverReachesTheService()
+    public async Task GuestVote_WithoutGuestToken_Throws401_EvenIfSignedIn()
     {
         var h = new Harness();
+        h.SignIn(Guid.NewGuid());
 
-        var exception = await Assert.ThrowsAsync<AppException>(() => h.Votes.Vote(
+        var exception = await Assert.ThrowsAsync<AppException>(() => h.GuestVotes.Vote(
             new VoteRequest { ShareCode = "abc", OptionId = Guid.NewGuid() }, CancellationToken.None));
 
         Assert.Equal(401, exception.StatusCode);
@@ -62,9 +62,39 @@ public class VoteEndpointTests
     }
 
     [Fact]
-    public async Task Vote_WithAnExpiredGuestToken_Throws401()
+    public async Task GuestVote_WithAnExpiredGuestToken_Throws401()
     {
         var h = new Harness(guestExpired: true);
+        h.Http.Request.Headers[MediaCallerResolver.GuestTokenHeaderName] = GuestToken;
+
+        var exception = await Assert.ThrowsAsync<AppException>(() => h.GuestVotes.Vote(
+            new VoteRequest { ShareCode = "abc", OptionId = Guid.NewGuid() }, CancellationToken.None));
+
+        Assert.Equal(401, exception.StatusCode);
+        Assert.Equal(0, h.Voting.Calls);
+    }
+
+    [Fact]
+    public async Task UserVote_AsASignedInUser_PassesAUserIdentity_AndReturns201()
+    {
+        var h = new Harness();
+        var userId = Guid.NewGuid();
+        h.SignIn(userId);
+        // Guest header must not satisfy or override the user vote route.
+        h.Http.Request.Headers[MediaCallerResolver.GuestTokenHeaderName] = GuestToken;
+
+        var result = await h.Votes.Vote(new VoteRequest { ShareCode = "abc", OptionId = Guid.NewGuid() }, CancellationToken.None);
+
+        var created = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status201Created, created.StatusCode);
+        Assert.Equal(VoterIdentity.ForUser(userId), h.Voting.LastVoter);
+        Assert.IsType<ApiResponse<SharedContentResponse>>(created.Value);
+    }
+
+    [Fact]
+    public async Task UserVote_WithoutJwt_Throws401_EvenWithGuestToken()
+    {
+        var h = new Harness();
         h.Http.Request.Headers[MediaCallerResolver.GuestTokenHeaderName] = GuestToken;
 
         var exception = await Assert.ThrowsAsync<AppException>(() => h.Votes.Vote(
@@ -116,6 +146,7 @@ public class VoteEndpointTests
 
             var context = new ControllerContext { HttpContext = Http };
             Votes = new VotesController(Voting, resolver) { ControllerContext = context };
+            GuestVotes = new GuestVotesController(Voting, resolver) { ControllerContext = context };
             Shares = new SharesController(Shared, resolver) { ControllerContext = context };
         }
 
@@ -124,6 +155,7 @@ public class VoteEndpointTests
         public StubVotingService Voting { get; }
         public StubSharedContentService Shared { get; }
         public VotesController Votes { get; }
+        public GuestVotesController GuestVotes { get; }
         public SharesController Shares { get; }
 
         public void SignIn(Guid userId)

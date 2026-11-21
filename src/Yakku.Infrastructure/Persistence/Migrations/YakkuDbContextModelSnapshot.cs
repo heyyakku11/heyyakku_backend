@@ -942,8 +942,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Question")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("question");
 
                     b.Property<string>("Title")
@@ -989,8 +989,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Text")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
                         .HasColumnName("text");
 
                     b.HasKey("Id");
@@ -2490,7 +2490,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Question")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("question");
 
                     b.Property<string>("ShareCode")
@@ -2738,8 +2739,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Text")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
                         .HasColumnName("option_text");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -2877,8 +2878,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ReporterReason")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
                         .HasColumnName("reporter_reason");
 
                     b.Property<DateTime?>("ReviewedAt")

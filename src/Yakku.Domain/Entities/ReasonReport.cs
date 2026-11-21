@@ -11,7 +11,7 @@ namespace Yakku.Domain.Entities
     /// </summary>
     public class ReasonReport
     {
-        public const int MaxReporterReasonLength = 300;
+        public const int MaxReporterReasonLength = Yakku.Domain.ContentLengthLimits.MaxAnswerLength;
 
         public Guid Id { get; private set; }
         public Guid ReporterId { get; private set; }

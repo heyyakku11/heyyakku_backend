@@ -319,9 +319,9 @@ public class UnifiedVotingTests
         await Assert.ThrowsAsync<ValidationException>(() => h.Voting.VoteAsync(
             new VoteRequest { ShareCode = poll.ShareCode, OptionId = option, Reason = "   " }, voter));
         await Assert.ThrowsAsync<ValidationException>(() => h.Voting.VoteAsync(
-            new VoteRequest { ShareCode = poll.ShareCode, CustomAnswer = new string('a', 301) }, voter));
+            new VoteRequest { ShareCode = poll.ShareCode, CustomAnswer = new string('a', 121) }, voter));
         await Assert.ThrowsAsync<ValidationException>(() => h.Voting.VoteAsync(
-            new VoteRequest { ShareCode = poll.ShareCode, OptionId = option, Reason = new string('a', 501) }, voter));
+            new VoteRequest { ShareCode = poll.ShareCode, OptionId = option, Reason = new string('a', 121) }, voter));
 
         Assert.Empty(h.Repository.Votes);
     }

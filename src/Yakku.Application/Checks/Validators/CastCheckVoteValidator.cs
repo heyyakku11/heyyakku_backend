@@ -1,5 +1,6 @@
 using FluentValidation;
 using Yakku.Application.Checks.DTOs;
+using Yakku.Domain;
 
 namespace Yakku.Application.Checks.Validators
 {
@@ -24,8 +25,8 @@ namespace Yakku.Application.Checks.Validators
                 RuleFor(x => x.CustomAnswer)
                     .Must(value => !string.IsNullOrWhiteSpace(value))
                     .WithMessage("Custom answer cannot be blank.")
-                    .Must(value => value is null || value.Trim().Length <= 300)
-                    .WithMessage("Custom answer must be 300 characters or fewer.");
+                    .Must(value => value is null || value.Trim().Length <= ContentLengthLimits.MaxAnswerLength)
+                    .WithMessage($"Custom answer must be {ContentLengthLimits.MaxAnswerLength} characters or fewer.");
             });
 
             When(x => x.Reason is not null, () =>
@@ -33,8 +34,8 @@ namespace Yakku.Application.Checks.Validators
                 RuleFor(x => x.Reason)
                     .Must(value => !string.IsNullOrWhiteSpace(value))
                     .WithMessage("Reason cannot be blank.")
-                    .Must(value => value is null || value.Trim().Length <= 500)
-                    .WithMessage("Reason must be 500 characters or fewer.");
+                    .Must(value => value is null || value.Trim().Length <= ContentLengthLimits.MaxAnswerLength)
+                    .WithMessage($"Reason must be {ContentLengthLimits.MaxAnswerLength} characters or fewer.");
             });
         }
 

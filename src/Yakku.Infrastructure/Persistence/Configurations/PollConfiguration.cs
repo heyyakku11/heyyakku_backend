@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Yakku.Domain;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -50,7 +51,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Question)
                 .HasColumnName("question")
-                .HasColumnType("text")
+                .HasMaxLength(ContentLengthLimits.MaxQuestionLength)
                 .IsRequired();
 
             builder.Property(x => x.Status)
