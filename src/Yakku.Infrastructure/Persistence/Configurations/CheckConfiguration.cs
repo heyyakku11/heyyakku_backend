@@ -96,6 +96,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasDatabaseName("IX_user_checks_user_id_check_id");
             builder.HasIndex(x => x.CheckId).HasDatabaseName("IX_user_checks_check_id");
             builder.HasIndex(x => x.ShareCode).IsUnique().HasDatabaseName("IX_user_checks_share_code");
+            // Newest-first paging for "my checks" / "my asks" (user_id, created_at DESC).
+            builder.HasIndex(x => new { x.UserId, x.CreatedAt })
+                .HasDatabaseName("IX_user_checks_user_id_created_at");
 
             builder.HasOne(x => x.User)
                 .WithMany()

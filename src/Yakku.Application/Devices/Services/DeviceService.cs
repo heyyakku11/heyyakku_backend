@@ -122,20 +122,39 @@ namespace Yakku.Application.Devices.Services
             var session = await ValidateCallerAsync(caller, cancellationToken);
             var permission = ParseOptionalPermission(request.NotificationPermission);
 
+            var device = await ResolveCurrentAsync(caller, session, installationId, cancellationToken)
+                ?? throw DeviceNotFound();
+            EnsureAssociatedWithCaller(device, caller);
+
+            if (!device.WouldApplyUpdate(
+                    request.PushToken,
+                    request.DeviceModel,
+                    request.OsVersion,
+                    request.AppVersion,
+                    request.AppBuild,
+                    request.Locale,
+                    request.Timezone,
+                    permission,
+                    request.IsPushAllowed))
+            {
+                return device.ToResponse(isCurrent: true);
+            }
+
             DeviceResponse? response = null;
             var changed = false;
             try
             {
                 await _devices.ExecuteInTransactionAsync(async transactionToken =>
                 {
-                    var device = await ResolveCurrentAsync(caller, session, installationId, transactionToken)
+                    var locked = await ResolveCurrentAsync(caller, session, installationId, transactionToken)
                         ?? throw DeviceNotFound();
-                    EnsureAssociatedWithCaller(device, caller);
+                    EnsureAssociatedWithCaller(locked, caller);
 
-                    var effectivePermission = permission ?? device.NotificationPermission;
-                    var wantsToken = !string.IsNullOrWhiteSpace(request.PushToken)
+                    var effectivePermission = permission ?? locked.NotificationPermission;
+                    var normalizedToken = NormalizeToken(request.PushToken);
+                    var wantsToken = normalizedToken is not null
                         && effectivePermission != NotificationPermissionStatus.Denied;
-                    if (wantsToken && !device.IsActive)
+                    if (wantsToken && !locked.IsActive)
                     {
                         throw new AppException(
                             409,
@@ -144,13 +163,14 @@ namespace Yakku.Application.Devices.Services
                             "pushToken");
                     }
 
-                    if (wantsToken)
+                    if (wantsToken
+                        && !string.Equals(normalizedToken, locked.PushToken, StringComparison.Ordinal))
                     {
                         await ReleaseTokenFromOthersAsync(
-                            request.PushToken!.Trim(), device.Id, caller, transactionToken);
+                            normalizedToken!, locked.Id, caller, transactionToken);
                     }
 
-                    changed = device.ApplyUpdate(
+                    changed = locked.ApplyUpdate(
                         request.PushToken,
                         request.DeviceModel,
                         request.OsVersion,
@@ -165,7 +185,7 @@ namespace Yakku.Application.Devices.Services
                         await _devices.SaveChangesAsync(transactionToken);
                     }
 
-                    response = device.ToResponse(isCurrent: true);
+                    response = locked.ToResponse(isCurrent: true);
                 }, cancellationToken);
             }
             catch (DeviceOwnershipException exception)
@@ -177,7 +197,7 @@ namespace Yakku.Application.Devices.Services
 
             if (changed)
             {
-                await AuditAsync(
+                _ = AuditAsync(
                     caller,
                     AuditEvents.Device.Updated,
                     AuditOutcome.Success,

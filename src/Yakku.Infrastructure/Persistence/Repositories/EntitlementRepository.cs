@@ -115,6 +115,30 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 cancellationToken);
         }
 
+        public async Task<IReadOnlyList<CardUnlock>> FindUnlocksAsync(
+            Guid ownerId,
+            IReadOnlyCollection<(ShareContentType ContentType, Guid ContentId)> cards,
+            CancellationToken cancellationToken = default)
+        {
+            if (cards.Count == 0)
+            {
+                return Array.Empty<CardUnlock>();
+            }
+
+            var types = cards.Select(card => card.ContentType).Distinct().ToArray();
+            var ids = cards.Select(card => card.ContentId).Distinct().ToArray();
+            var candidates = await _context.CardUnlocks
+                .Where(unlock => unlock.OwnerUserId == ownerId
+                    && types.Contains(unlock.ContentType)
+                    && ids.Contains(unlock.ContentId))
+                .ToListAsync(cancellationToken);
+
+            var wanted = cards.ToHashSet();
+            return candidates
+                .Where(unlock => wanted.Contains((unlock.ContentType, unlock.ContentId)))
+                .ToList();
+        }
+
         public Task<int> CountPlanUnlocksAsync(
             Guid ownerId,
             Guid? entitlementId,

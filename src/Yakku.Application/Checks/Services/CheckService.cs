@@ -10,9 +10,11 @@ using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Configuration;
+using Yakku.Application.Polls;
 using Yakku.Application.PushNotifications.Interfaces;
 using Yakku.Application.Streaks;
 using Yakku.Application.Streaks.Interfaces;
+using Yakku.Application.Users;
 using Yakku.Application.Votes;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
@@ -72,10 +74,20 @@ namespace Yakku.Application.Checks.Services
                 return catalog;
             }
 
-            var used = await _repository.GetUserChecksByCheckAsync(userId.Value, cancellationToken);
+            var usedIds = await _cache.GetOrSetAsync(
+                ResponseCacheKeys.ChecksUsed(userId.Value),
+                _cacheOptions.UserCatalog,
+                TimeSpan.FromSeconds(Math.Max(_cacheOptions.UserCatalogSeconds * 3, 180)),
+                async ct =>
+                {
+                    var used = await _repository.GetUserChecksByCheckAsync(userId.Value, ct);
+                    return used.Keys.ToList();
+                },
+                cancellationToken);
+            var usedSet = usedIds.ToHashSet();
             foreach (var item in catalog)
             {
-                item.Used = used.ContainsKey(item.Id);
+                item.Used = usedSet.Contains(item.Id);
             }
 
             return catalog;
@@ -159,7 +171,7 @@ namespace Yakku.Application.Checks.Services
 
                     var saved = await _repository.GetUserCheckByIdAsync(userCheck.Id, cancellationToken)
                         ?? throw CheckExceptions.NotFound();
-                    return ToUserCheckResponse(saved, userId);
+                    return await MapUserCheckAsync(saved, userId, cancellationToken);
                 }
             }
 
@@ -169,10 +181,58 @@ namespace Yakku.Application.Checks.Services
                 "Could not create a share code. Please try again.");
         }
 
-        public async Task<List<UserCheckResponse>> GetMineAsync(Guid userId, CancellationToken cancellationToken = default)
+        public Task<UserChecksPage> GetMineAsync(
+            Guid userId,
+            string? cursor,
+            CancellationToken cancellationToken = default)
         {
-            var items = await _repository.GetUserChecksAsync(userId, cancellationToken);
-            return items.Select(item => ToUserCheckResponse(item, userId)).ToList();
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.ChecksMine(userId, cursor),
+                _cacheOptions.ListSoft,
+                _cacheOptions.ListHard,
+                ct => LoadMineAsync(userId, cursor, ct),
+                cancellationToken);
+        }
+
+        private async Task<UserChecksPage> LoadMineAsync(
+            Guid userId,
+            string? cursor,
+            CancellationToken cancellationToken)
+        {
+            var decoded = PollCursor.TryDecode(cursor);
+            var take = PollCursor.PageSize + 1;
+            var items = await _repository.GetUserChecksPageAsync(
+                userId,
+                decoded?.CreatedAt,
+                decoded?.Id,
+                take,
+                cancellationToken);
+
+            var hasMore = items.Count > PollCursor.PageSize;
+            var page = items.Take(PollCursor.PageSize).ToList();
+            var tallies = await _repository.GetVoteCountsAsync(
+                page.Select(item => item.Id).ToArray(),
+                cancellationToken);
+
+            var mapped = new List<UserCheckResponse>(page.Count);
+            foreach (var item in page)
+            {
+                var tally = tallies.GetValueOrDefault(item.Id) ?? PollVoteCountSnapshot.Empty;
+                mapped.Add(ToUserCheckResponse(item, userId, tally, myVote: null, summaryOnly: true));
+            }
+
+            string? nextCursor = null;
+            if (hasMore && page.Count > 0)
+            {
+                var last = page[^1];
+                nextCursor = PollCursor.Encode(last.CreatedAt, last.Id);
+            }
+
+            return new UserChecksPage
+            {
+                Items = mapped,
+                Meta = PaginationMeta.ForCursor(PollCursor.PageSize, nextCursor, hasMore)
+            };
         }
 
         public async Task<UserCheckResponse> GetMineByIdAsync(
@@ -186,7 +246,7 @@ namespace Yakku.Application.Checks.Services
                 throw CheckExceptions.NotFound();
             }
 
-            return ToUserCheckResponse(item, userId);
+            return await MapUserCheckAsync(item, userId, cancellationToken);
         }
 
         public async Task<UserCheckResponse> GetSharedAsync(
@@ -196,7 +256,7 @@ namespace Yakku.Application.Checks.Services
         {
             var item = await _repository.GetUserCheckByShareCodeAsync(shareCode, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
-            return ToUserCheckResponse(item, userId);
+            return await MapUserCheckAsync(item, userId, cancellationToken);
         }
 
         public async Task<UserCheckResponse> CloseMineAsync(
@@ -217,7 +277,7 @@ namespace Yakku.Application.Checks.Services
             await InvalidateShareAsync(item.ShareCode, userId, cancellationToken);
             var closed = await _repository.GetUserCheckByIdAsync(userCheckId, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
-            return ToUserCheckResponse(closed, userId);
+            return await MapUserCheckAsync(closed, userId, cancellationToken);
         }
 
         public async Task<UserCheckResponse> ReshareMineAsync(
@@ -237,7 +297,7 @@ namespace Yakku.Application.Checks.Services
             await InvalidateShareAsync(item.ShareCode, userId, cancellationToken);
             var reopened = await _repository.GetUserCheckByIdAsync(userCheckId, cancellationToken)
                 ?? throw CheckExceptions.NotFound();
-            return ToUserCheckResponse(reopened, userId);
+            return await MapUserCheckAsync(reopened, userId, cancellationToken);
         }
 
         public async Task DeleteMineAsync(
@@ -255,10 +315,13 @@ namespace Yakku.Application.Checks.Services
             await InvalidateShareAsync(shareCode, userId, cancellationToken);
         }
 
-        private Task InvalidateShareAsync(string shareCode, Guid ownerId, CancellationToken cancellationToken) =>
-            _cache.RemoveManyAsync(
-                ResponseCacheKeys.AfterShareMutation(shareCode, ownerId),
-                cancellationToken);
+        private async Task InvalidateShareAsync(string shareCode, Guid ownerId, CancellationToken cancellationToken)
+        {
+            var keys = ResponseCacheKeys.AfterShareMutation(shareCode, ownerId)
+                .Concat(ResponseCacheKeys.AfterAskListMutation(ownerId))
+                .ToArray();
+            await _cache.RemoveManyAsync(keys, cancellationToken);
+        }
 
         public async Task<CheckVoteResponse> VoteAsync(
             string shareCode,
@@ -288,7 +351,7 @@ namespace Yakku.Application.Checks.Services
                     "You cannot answer your own check.");
             }
 
-            if (item.Votes.Any(vote => vote.VoterId == userId))
+            if (await _repository.GetViewerVoteAsync(item.Id, userId, cancellationToken) is not null)
             {
                 throw VoteExceptions.AlreadyVoted();
             }
@@ -361,28 +424,60 @@ namespace Yakku.Application.Checks.Services
             };
         }
 
-        private static UserCheckResponse ToUserCheckResponse(UserCheck item, Guid? viewerId)
+        private async Task<UserCheckResponse> MapUserCheckAsync(
+            UserCheck item,
+            Guid? viewerId,
+            CancellationToken cancellationToken)
         {
+            var tallies = await _repository.GetVoteCountsAsync([item.Id], cancellationToken);
+            var tally = tallies.GetValueOrDefault(item.Id) ?? PollVoteCountSnapshot.Empty;
+            UserCheckVote? myVote = null;
+            if (viewerId is { } vid)
+            {
+                myVote = await _repository.GetViewerVoteAsync(item.Id, vid, cancellationToken);
+            }
+
+            return ToUserCheckResponse(item, viewerId, tally, myVote, summaryOnly: false);
+        }
+
+        private static UserCheckResponse ToUserCheckResponse(
+            UserCheck item,
+            Guid? viewerId,
+            PollVoteCountSnapshot tally,
+            UserCheckVote? myVote,
+            bool summaryOnly)
+        {
+            var display = tally.ForDisplay();
             var isOwner = item.UserId == viewerId;
-            var myVote = item.Votes.FirstOrDefault(vote => vote.VoterId == viewerId);
-
-            // The owner's own answer is not part of the tally: it is not counted in any figure below.
-            var others = item.Votes.Where(vote => vote.VoterId != item.UserId).ToList();
-            var voteProgress = others.Count;
-            var unlocked = voteProgress >= OperationalSettings.Results.MinVotesToReveal;
-
-            // Results are visible once the limit is reached, to the owner or to a voter who has answered.
+            var voteProgress = display.OtherVotes;
+            var unlocked = display.ResultsUnlocked;
             var showResults = unlocked && (isOwner || myVote is not null);
-            var counts = others
-                .Where(vote => vote.CheckOptionId is not null)
-                .GroupBy(vote => vote.CheckOptionId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
 
             var theme = CheckThemeMapper.ToResponse(item.Check);
+            var options = summaryOnly
+                ? []
+                : item.Check.Options
+                    .OrderBy(option => option.SortOrder)
+                    .Select(option => new UserCheckOptionResponse
+                    {
+                        Id = option.Id,
+                        Text = option.Text,
+                        Votes = showResults ? display.CountFor(option.Id) : null,
+                        WhyCount = showResults ? display.WhyCountFor(option.Id) : null
+                    })
+                    .ToList();
+
             return new UserCheckResponse
             {
                 CheckType = theme.CheckType,
-                Theme = theme,
+                Theme = summaryOnly
+                    ? new CheckThemeResponse
+                    {
+                        CheckType = theme.CheckType,
+                        CheckTypeId = theme.CheckTypeId,
+                        IsLegacy = theme.IsLegacy
+                    }
+                    : theme,
                 Id = item.Id,
                 CheckId = item.CheckId,
                 Title = item.Check.Title,
@@ -393,25 +488,14 @@ namespace Yakku.Application.Checks.Services
                 IsClosed = item.IsClosed,
                 ClosedAt = item.ClosedAt,
                 IsOwner = isOwner,
-                MyVoteOptionId = myVote?.CheckOptionId,
-                MyCustomAnswer = myVote?.CustomAnswer,
-                TotalVotes = showResults ? others.Count : null,
+                MyVoteOptionId = summaryOnly ? null : myVote?.CheckOptionId,
+                MyCustomAnswer = summaryOnly ? null : myVote?.CustomAnswer,
+                TotalVotes = showResults ? display.TotalVotes : null,
                 MinVotes = OperationalSettings.Results.MinVotesToReveal,
                 VoteProgress = voteProgress,
                 ResultsUnlocked = unlocked,
-                CustomAnswerVotes = showResults ? others.Count(vote => vote.CustomAnswer is not null) : null,
-                Options = item.Check.Options
-                    .OrderBy(option => option.SortOrder)
-                    .Select(option => new UserCheckOptionResponse
-                    {
-                        Id = option.Id,
-                        Text = option.Text,
-                        Votes = showResults ? counts.GetValueOrDefault(option.Id) : null,
-                        WhyCount = showResults
-                            ? others.Count(vote => vote.CheckOptionId == option.Id && vote.Reason != null)
-                            : null
-                    })
-                    .ToList(),
+                CustomAnswerVotes = showResults ? display.CustomAnswerCount : null,
+                Options = options,
                 CreatedAt = item.CreatedAt
             };
         }

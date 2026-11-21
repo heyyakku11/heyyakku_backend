@@ -28,9 +28,17 @@ namespace Yakku.Infrastructure.Redis
             _logger = logger;
         }
 
-        public async Task<T> GetOrSetAsync<T>(
+        public Task<T> GetOrSetAsync<T>(
             string key,
             TimeSpan ttl,
+            Func<CancellationToken, Task<T>> factory,
+            CancellationToken cancellationToken = default) =>
+            GetOrSetAsync(key, softTtl: ttl, hardTtl: ttl, factory, cancellationToken);
+
+        public async Task<T> GetOrSetAsync<T>(
+            string key,
+            TimeSpan softTtl,
+            TimeSpan hardTtl,
             Func<CancellationToken, Task<T>> factory,
             CancellationToken cancellationToken = default)
         {
@@ -39,15 +47,23 @@ namespace Yakku.Infrastructure.Redis
                 return await factory(cancellationToken);
             }
 
+            var softSeconds = Math.Max(1, (int)softTtl.TotalSeconds);
+            var hardSeconds = Math.Max(softSeconds, (int)hardTtl.TotalSeconds);
+            var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
             try
             {
                 var cached = await _redis.GetAsync(key, cancellationToken);
                 if (cached is not null)
                 {
-                    var hit = JsonSerializer.Deserialize<T>(cached, JsonOptions);
-                    if (hit is not null)
+                    var envelope = JsonSerializer.Deserialize<CacheEnvelope<T>>(cached, JsonOptions);
+                    if (envelope is not null && envelope.HasPayload)
                     {
-                        return hit;
+                        var age = nowUnix - envelope.CachedAtUnix;
+                        if (age < softSeconds)
+                        {
+                            return envelope.Payload!;
+                        }
                     }
                 }
             }
@@ -60,13 +76,20 @@ namespace Yakku.Infrastructure.Redis
 
             try
             {
-                var payload = JsonSerializer.Serialize(value, JsonOptions);
-                await _redis.SetAsync(key, payload, ttl, cancellationToken);
+                var envelope = new CacheEnvelope<T>
+                {
+                    Payload = value,
+                    CachedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    HasPayload = true
+                };
+                var payload = JsonSerializer.Serialize(envelope, JsonOptions);
+                await _redis.SetAsync(key, payload, TimeSpan.FromSeconds(hardSeconds), cancellationToken);
                 _logger.LogDebug(
-                    "Response cache SET {Key} ({Bytes} bytes, ttl {TtlSeconds}s).",
+                    "Response cache SET {Key} ({Bytes} bytes, soft {Soft}s hard {Hard}s).",
                     key,
                     payload.Length,
-                    Math.Max(1, (int)ttl.TotalSeconds));
+                    softSeconds,
+                    hardSeconds);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -101,6 +124,13 @@ namespace Yakku.Infrastructure.Redis
             {
                 await RemoveAsync(key, cancellationToken);
             }
+        }
+
+        private sealed class CacheEnvelope<T>
+        {
+            public T Payload { get; set; } = default!;
+            public long CachedAtUnix { get; set; }
+            public bool HasPayload { get; set; } = true;
         }
     }
 }

@@ -72,6 +72,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.VoterId)
                 .HasDatabaseName("IX_poll_votes_voter_id");
 
+            // Answered-history paging ordered by vote time.
+            builder.HasIndex(x => new { x.VoterId, x.CreatedAt })
+                .HasDatabaseName("IX_poll_votes_voter_id_created_at");
+
             builder.HasIndex(x => x.PollOptionId)
                 .HasFilter("\"poll_option_id\" IS NOT NULL")
                 .HasDatabaseName("IX_poll_votes_poll_option_id");

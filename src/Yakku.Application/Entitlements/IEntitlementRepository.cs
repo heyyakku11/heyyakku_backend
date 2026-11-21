@@ -25,6 +25,12 @@ namespace Yakku.Application.Entitlements
             Guid contentId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>Unlocks for many cards owned by the same user (one query).</summary>
+        Task<IReadOnlyList<CardUnlock>> FindUnlocksAsync(
+            Guid ownerId,
+            IReadOnlyCollection<(ShareContentType ContentType, Guid ContentId)> cards,
+            CancellationToken cancellationToken = default);
+
         /// <summary>
         /// Plan unlocks that count against the current Lite (or similar) allowance. When
         /// <paramref name="entitlementId"/> is set, only unlocks for that entitlement count; otherwise unlocks since

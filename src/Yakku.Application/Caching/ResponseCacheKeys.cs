@@ -1,9 +1,9 @@
 namespace Yakku.Application.Caching
 {
-    /// <summary>Stable Redis key shapes for cached GET payloads (<c>yakku:resp:v1:</c> prefix).</summary>
+    /// <summary>Stable Redis key shapes for cached GET payloads (<c>yakku:resp:v2:</c> prefix; SWR envelope).</summary>
     public static class ResponseCacheKeys
     {
-        public const string Prefix = "yakku:resp:v1:";
+        public const string Prefix = "yakku:resp:v2:";
 
         public static string PlansAll => Prefix + "plans:all";
 
@@ -133,5 +133,59 @@ namespace Yakku.Application.Caching
 
         public static string ViewerKey(Guid? viewerId) =>
             viewerId is { } id ? id.ToString("N") : "anon";
+
+        public static string UsersMe(Guid userId) => Prefix + $"users:me:u:{userId:N}";
+
+        public static string PersonalityCardMe(Guid userId) => Prefix + $"personality:card:me:u:{userId:N}";
+
+        public static string AsksAsked(Guid userId, string? cursor) =>
+            Prefix + $"asks:asked:u:{userId:N}:c:{CursorSegment(cursor)}";
+
+        public static string ChecksMine(Guid userId, string? cursor) =>
+            Prefix + $"checks:mine:u:{userId:N}:c:{CursorSegment(cursor)}";
+
+        public static string NotifUnread(Guid userId) => Prefix + $"notif:unread:u:{userId:N}";
+
+        public static string AskBackList(Guid userId, string? cursor) =>
+            Prefix + $"askback:list:u:{userId:N}:c:{CursorSegment(cursor)}";
+
+        public static string ChecksUsed(Guid userId) => Prefix + $"checks:used:u:{userId:N}";
+
+        /// <summary>Keys to drop when a user's profile stats/plan may have changed.</summary>
+        public static IReadOnlyList<string> AfterUserProfileChange(Guid userId) =>
+        [
+            UsersMe(userId)
+        ];
+
+        /// <summary>Keys to drop after vote / make / close that affect list pages (cursor-agnostic prefix drop via known first page).</summary>
+        public static IReadOnlyList<string> AfterAskListMutation(Guid userId) =>
+        [
+            AsksAsked(userId, null),
+            ChecksMine(userId, null),
+            UsersMe(userId),
+            ChecksUsed(userId)
+        ];
+
+        public static IReadOnlyList<string> AfterNotificationChange(Guid userId) =>
+        [
+            NotifUnread(userId)
+        ];
+
+        public static IReadOnlyList<string> AfterAskBackListChange(Guid userId) =>
+        [
+            AskBackList(userId, null)
+        ];
+
+        private static string CursorSegment(string? cursor)
+        {
+            if (string.IsNullOrWhiteSpace(cursor))
+            {
+                return "_";
+            }
+
+            var hash = global::System.Security.Cryptography.SHA256.HashData(
+                global::System.Text.Encoding.UTF8.GetBytes(cursor));
+            return Convert.ToHexString(hash)[..16];
+        }
     }
 }

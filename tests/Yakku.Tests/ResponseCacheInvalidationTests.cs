@@ -179,6 +179,17 @@ public sealed class ResponseCacheInvalidationTests
             return factory(cancellationToken);
         }
 
+        public Task<T> GetOrSetAsync<T>(
+            string key,
+            TimeSpan softTtl,
+            TimeSpan hardTtl,
+            Func<CancellationToken, Task<T>> factory,
+            CancellationToken cancellationToken = default)
+        {
+            GetOrSetKeys.Add(key);
+            return factory(cancellationToken);
+        }
+
         public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
         {
             Removed.Add(key);

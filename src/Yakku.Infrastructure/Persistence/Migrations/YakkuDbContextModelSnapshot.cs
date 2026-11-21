@@ -2830,6 +2830,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PollOptionId", "PollId");
 
+                    b.HasIndex("VoterId", "CreatedAt")
+                        .HasDatabaseName("IX_poll_votes_voter_id_created_at");
+
                     b.ToTable("poll_votes", null, t =>
                         {
                             t.HasCheckConstraint("CK_poll_votes_custom_answer_not_blank", "\"custom_answer\" IS NULL OR char_length(btrim(\"custom_answer\")) > 0");
@@ -3291,6 +3294,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "CheckId")
                         .IsUnique()
                         .HasDatabaseName("IX_user_checks_user_id_check_id");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_user_checks_user_id_created_at");
 
                     b.ToTable("user_checks", null, t =>
                         {

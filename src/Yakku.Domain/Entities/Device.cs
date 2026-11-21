@@ -151,6 +151,63 @@ namespace Yakku.Domain.Entities
         }
 
         /// <summary>
+        /// Whether <see cref="ApplyUpdate"/> would change any field. Used to skip no-op PATCH handling.
+        /// </summary>
+        public bool WouldApplyUpdate(
+            string? pushToken,
+            string? deviceModel,
+            string? osVersion,
+            string? appVersion,
+            string? appBuild,
+            string? locale,
+            string? timezone,
+            NotificationPermissionStatus? notificationPermission,
+            bool? isPushAllowed = null)
+        {
+            var changed = false;
+            var pushAllowedBefore = IsPushAllowed;
+            changed |= WouldSet(DeviceModel, deviceModel);
+            changed |= WouldSet(OsVersion, osVersion);
+            changed |= WouldSet(AppVersion, appVersion);
+            changed |= WouldSet(AppBuild, appBuild);
+            changed |= WouldSet(Locale, locale);
+            changed |= WouldSet(Timezone, timezone);
+
+            if (notificationPermission is not null && notificationPermission != NotificationPermission)
+            {
+                changed = true;
+            }
+
+            var nextPushAllowed = IsPushAllowed;
+            if (notificationPermission is not null)
+            {
+                nextPushAllowed = notificationPermission == NotificationPermissionStatus.Granted;
+            }
+
+            if (isPushAllowed is not null)
+            {
+                var permission = notificationPermission ?? NotificationPermission;
+                nextPushAllowed = isPushAllowed.Value && permission == NotificationPermissionStatus.Granted;
+            }
+
+            changed |= nextPushAllowed != pushAllowedBefore;
+
+            var effectiveToken = (notificationPermission ?? NotificationPermission) == NotificationPermissionStatus.Denied
+                ? ""
+                : pushToken;
+            if (effectiveToken is not null)
+            {
+                var normalized = Normalize(effectiveToken);
+                if (!string.Equals(normalized, PushToken, StringComparison.Ordinal))
+                {
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        /// <summary>
         /// Partial update. <c>null</c> leaves a field unchanged; a blank string clears it. The platform and installation
         /// identity never change. Returns false (and writes nothing) when no value actually changed.
         /// </summary>
@@ -278,7 +335,7 @@ namespace Yakku.Domain.Entities
             PushTokenHash = token is null ? null : ComputeTokenHash(token);
         }
 
-        private static bool Set(string? current, string? incoming, Action<string?> assign)
+        private static bool WouldSet(string? current, string? incoming)
         {
             if (incoming is null)
             {
@@ -286,12 +343,17 @@ namespace Yakku.Domain.Entities
             }
 
             var normalized = Normalize(incoming);
-            if (string.Equals(normalized, current, StringComparison.Ordinal))
+            return !string.Equals(normalized, current, StringComparison.Ordinal);
+        }
+
+        private static bool Set(string? current, string? incoming, Action<string?> assign)
+        {
+            if (!WouldSet(current, incoming))
             {
                 return false;
             }
 
-            assign(normalized);
+            assign(Normalize(incoming!));
             return true;
         }
 

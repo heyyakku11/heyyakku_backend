@@ -1,7 +1,15 @@
 using Yakku.Application.Checks.Themes;
+using Yakku.Application.Common.Responses;
 
 namespace Yakku.Application.Checks.DTOs
 {
+    /// <summary>Cursor page of the caller's made checks.</summary>
+    public class UserChecksPage
+    {
+        public List<UserCheckResponse> Items { get; set; } = [];
+        public PaginationMeta Meta { get; set; } = new();
+    }
+
     public class CheckOptionResponse
     {
         public Guid Id { get; set; }

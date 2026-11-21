@@ -1,11 +1,14 @@
 using System.Text.Json;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Yakku.Application.AskBack.DTOs;
 using Yakku.Application.AskBack.Interfaces;
+using Yakku.Application.Caching;
 using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Application.Entitlements;
 using Yakku.Application.Notifications.Interfaces;
 using Yakku.Application.PushNotifications;
@@ -29,6 +32,8 @@ namespace Yakku.Application.AskBack.Services
         private readonly IValidator<MarkAskBackReadRequest> _readValidator;
         private readonly IValidator<BlockAskBackRequest> _blockValidator;
         private readonly IEntitlementService _entitlements;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
         private readonly TimeProvider _time;
         private readonly ILogger<AskBackService> _logger;
 
@@ -42,12 +47,16 @@ namespace Yakku.Application.AskBack.Services
             IValidator<BlockAskBackRequest> blockValidator,
             IEntitlementService entitlements,
             TimeProvider time,
-            ILogger<AskBackService> logger)
+            ILogger<AskBackService> logger,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _entitlements = entitlements;
             _repository = repository;
             _realtime = realtime;
             _notifications = notifications;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
             _createValidator = createValidator;
             _sendValidator = sendValidator;
             _readValidator = readValidator;
@@ -188,35 +197,109 @@ namespace Yakku.Application.AskBack.Services
                 _logger.LogInformation("Ask Back conversation {ConversationId} created.", conversationId);
             }
 
+            await _cache.RemoveManyAsync(ResponseCacheKeys.AfterAskBackListChange(userId), cancellationToken);
+            if (vote.VoterId != userId)
+            {
+                await _cache.RemoveManyAsync(ResponseCacheKeys.AfterAskBackListChange(vote.VoterId), cancellationToken);
+            }
+
             var details = await LoadDetailsAsync(conversationId, userId, cancellationToken);
             return (details, created);
         }
 
-        public async Task<AskBackPage<AskBackConversationListItemResponse>> ListConversationsAsync(
+        public Task<AskBackPage<AskBackConversationListItemResponse>> ListConversationsAsync(
             Guid userId,
             string? cursor,
             int? limit,
             CancellationToken cancellationToken = default)
         {
+            // Only cache the default page size so limit variants do not thrash Redis.
+            var pageSize = ClampPageSize(limit, AskBackOptions.ConversationPageSize);
+            if (pageSize != AskBackOptions.ConversationPageSize)
+            {
+                return LoadConversationsAsync(userId, cursor, pageSize, cancellationToken);
+            }
+
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.AskBackList(userId, cursor),
+                _cacheOptions.AskBackListSoft,
+                _cacheOptions.AskBackListHard,
+                ct => LoadConversationsAsync(userId, cursor, pageSize, ct),
+                cancellationToken);
+        }
+
+        private async Task<AskBackPage<AskBackConversationListItemResponse>> LoadConversationsAsync(
+            Guid userId,
+            string? cursor,
+            int pageSize,
+            CancellationToken cancellationToken)
+        {
             var page = await _repository.ListAsync(
                 userId,
                 AskBackCursor.TryDecode(cursor),
-                ClampPageSize(limit, AskBackOptions.ConversationPageSize),
+                pageSize,
                 cancellationToken);
 
-            // Whose turn it is depends on the asker's plan for that card; fill it in for the tabs.
+            if (page.Items.Count == 0)
+            {
+                return page;
+            }
+
+            var conversations = await _repository.FindForParticipantsAsync(
+                page.Items.Select(item => item.Id).ToArray(),
+                userId,
+                cancellationToken);
+            var byId = conversations.ToDictionary(conversation => conversation.Id);
+            var purchaseLimit = await _entitlements.GetPurchaseMessageLimitAsync(cancellationToken);
+            var accessByConversation = new Dictionary<Guid, (int? MessageLimit, bool Paused)>();
+            var aligned = false;
+
+            foreach (var group in conversations.GroupBy(c => c.CreatorUserId))
+            {
+                if (group.Key is not { } askerId)
+                {
+                    foreach (var conversation in group)
+                    {
+                        accessByConversation[conversation.Id] = (purchaseLimit, false);
+                    }
+
+                    continue;
+                }
+
+                var cards = group
+                    .Select(c => (c.ContentType, c.ContentId))
+                    .Distinct()
+                    .ToArray();
+                var batch = await _entitlements.GetCardAccessBatchAsync(askerId, cards, cancellationToken);
+                foreach (var conversation in group)
+                {
+                    var access = batch.GetValueOrDefault((conversation.ContentType, conversation.ContentId));
+                    var messageLimit = access?.MessageLimit ?? purchaseLimit;
+                    var paused = access?.Paused ?? false;
+                    if (conversation.TryAlignAskerQuota(messageLimit))
+                    {
+                        aligned = true;
+                    }
+
+                    accessByConversation[conversation.Id] = (messageLimit, paused);
+                }
+            }
+
+            if (aligned)
+            {
+                await _repository.SaveAsync(cancellationToken);
+            }
+
             foreach (var item in page.Items)
             {
-                // Tracked so a raised plan limit can align AskerQuotaOffset and persist.
-                var conversation = await _repository.FindForParticipantAsync(
-                    item.Id, userId, cancellationToken);
-                if (conversation is null)
+                if (!byId.TryGetValue(item.Id, out var conversation))
                 {
                     continue;
                 }
 
-                var (messageLimit, paused) = await ResolveAccessAndAlignAsync(
-                    conversation, cancellationToken);
+                var (messageLimit, paused) = accessByConversation.GetValueOrDefault(
+                    item.Id,
+                    (purchaseLimit, false));
                 var turn = conversation.TurnFor(userId, messageLimit);
                 item.Turn = turn.ToString().ToLowerInvariant();
                 item.MessagesLeft = conversation.MessagesLeft(userId, messageLimit);
@@ -387,6 +470,13 @@ namespace Yakku.Application.AskBack.Services
                 () => _realtime.MessageCreatedAsync(
                     conversationId, userId, recipientId, forSender, forRecipient, cancellationToken),
                 "message");
+
+            await _cache.RemoveManyAsync(ResponseCacheKeys.AfterAskBackListChange(userId), cancellationToken);
+            if (recipientId is { } other)
+            {
+                await _cache.RemoveManyAsync(ResponseCacheKeys.AfterAskBackListChange(other), cancellationToken);
+                await _cache.RemoveManyAsync(ResponseCacheKeys.AfterNotificationChange(other), cancellationToken);
+            }
 
             return forSender;
         }

@@ -60,6 +60,12 @@ namespace Yakku.Application.AskBack.Interfaces
             Guid userId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>Tracked conversations the user participates in, for a page of ids (one query).</summary>
+        Task<IReadOnlyList<AskBackConversation>> FindForParticipantsAsync(
+            IReadOnlyCollection<Guid> conversationIds,
+            Guid userId,
+            CancellationToken cancellationToken = default);
+
         Task<bool> IsParticipantAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default);
 
         /// <summary>

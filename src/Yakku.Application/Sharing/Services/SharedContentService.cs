@@ -102,7 +102,8 @@ namespace Yakku.Application.Sharing.Services
             IObjectStorage storage,
             IMediaUploadPolicy policy,
             CancellationToken cancellationToken,
-            IUserBlockLookup? blocks = null)
+            IUserBlockLookup? blocks = null,
+            MyVote? myVote = null)
         {
             var isOwner = viewer is { IsUser: true } && viewer.Id == content.OwnerId;
             if (!content.PubliclyReadable && !isOwner)
@@ -111,7 +112,10 @@ namespace Yakku.Application.Sharing.Services
             }
 
             var tally = await contents.GetTallyAsync(content, cancellationToken);
-            var myVote = viewer is null ? null : await contents.GetVoteAsync(content, viewer, cancellationToken);
+            if (myVote is null && viewer is not null)
+            {
+                myVote = await contents.GetVoteAsync(content, viewer, cancellationToken);
+            }
 
             var response = SharedContentMapper.ToResponse(content, tally, myVote, viewer, DateTime.UtcNow);
 

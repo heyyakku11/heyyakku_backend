@@ -23,10 +23,19 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             string? installationId,
             CancellationToken cancellationToken = default)
         {
-            var card = await ReadCardAsync(userId, cancellationToken);
+            var cardTask = ReadCardAsync(userId, cancellationToken);
+            var communityTask = _context.CommunityWaitlist
+                .AsNoTracking()
+                .AnyAsync(entry => entry.UserId == userId, cancellationToken);
+            var deviceTask = string.IsNullOrWhiteSpace(installationId)
+                ? Task.FromResult<DeviceRow?>(null)
+                : ReadDeviceAsync(userId, installationId, cancellationToken);
+
+            await Task.WhenAll(cardTask, communityTask, deviceTask);
+
+            var card = await cardTask;
             if (card is null)
             {
-                // An account created before personality cards, or while the backfill was pending.
                 await _personality.EnsureCardAsync(userId, cancellationToken);
                 card = await ReadCardAsync(userId, cancellationToken)
                     ?? throw PersonalityExceptions.CardNotFound();
@@ -34,30 +43,18 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
             var permission = NotificationPermissionStatus.Unknown;
             var pushAllowed = false;
-            if (!string.IsNullOrWhiteSpace(installationId))
+            if (await deviceTask is { } device)
             {
-                var device = await _context.Devices
-                    .AsNoTracking()
-                    .Where(item => item.UserId == userId && item.InstallationId == installationId)
-                    .Select(item => new { item.NotificationPermission, item.IsPushAllowed })
-                    .FirstOrDefaultAsync(cancellationToken);
-                if (device is not null)
-                {
-                    permission = device.NotificationPermission ?? NotificationPermissionStatus.Unknown;
-                    pushAllowed = device.IsPushAllowed;
-                }
+                permission = device.NotificationPermission ?? NotificationPermissionStatus.Unknown;
+                pushAllowed = device.IsPushAllowed;
             }
-
-            var communityNotifyRequested = await _context.CommunityWaitlist
-                .AsNoTracking()
-                .AnyAsync(entry => entry.UserId == userId, cancellationToken);
 
             return new LoginSnapshot(
                 card.ShareCode,
                 card.Status.ToString(),
                 permission.ToString(),
                 pushAllowed,
-                communityNotifyRequested);
+                await communityTask);
         }
 
         private Task<CardRow?> ReadCardAsync(Guid userId, CancellationToken cancellationToken)
@@ -69,6 +66,20 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        private Task<DeviceRow?> ReadDeviceAsync(
+            Guid userId,
+            string installationId,
+            CancellationToken cancellationToken)
+        {
+            return _context.Devices
+                .AsNoTracking()
+                .Where(item => item.UserId == userId && item.InstallationId == installationId)
+                .Select(item => new DeviceRow(item.NotificationPermission, item.IsPushAllowed))
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         private sealed record CardRow(string ShareCode, PersonalityCardStatus Status);
+
+        private sealed record DeviceRow(NotificationPermissionStatus? NotificationPermission, bool IsPushAllowed);
     }
 }

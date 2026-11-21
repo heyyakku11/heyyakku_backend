@@ -20,15 +20,29 @@ namespace Yakku.Application.Checks.Interfaces
         /// <summary>The caller's used checks keyed by check id.</summary>
         Task<Dictionary<Guid, UserCheck>> GetUserChecksByCheckAsync(Guid userId, CancellationToken cancellationToken = default);
 
-        /// <summary>The caller's made checks (check, options and votes loaded), earliest first.</summary>
+        /// <summary>The caller's made checks (check + options only), earliest first. Use <see cref="GetVoteCountsAsync"/> for tallies.</summary>
         Task<List<UserCheck>> GetUserChecksAsync(Guid userId, CancellationToken cancellationToken = default);
 
-        /// <summary>The user's made checks, newest first, after the cursor (created-at, id). Used by "My asks".</summary>
+        /// <summary>The user's made checks (check + options only), newest first, after the cursor (created-at, id).</summary>
         Task<List<UserCheck>> GetUserChecksPageAsync(
             Guid userId,
             DateTime? cursorCreatedAt,
             Guid? cursorId,
             int take,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Aggregate vote tallies for made checks (others only — excludes each check's owner).
+        /// Keys are user_check ids. Does not load vote text rows.
+        /// </summary>
+        Task<IReadOnlyDictionary<Guid, Yakku.Application.Polls.PollVoteCountSnapshot>> GetVoteCountsAsync(
+            IReadOnlyCollection<Guid> userCheckIds,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>The caller's own vote on a made check, if any.</summary>
+        Task<UserCheckVote?> GetViewerVoteAsync(
+            Guid userCheckId,
+            Guid viewerId,
             CancellationToken cancellationToken = default);
 
         /// <summary>A tracked made check owned by <paramref name="userId"/>, for closing or deleting; null when not theirs.</summary>

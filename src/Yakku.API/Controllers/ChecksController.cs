@@ -56,15 +56,17 @@ namespace Yakku.API.Controllers
             return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(result, "Check created successfully"));
         }
 
-        /// <summary>The caller's made checks, kept separate from their polls.</summary>
+        /// <summary>The caller's made checks, kept separate from their polls (cursor page, newest first).</summary>
         [HttpGet("mine")]
         [EndpointSummary("List My Checks")]
-        [EndpointDescription("Returns the checks the signed-in user has made, kept separate from their polls.")]
+        [EndpointDescription("Returns a cursor page of checks the signed-in user has made (summary fields). Pass cursor for the next page.")]
         [ProducesResponseType(typeof(ApiResponse<List<UserCheckResponse>>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetMine(CancellationToken cancellationToken)
+        public async Task<IActionResult> GetMine(
+            [FromQuery] string? cursor,
+            CancellationToken cancellationToken)
         {
-            var result = await _checkService.GetMineAsync(User.GetRequiredUserId(), cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Your checks retrieved successfully"));
+            var result = await _checkService.GetMineAsync(User.GetRequiredUserId(), cursor, cancellationToken);
+            return Ok(ApiResponse.Ok(result.Items, "Your checks retrieved successfully", result.Meta));
         }
 
         /// <summary>Opens one of the caller's closed made cards again.</summary>

@@ -189,6 +189,51 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 new PollVoteCountRow(row.PollId, row.PollOptionId, row.Count, row.WhyCount, row.OtherCount)));
         }
 
+        public async Task<IReadOnlyDictionary<Guid, PollVoteCountSnapshot>> GetVoteSummariesAsync(
+            IReadOnlyCollection<Guid> pollIds,
+            CancellationToken cancellationToken = default)
+        {
+            if (pollIds.Count == 0)
+            {
+                return new Dictionary<Guid, PollVoteCountSnapshot>();
+            }
+
+            var rows = await _context.PollVotes
+                .AsNoTracking()
+                .Where(vote => pollIds.Contains(vote.PollId))
+                .Join(
+                    _context.Polls,
+                    vote => vote.PollId,
+                    poll => poll.Id,
+                    (vote, poll) => new
+                    {
+                        vote.PollId,
+                        IsCustom = vote.PollOptionId == null,
+                        HasReason = vote.Reason != null,
+                        IsOther = vote.VoterId != poll.CreatorId
+                    })
+                .Where(item => item.IsOther)
+                .GroupBy(item => item.PollId)
+                .Select(group => new
+                {
+                    PollId = group.Key,
+                    OtherVotes = group.Count(),
+                    WhyCount = group.Count(item => item.HasReason),
+                    CustomAnswerCount = group.Count(item => item.IsCustom)
+                })
+                .ToListAsync(cancellationToken);
+
+            return rows.ToDictionary(
+                row => row.PollId,
+                row => new PollVoteCountSnapshot(
+                    row.OtherVotes,
+                    row.WhyCount,
+                    row.CustomAnswerCount,
+                    new Dictionary<Guid, int>(),
+                    new Dictionary<Guid, int>(),
+                    row.OtherVotes));
+        }
+
         public async Task<int> TryMarkActiveAsync(
             Guid pollId,
             Guid creatorId,

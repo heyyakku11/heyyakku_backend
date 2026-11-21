@@ -194,7 +194,7 @@ public class CheckIntegrationTests
         var after = await service.GetChecksAsync(user.Id);
         Assert.True(after.Single(c => c.Id == target.Id).Used);
         Assert.Equal(before.Count - 1, after.Count(c => !c.Used));
-        Assert.Single(await service.GetMineAsync(user.Id));
+        Assert.Single((await service.GetMineAsync(user.Id, cursor: null)).Items);
     }
 
     [SkippableFact]

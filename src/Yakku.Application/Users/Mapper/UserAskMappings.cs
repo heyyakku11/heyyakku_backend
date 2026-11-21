@@ -1,4 +1,5 @@
 using Yakku.Application.Common;
+using Yakku.Application.Polls;
 using Yakku.Application.Users.DTOs;
 using Yakku.Domain.Entities;
 
@@ -7,21 +8,12 @@ namespace Yakku.Application.Users.Mapper
     internal static class UserAskMappings
     {
         /// <summary>
-        /// A check the user made, in the same shape as a poll card so "My asks" is one list. Like a poll, the results
-        /// stay hidden (only the progress is shown) until enough other people have answered.
+        /// A check the user made, as a list summary (no per-option breakdown / full theme config).
         /// </summary>
-        public static UserPollResponse ToUserAskResponse(this UserCheck item)
+        public static UserPollResponse ToUserAskResponse(this UserCheck item, PollVoteCountSnapshot tally)
         {
-            // The maker's own answer is not part of the tally: it is not counted in any figure below.
-            var others = item.Votes.Where(vote => vote.VoterId != item.UserId).ToList();
-            var otherVotes = others.Count;
-            var minVotes = OperationalSettings.Results.MinVotesToReveal;
-            var unlocked = otherVotes >= minVotes;
-            var totalVotes = others.Count;
-            var optionCounts = others
-                .Where(vote => vote.CheckOptionId is not null)
-                .GroupBy(vote => vote.CheckOptionId!.Value)
-                .ToDictionary(group => group.Key, group => group.Count());
+            var display = tally.ForDisplay();
+            var theme = Checks.Themes.CheckThemeMapper.ToResponse(item.Check);
 
             return new UserPollResponse
             {
@@ -34,34 +26,19 @@ namespace Yakku.Application.Users.Mapper
                 CreatedAt = item.CreatedAt,
                 ClosedAt = item.ClosedAt,
                 ExpiresAt = item.ExpiresAt,
-                TotalVoteCount = unlocked ? totalVotes : otherVotes,
-                MinVotes = minVotes,
-                VoteProgress = otherVotes,
-                ResultsUnlocked = unlocked,
-                CustomAnswerCount = unlocked ? others.Count(vote => vote.CustomAnswer is not null) : 0,
-                TotalWhyCount = unlocked ? others.Count(vote => vote.Reason is not null) : 0,
-                PollOptions = item.Check.Options
-                    .OrderBy(option => option.SortOrder)
-                    .Select(option =>
-                    {
-                        var count = unlocked ? optionCounts.GetValueOrDefault(option.Id) : 0;
-                        return new UserPollOptionResponse
-                        {
-                            Id = option.Id,
-                            Text = option.Text,
-                            VoteCount = count,
-                            Percentage = unlocked && totalVotes > 0
-                                ? Math.Round(count * 100m / totalVotes, 2)
-                                : 0m
-                        };
-                    })
-                    .ToList(),
+                TotalVoteCount = display.TotalVotes,
+                MinVotes = OperationalSettings.Results.MinVotesToReveal,
+                VoteProgress = display.OtherVotes,
+                ResultsUnlocked = display.ResultsUnlocked,
+                CustomAnswerCount = display.CustomAnswerCount,
+                TotalWhyCount = display.WhyCount,
+                PollOptions = [],
                 Check = new UserCheckStyleResponse
                 {
-                    CheckType = Checks.Themes.CheckThemeMapper.ToResponse(item.Check).CheckType,
-                    Theme = Checks.Themes.CheckThemeMapper.ToResponse(item.Check),
+                    CheckType = theme.CheckType,
+                    Theme = null,
                     Title = item.Check.Title,
-                    BackgroundColor = item.Check.CardTheme?.BackgroundColor ?? "#FFFFFF"
+                    BackgroundColor = item.Check.CardTheme?.BackgroundColor ?? theme.Config.BackgroundColor
                 }
             };
         }

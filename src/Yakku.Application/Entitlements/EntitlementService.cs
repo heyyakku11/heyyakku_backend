@@ -30,10 +30,21 @@ namespace Yakku.Application.Entitlements
             Guid contentId,
             CancellationToken cancellationToken = default)
         {
+            var batch = await GetCardAccessBatchAsync(
+                ownerId,
+                [(contentType, contentId)],
+                cancellationToken);
+            return batch[(contentType, contentId)];
+        }
+
+        public async Task<IReadOnlyDictionary<(ShareContentType ContentType, Guid ContentId), CardAccess>> GetCardAccessBatchAsync(
+            Guid ownerId,
+            IReadOnlyCollection<(ShareContentType ContentType, Guid ContentId)> cards,
+            CancellationToken cancellationToken = default)
+        {
             var now = _time.GetUtcNow().UtcDateTime;
             var plan = await ResolvePlanAsync(ownerId, now, cancellationToken);
             var purchaseLimit = await GetPurchaseMessageLimitAsync(cancellationToken);
-            var unlock = await _repository.FindUnlockAsync(ownerId, contentType, contentId, cancellationToken);
 
             int? ticketsLeft = null;
             var canUnlockWithPlan = false;
@@ -57,34 +68,45 @@ namespace Yakku.Application.Entitlements
                 }
             }
 
-            int? limit;
-            var paused = false;
-            if (unlock is null)
+            var unlocks = cards.Count == 0
+                ? Array.Empty<CardUnlock>()
+                : await _repository.FindUnlocksAsync(ownerId, cards, cancellationToken);
+            var unlockByCard = unlocks.ToDictionary(
+                unlock => (unlock.ContentType, unlock.ContentId));
+
+            var result = new Dictionary<(ShareContentType ContentType, Guid ContentId), CardAccess>();
+            foreach (var card in cards.Distinct())
             {
-                limit = purchaseLimit;
-            }
-            else if (unlock.Source == CardUnlockSource.Plan)
-            {
-                // A plan unlock follows the plan: its limit while the plan lasts, nothing once it has expired.
-                paused = !plan.IsPaid;
-                limit = plan.IsPaid ? plan.Plan.AskBackMessageLimit : purchaseLimit;
-            }
-            else
-            {
-                // A card bought on its own keeps working; an active plan with a bigger limit can only improve it.
-                limit = plan.IsPaid ? MoreGenerous(purchaseLimit, plan.Plan.AskBackMessageLimit) : purchaseLimit;
+                unlockByCard.TryGetValue(card, out var unlock);
+                int? limit;
+                var paused = false;
+                if (unlock is null)
+                {
+                    limit = purchaseLimit;
+                }
+                else if (unlock.Source == CardUnlockSource.Plan)
+                {
+                    paused = !plan.IsPaid;
+                    limit = plan.IsPaid ? plan.Plan.AskBackMessageLimit : purchaseLimit;
+                }
+                else
+                {
+                    limit = plan.IsPaid ? MoreGenerous(purchaseLimit, plan.Plan.AskBackMessageLimit) : purchaseLimit;
+                }
+
+                result[card] = new CardAccess(
+                    unlock is not null,
+                    unlock?.Source,
+                    paused,
+                    limit,
+                    purchaseLimit,
+                    ticketsLeft,
+                    canUnlockWithPlan,
+                    canAutoUnlock,
+                    plan);
             }
 
-            return new CardAccess(
-                unlock is not null,
-                unlock?.Source,
-                paused,
-                limit,
-                purchaseLimit,
-                ticketsLeft,
-                canUnlockWithPlan,
-                canAutoUnlock,
-                plan);
+            return result;
         }
 
         public async Task<bool> TryAutoUnlockAsync(

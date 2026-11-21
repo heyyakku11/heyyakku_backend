@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Yakku.Application.Checks;
 using Yakku.Application.Checks.Interfaces;
+using Yakku.Application.Polls;
 using Yakku.Application.Votes;
 using Yakku.Domain.Entities;
 
@@ -135,7 +136,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public Task<List<UserCheck>> GetUserChecksAsync(Guid userId, CancellationToken cancellationToken = default)
         {
-            return WithDetails(_context.UserChecks.AsNoTracking())
+            return WithCard(_context.UserChecks.AsNoTracking())
                 .Where(item => item.UserId == userId)
                 .OrderBy(item => item.CreatedAt)
                 .ThenBy(item => item.Id)
@@ -149,7 +150,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             int take,
             CancellationToken cancellationToken = default)
         {
-            var query = WithDetails(_context.UserChecks.AsNoTracking())
+            var query = WithCard(_context.UserChecks.AsNoTracking())
                 .Where(item => item.UserId == userId);
 
             if (cursorCreatedAt is not null && cursorId is not null)
@@ -164,6 +165,57 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .ThenByDescending(item => item.Id)
                 .Take(take)
                 .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyDictionary<Guid, PollVoteCountSnapshot>> GetVoteCountsAsync(
+            IReadOnlyCollection<Guid> userCheckIds,
+            CancellationToken cancellationToken = default)
+        {
+            if (userCheckIds.Count == 0)
+            {
+                return new Dictionary<Guid, PollVoteCountSnapshot>();
+            }
+
+            var rows = await _context.UserCheckVotes
+                .AsNoTracking()
+                .Where(vote => userCheckIds.Contains(vote.UserCheckId))
+                .Join(
+                    _context.UserChecks,
+                    vote => vote.UserCheckId,
+                    check => check.Id,
+                    (vote, check) => new
+                    {
+                        vote.UserCheckId,
+                        vote.CheckOptionId,
+                        HasReason = vote.Reason != null,
+                        IsOther = vote.VoterId != check.UserId
+                    })
+                .Where(item => item.IsOther)
+                .GroupBy(item => new { item.UserCheckId, item.CheckOptionId })
+                .Select(group => new
+                {
+                    group.Key.UserCheckId,
+                    group.Key.CheckOptionId,
+                    Count = group.Count(),
+                    WhyCount = group.Count(item => item.HasReason),
+                    OtherCount = group.Count()
+                })
+                .ToListAsync(cancellationToken);
+
+            return PollVoteCountSnapshot.Combine(rows.Select(row =>
+                new PollVoteCountRow(row.UserCheckId, row.CheckOptionId, row.Count, row.WhyCount, row.OtherCount)));
+        }
+
+        public Task<UserCheckVote?> GetViewerVoteAsync(
+            Guid userCheckId,
+            Guid viewerId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.UserCheckVotes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    vote => vote.UserCheckId == userCheckId && vote.VoterId == viewerId,
+                    cancellationToken);
         }
 
         public Task<UserCheck?> GetOwnedUserCheckForUpdateAsync(
@@ -188,13 +240,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public Task<UserCheck?> GetUserCheckByIdAsync(Guid userCheckId, CancellationToken cancellationToken = default)
         {
-            return WithDetails(_context.UserChecks.AsNoTracking())
+            // Card + options only; callers load tallies / viewer vote separately (no Include Votes).
+            return WithCard(_context.UserChecks.AsNoTracking())
                 .FirstOrDefaultAsync(item => item.Id == userCheckId, cancellationToken);
         }
 
         public Task<UserCheck?> GetUserCheckByShareCodeAsync(string shareCode, CancellationToken cancellationToken = default)
         {
-            return WithDetails(_context.UserChecks.AsNoTracking())
+            return WithCard(_context.UserChecks.AsNoTracking())
                 .FirstOrDefaultAsync(item => item.ShareCode == shareCode, cancellationToken);
         }
 
@@ -267,12 +320,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             }
         }
 
-        private static IQueryable<UserCheck> WithDetails(IQueryable<UserCheck> query)
+        /// <summary>Check template + options (and AutoInclude theme). Does not load vote rows.</summary>
+        private static IQueryable<UserCheck> WithCard(IQueryable<UserCheck> query)
         {
             return query
                 .Include(item => item.Check)
-                .ThenInclude(check => check.Options)
-                .Include(item => item.Votes);
+                .ThenInclude(check => check.Options);
         }
 
         private static bool IsUniqueViolation(DbUpdateException exception, string constraintName)

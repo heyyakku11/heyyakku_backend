@@ -24,6 +24,18 @@ namespace Yakku.Application.Configuration
 
         public int ReasonsSeconds { get; set; } = 30;
 
+        public int UsersMeSoftSeconds { get; set; } = 30;
+        public int UsersMeHardSeconds { get; set; } = 120;
+
+        public int ListSoftSeconds { get; set; } = 15;
+        public int ListHardSeconds { get; set; } = 60;
+
+        public int NotifUnreadSoftSeconds { get; set; } = 10;
+        public int NotifUnreadHardSeconds { get; set; } = 30;
+
+        public int AskBackListSoftSeconds { get; set; } = 10;
+        public int AskBackListHardSeconds { get; set; } = 45;
+
         public TimeSpan Plans => TimeSpan.FromSeconds(Math.Max(1, PlansSeconds));
         public TimeSpan CheckThemes => TimeSpan.FromSeconds(Math.Max(1, CheckThemesSeconds));
         public TimeSpan PersonalityTraits => TimeSpan.FromSeconds(Math.Max(1, PersonalityTraitsSeconds));
@@ -32,5 +44,14 @@ namespace Yakku.Application.Configuration
         public TimeSpan WeeklyChecks => TimeSpan.FromSeconds(Math.Max(1, WeeklyChecksSeconds));
         public TimeSpan Share => TimeSpan.FromSeconds(Math.Max(1, ShareSeconds));
         public TimeSpan Reasons => TimeSpan.FromSeconds(Math.Max(1, ReasonsSeconds));
+
+        public TimeSpan UsersMeSoft => TimeSpan.FromSeconds(Math.Max(1, UsersMeSoftSeconds));
+        public TimeSpan UsersMeHard => TimeSpan.FromSeconds(Math.Max(UsersMeSoftSeconds, UsersMeHardSeconds));
+        public TimeSpan ListSoft => TimeSpan.FromSeconds(Math.Max(1, ListSoftSeconds));
+        public TimeSpan ListHard => TimeSpan.FromSeconds(Math.Max(ListSoftSeconds, ListHardSeconds));
+        public TimeSpan NotifUnreadSoft => TimeSpan.FromSeconds(Math.Max(1, NotifUnreadSoftSeconds));
+        public TimeSpan NotifUnreadHard => TimeSpan.FromSeconds(Math.Max(NotifUnreadSoftSeconds, NotifUnreadHardSeconds));
+        public TimeSpan AskBackListSoft => TimeSpan.FromSeconds(Math.Max(1, AskBackListSoftSeconds));
+        public TimeSpan AskBackListHard => TimeSpan.FromSeconds(Math.Max(AskBackListSoftSeconds, AskBackListHardSeconds));
     }
 }

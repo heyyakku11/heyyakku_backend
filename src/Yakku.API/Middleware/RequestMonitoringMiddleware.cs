@@ -22,6 +22,14 @@ namespace Yakku.API.Middleware
 
         public async Task InvokeAsync(HttpContext context, IAuditLogWriter audit)
         {
+            // SignalR hubs keep the HTTP request open for the connection lifetime (status 101).
+            // Timing that as LATENCY produces multi-minute false positives in system_logs.
+            if (context.Request.Path.StartsWithSegments("/hubs"))
+            {
+                await _next(context);
+                return;
+            }
+
             var stopwatch = Stopwatch.StartNew();
             try
             {

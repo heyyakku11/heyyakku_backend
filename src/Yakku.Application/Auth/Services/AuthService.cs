@@ -74,7 +74,7 @@ namespace Yakku.Application.Auth.Services
             try
             {
                 var response = await RequestOtpCoreAsync(request, cancellationToken);
-                await _audit.WriteAuthenticationAsync(
+                _ = _audit.WriteAuthenticationAsync(
                     new AuthenticationAuditEntry(
                         AuditActorType.User,
                         null,
@@ -193,7 +193,7 @@ namespace Yakku.Application.Auth.Services
                 throw;
             }
 
-            await _audit.WriteNotificationAsync(
+            _ = _audit.WriteNotificationAsync(
                 new NotificationAuditEntry(
                     NotificationChannel.Sms,
                     "msg91",
@@ -287,7 +287,7 @@ namespace Yakku.Application.Auth.Services
             try
             {
                 var response = await VerifyOtpCoreAsync(request, cancellationToken);
-                await _audit.WriteAuthenticationAsync(
+                _ = _audit.WriteAuthenticationAsync(
                     new AuthenticationAuditEntry(
                         AuditActorType.User,
                         response.UserId,
@@ -427,7 +427,7 @@ namespace Yakku.Application.Auth.Services
 
             if (restored)
             {
-                await _audit.WriteAuthenticationAsync(
+                _ = _audit.WriteAuthenticationAsync(
                     new AuthenticationAuditEntry(
                         AuditActorType.User,
                         user.Id,

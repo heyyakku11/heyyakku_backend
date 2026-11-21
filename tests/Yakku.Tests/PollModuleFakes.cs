@@ -208,6 +208,11 @@ internal sealed class InMemoryPollRepository : IPollRepository
         return Task.FromResult(PollVoteCountSnapshot.Combine(rows));
     }
 
+    public Task<IReadOnlyDictionary<Guid, PollVoteCountSnapshot>> GetVoteSummariesAsync(
+        IReadOnlyCollection<Guid> pollIds,
+        CancellationToken cancellationToken = default) =>
+        GetVoteCountsAsync(pollIds, cancellationToken);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;

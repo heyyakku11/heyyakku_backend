@@ -159,6 +159,23 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
+        public async Task<IReadOnlyList<AskBackConversation>> FindForParticipantsAsync(
+            IReadOnlyCollection<Guid> conversationIds,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            if (conversationIds.Count == 0)
+            {
+                return Array.Empty<AskBackConversation>();
+            }
+
+            return await _context.AskBackConversations
+                .Include(conversation => conversation.Participants)
+                .Where(conversation => conversationIds.Contains(conversation.Id)
+                    && (conversation.CreatorUserId == userId || conversation.VoterUserId == userId))
+                .ToListAsync(cancellationToken);
+        }
+
         public Task<bool> IsParticipantAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default)
         {
             return _context.AskBackConversations

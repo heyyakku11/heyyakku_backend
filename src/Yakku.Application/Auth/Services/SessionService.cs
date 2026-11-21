@@ -142,13 +142,13 @@ namespace Yakku.Application.Auth.Services
 
             foreach (var evictedId in evictedSessionIds)
             {
-                await AuditAsync(AuditEvents.Auth.SessionEvicted, AuditOutcome.Success, userId, evictedId);
+                _ = AuditAsync(AuditEvents.Auth.SessionEvicted, AuditOutcome.Success, userId, evictedId);
             }
 
-            await AuditAsync(AuditEvents.Auth.SessionCreated, AuditOutcome.Success, userId, session.Id);
+            _ = AuditAsync(AuditEvents.Auth.SessionCreated, AuditOutcome.Success, userId, session.Id);
             if (bound is not null)
             {
-                await AuditAsync(AuditEvents.Device.LoginBound, AuditOutcome.Success, userId, session.Id);
+                _ = AuditAsync(AuditEvents.Device.LoginBound, AuditOutcome.Success, userId, session.Id);
             }
 
             return ToResponse(userId, session.Id, secret);
@@ -186,7 +186,7 @@ namespace Yakku.Application.Auth.Services
                 throw Unauthorized();
             }
 
-            await AuditAsync(AuditEvents.Auth.TokenRefreshed, AuditOutcome.Success, session.UserId, session.Id);
+            _ = AuditAsync(AuditEvents.Auth.TokenRefreshed, AuditOutcome.Success, session.UserId, session.Id);
 
             return ToResponse(session.UserId, session.Id, secret);
         }

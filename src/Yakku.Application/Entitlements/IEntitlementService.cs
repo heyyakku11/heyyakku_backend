@@ -17,6 +17,15 @@ namespace Yakku.Application.Entitlements
             CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Access for many cards owned by the same user (one plan load + one unlock query).
+        /// Keys are (contentType, contentId).
+        /// </summary>
+        Task<IReadOnlyDictionary<(ShareContentType ContentType, Guid ContentId), CardAccess>> GetCardAccessBatchAsync(
+            Guid ownerId,
+            IReadOnlyCollection<(ShareContentType ContentType, Guid ContentId)> cards,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Unlocks the card through the owner's active plan when that needs no ticket (an unlimited plan).
         /// Returns whether the card is unlocked afterwards.
         /// </summary>

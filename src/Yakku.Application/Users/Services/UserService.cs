@@ -1,7 +1,10 @@
+using Microsoft.Extensions.Options;
 using Yakku.Application.Auth.Interfaces;
+using Yakku.Application.Caching;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Application.Entitlements;
 using Yakku.Application.Polls;
 using Yakku.Application.Polls.Interfaces;
@@ -23,6 +26,8 @@ namespace Yakku.Application.Users.Services
         private readonly IUserStatsRepository _stats;
         private readonly IStreakService _streaks;
         private readonly IEntitlementRepository _entitlements;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
         private readonly TimeProvider _time;
 
         public UserService(
@@ -33,7 +38,9 @@ namespace Yakku.Application.Users.Services
             IUserStatsRepository stats,
             IStreakService streaks,
             IEntitlementRepository entitlements,
-            TimeProvider time)
+            TimeProvider time,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _userRepository = userRepository;
             _pollRepository = pollRepository;
@@ -43,14 +50,24 @@ namespace Yakku.Application.Users.Services
             _streaks = streaks;
             _entitlements = entitlements;
             _time = time;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
         public async Task<UserProfileResponse?> GetMeAsync(
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
-            return user is null ? null : await BuildProfileAsync(user, cancellationToken);
+            return await _cache.GetOrSetAsync(
+                ResponseCacheKeys.UsersMe(userId),
+                _cacheOptions.UsersMeSoft,
+                _cacheOptions.UsersMeHard,
+                async ct =>
+                {
+                    var user = await _userRepository.GetByIdAsync(userId, ct);
+                    return user is null ? null : await BuildProfileAsync(user, ct);
+                },
+                cancellationToken);
         }
 
         private async Task<UserProfileResponse> BuildProfileAsync(
@@ -86,10 +103,23 @@ namespace Yakku.Application.Users.Services
             return response;
         }
 
-        public async Task<UserPollsPage> GetAskedPollsAsync(
+        public Task<UserPollsPage> GetAskedPollsAsync(
             Guid userId,
             string? cursor,
             CancellationToken cancellationToken = default)
+        {
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.AsksAsked(userId, cursor),
+                _cacheOptions.ListSoft,
+                _cacheOptions.ListHard,
+                ct => LoadAskedPollsAsync(userId, cursor, ct),
+                cancellationToken);
+        }
+
+        private async Task<UserPollsPage> LoadAskedPollsAsync(
+            Guid userId,
+            string? cursor,
+            CancellationToken cancellationToken)
         {
             // "My asks" is one list of everything the user made: polls and checks, newest first. Both sources use
             // the same (created-at, id) order and cursor, so each is read one page deep and merged.
@@ -118,13 +148,15 @@ namespace Yakku.Application.Users.Services
 
             var hasMore = merged.Count > PollCursor.PageSize;
             var page = merged.Take(PollCursor.PageSize).ToList();
-            var counts = await _pollRepository.GetVoteCountsAsync(
-                page.Where(entry => entry.Poll is not null).Select(entry => entry.Id).ToArray(),
-                cancellationToken);
+            var pollIds = page.Where(entry => entry.Poll is not null).Select(entry => entry.Id).ToArray();
+            var checkIds = page.Where(entry => entry.Check is not null).Select(entry => entry.Id).ToArray();
+            var pollCounts = await _pollRepository.GetVoteSummariesAsync(pollIds, cancellationToken);
+            var checkCounts = await _checkRepository.GetVoteCountsAsync(checkIds, cancellationToken);
             var items = page
                 .Select(entry => entry.Poll is { } poll
-                    ? poll.ToUserPollResponse(counts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty)
-                    : entry.Check!.ToUserAskResponse())
+                    ? poll.ToUserPollResponse(pollCounts.GetValueOrDefault(poll.Id) ?? PollVoteCountSnapshot.Empty)
+                    : entry.Check!.ToUserAskResponse(
+                        checkCounts.GetValueOrDefault(entry.Check!.Id) ?? PollVoteCountSnapshot.Empty))
                 .ToList();
 
             string? nextCursor = null;
@@ -157,7 +189,7 @@ namespace Yakku.Application.Users.Services
 
             var hasMore = entries.Count > PollCursor.PageSize;
             var page = entries.Take(PollCursor.PageSize).ToList();
-            var counts = await _pollRepository.GetVoteCountsAsync(
+            var counts = await _pollRepository.GetVoteSummariesAsync(
                 page.Select(entry => entry.Poll.Id).ToArray(),
                 cancellationToken);
             var items = page

@@ -20,7 +20,11 @@ namespace Yakku.Application.Checks.Interfaces
             bool requireFun = false,
             CancellationToken cancellationToken = default);
 
-        Task<List<UserCheckResponse>> GetMineAsync(Guid userId, CancellationToken cancellationToken = default);
+        /// <summary>The caller's made checks, newest first, cursor-paginated (page size 10).</summary>
+        Task<UserChecksPage> GetMineAsync(
+            Guid userId,
+            string? cursor = null,
+            CancellationToken cancellationToken = default);
 
         Task<UserCheckResponse> GetMineByIdAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default);
 

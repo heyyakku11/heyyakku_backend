@@ -62,18 +62,26 @@ namespace Yakku.Application.Personality.Services
                 cancellationToken);
         }
 
-        public async Task<PersonalityCardResponse> GetMyCardAsync(Guid userId, CancellationToken cancellationToken = default)
+        public Task<PersonalityCardResponse> GetMyCardAsync(Guid userId, CancellationToken cancellationToken = default)
         {
-            var card = await _repository.GetCardByUserIdAsync(userId, cancellationToken);
-            if (card is null)
-            {
-                // Safety net for an account that has no card (for example one created while a backfill was pending).
-                await _repository.EnsureCardAsync(userId, cancellationToken);
-                card = await _repository.GetCardByUserIdAsync(userId, cancellationToken)
-                    ?? throw PersonalityExceptions.CardNotFound();
-            }
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.PersonalityCardMe(userId),
+                _cacheOptions.UsersMeSoft,
+                _cacheOptions.UsersMeHard,
+                async ct =>
+                {
+                    var card = await _repository.GetCardByUserIdAsync(userId, ct);
+                    if (card is null)
+                    {
+                        // Safety net for an account that has no card (for example one created while a backfill was pending).
+                        await _repository.EnsureCardAsync(userId, ct);
+                        card = await _repository.GetCardByUserIdAsync(userId, ct)
+                            ?? throw PersonalityExceptions.CardNotFound();
+                    }
 
-            return ToResponse(card);
+                    return ToResponse(card);
+                },
+                cancellationToken);
         }
 
         public async Task<PersonalitySelfAssessmentResponse> SubmitSelfAssessmentAsync(
@@ -106,6 +114,7 @@ namespace Yakku.Application.Personality.Services
                 };
             }, cancellationToken);
 
+            await _cache.RemoveAsync(ResponseCacheKeys.PersonalityCardMe(userId), cancellationToken);
             return response!;
         }
 

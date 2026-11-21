@@ -81,7 +81,7 @@ namespace Yakku.Application.Sharing.Services
                 contentType = content.IsPoll ? ContentTypes.Poll : ContentTypes.Check;
 
                 var response = await VoteCoreAsync(request, voter, content, cancellationToken);
-                await AuditAsync(AuditEvents.Poll.VoteCast, AuditOutcome.Success, contentId, contentType, voter, null);
+                _ = AuditAsync(AuditEvents.Poll.VoteCast, AuditOutcome.Success, contentId, contentType, voter, null);
                 return response;
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -178,12 +178,6 @@ namespace Yakku.Application.Sharing.Services
                     "optionId");
             }
 
-            // Cheap early answer; the unique index inside the repository transaction is the authority.
-            if (await _contents.GetVoteAsync(content, voter, cancellationToken) is not null)
-            {
-                throw VoteExceptions.AlreadyVoted();
-            }
-
             var vote = new NewVote(
                 request.OptionId,
                 request.OptionId is null ? request.CustomAnswer!.Trim() : null,
@@ -214,17 +208,25 @@ namespace Yakku.Application.Sharing.Services
                 _notifications.Wake();
             }
 
-            await InvalidateAfterVoteAsync(content, voter, request.OptionId, cancellationToken);
+            var myVote = new MyVote(
+                vote.OptionId,
+                vote.OptionId is null ? vote.CustomAnswer : null,
+                vote.Reason,
+                receipt.CreatedAt);
 
-            var response = await SharedContentService.BuildAsync(
+            var buildTask = SharedContentService.BuildAsync(
                 content,
                 voter,
                 _contents,
                 _storage,
                 _policy,
                 cancellationToken,
-                _blocks);
-            return new VoteOutcome(response, receipt);
+                _blocks,
+                myVote);
+            var invalidateTask = InvalidateAfterVoteAsync(content, voter, request.OptionId, cancellationToken);
+            await Task.WhenAll(buildTask, invalidateTask);
+
+            return new VoteOutcome(await buildTask, receipt);
         }
 
         private async Task InvalidateAfterVoteAsync(

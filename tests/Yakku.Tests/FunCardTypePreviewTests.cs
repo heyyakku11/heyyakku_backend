@@ -215,6 +215,8 @@ public class FunCardTypePreviewTests
         public Task<Check?> GetLiveByIdAsync(Guid id, DateOnly throughWeek, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<UserCheck>> GetUserChecksAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<UserCheck>> GetUserChecksPageAsync(Guid userId, DateTime? cursorCreatedAt, Guid? cursorId, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<Guid, Yakku.Application.Polls.PollVoteCountSnapshot>> GetVoteCountsAsync(IReadOnlyCollection<Guid> userCheckIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<UserCheckVote?> GetViewerVoteAsync(Guid userCheckId, Guid viewerId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<UserCheck?> GetOwnedUserCheckForUpdateAsync(Guid userCheckId, Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task DeleteUserCheckAsync(UserCheck userCheck, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<UserCheck?> GetUserCheckByIdAsync(Guid userCheckId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

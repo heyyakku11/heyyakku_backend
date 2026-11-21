@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Options;
+using Yakku.Application.Caching;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
+using Yakku.Application.Configuration;
 using Yakku.Application.Notifications.DTOs;
 using Yakku.Application.Notifications.Interfaces;
 using Yakku.Application.Notifications.Mapper;
@@ -9,10 +12,17 @@ namespace Yakku.Application.Notifications.Services
     public class NotificationService : INotificationService
     {
         private readonly INotificationRepository _notifications;
+        private readonly IResponseCache _cache;
+        private readonly ResponseCacheOptions _cacheOptions;
 
-        public NotificationService(INotificationRepository notifications)
+        public NotificationService(
+            INotificationRepository notifications,
+            IResponseCache? cache = null,
+            IOptions<ResponseCacheOptions>? cacheOptions = null)
         {
             _notifications = notifications;
+            _cache = cache ?? new NullResponseCache();
+            _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
         }
 
         public async Task<NotificationsPage> GetMineAsync(
@@ -72,15 +82,22 @@ namespace Yakku.Application.Notifications.Services
 
         public Task<int> GetUnreadCountAsync(Guid userId, CancellationToken cancellationToken = default)
         {
-            return _notifications.CountUnreadAsync(userId, cancellationToken);
+            return _cache.GetOrSetAsync(
+                ResponseCacheKeys.NotifUnread(userId),
+                _cacheOptions.NotifUnreadSoft,
+                _cacheOptions.NotifUnreadHard,
+                ct => _notifications.CountUnreadAsync(userId, ct),
+                cancellationToken);
         }
 
-        public Task<int> MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default)
+        public async Task<int> MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default)
         {
-            return _notifications.MarkAllReadAsync(userId, cancellationToken);
+            var count = await _notifications.MarkAllReadAsync(userId, cancellationToken);
+            await _cache.RemoveManyAsync(ResponseCacheKeys.AfterNotificationChange(userId), cancellationToken);
+            return count;
         }
 
-        public Task<int> MarkContentAsReadAsync(
+        public async Task<int> MarkContentAsReadAsync(
             Guid userId,
             string contentType,
             Guid contentId,
@@ -96,7 +113,9 @@ namespace Yakku.Application.Notifications.Services
                     "contentType");
             }
 
-            return _notifications.MarkContentReadAsync(userId, normalized, contentId, cancellationToken);
+            var count = await _notifications.MarkContentReadAsync(userId, normalized, contentId, cancellationToken);
+            await _cache.RemoveManyAsync(ResponseCacheKeys.AfterNotificationChange(userId), cancellationToken);
+            return count;
         }
 
         public async Task<NotificationResponse> MarkAsReadAsync(
@@ -119,6 +138,7 @@ namespace Yakku.Application.Notifications.Services
 
             notification.MarkAsRead();
             await _notifications.SaveChangesAsync(cancellationToken);
+            await _cache.RemoveManyAsync(ResponseCacheKeys.AfterNotificationChange(userId), cancellationToken);
             return notification.ToResponse();
         }
     }

@@ -58,8 +58,10 @@ namespace Yakku.Application.Polls.Mapper
         public static UserPollResponse ToUserPollResponse(this PollEntity poll, PollVoteCountSnapshot snapshot)
         {
             var counts = snapshot.ForDisplay();
+            // List contract: aggregates only — option breakdown lives on poll detail / share.
             return new UserPollResponse
             {
+                Kind = "poll",
                 PollId = poll.Id,
                 ShareCode = poll.ShareCode,
                 Question = poll.Question,
@@ -75,16 +77,7 @@ namespace Yakku.Application.Polls.Mapper
                 ResultsUnlocked = counts.ResultsUnlocked,
                 CustomAnswerCount = counts.CustomAnswerCount,
                 TotalWhyCount = counts.WhyCount,
-                PollOptions = poll.Options
-                    .OrderBy(option => option.SortOrder)
-                    .Select(option => new UserPollOptionResponse
-                    {
-                        Id = option.Id,
-                        Text = option.Text,
-                        VoteCount = counts.CountFor(option.Id),
-                        Percentage = ToPercentage(counts.CountFor(option.Id), counts.TotalVotes)
-                    })
-                    .ToList()
+                PollOptions = []
             };
         }
 

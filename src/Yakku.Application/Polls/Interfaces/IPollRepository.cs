@@ -49,6 +49,13 @@ namespace Yakku.Application.Polls.Interfaces
             IReadOnlyCollection<Guid> pollIds,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Totals only (no per-option breakdown). Prefer for list endpoints that omit option arrays.
+        /// </summary>
+        Task<IReadOnlyDictionary<Guid, PollVoteCountSnapshot>> GetVoteSummariesAsync(
+            IReadOnlyCollection<Guid> pollIds,
+            CancellationToken cancellationToken = default);
+
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

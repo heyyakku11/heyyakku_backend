@@ -273,6 +273,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<HttpGetCacheHeadersMiddleware>();
 app.UseMiddleware<AdminRequestGuardMiddleware>();
 app.UseRateLimiter();
 

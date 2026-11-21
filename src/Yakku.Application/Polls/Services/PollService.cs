@@ -171,7 +171,7 @@ namespace Yakku.Application.Polls.Services
                 await _streaks.RecordAsync(creatorId, StreakActivity.PollCreated, poll.CreatedAt, transactionToken);
             }, cancellationToken);
 
-            return await ToResponseAsync(poll, creatorId, cancellationToken);
+            return await ToResponseAsync(poll, creatorId, PollVoteCountSnapshot.Empty, cancellationToken);
         }
 
         public Task<PollResponse> UpdateAsync(
@@ -709,7 +709,7 @@ namespace Yakku.Application.Polls.Services
                 throw;
             }
 
-            await _audit.WritePollAsync(
+            _ = _audit.WritePollAsync(
                 new PollAuditEntry(
                     pollId ?? pollIdOf(result),
                     AuditActorType.User,

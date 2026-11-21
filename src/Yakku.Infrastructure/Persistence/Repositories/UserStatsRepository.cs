@@ -17,25 +17,42 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            var polls = await _context.Polls
-                .CountAsync(poll => poll.CreatorId == userId && poll.Status != PollStatus.Draft, cancellationToken);
-            var checks = await _context.UserChecks
-                .CountAsync(check => check.UserId == userId, cancellationToken);
+            // One round-trip: four scalar subqueries (DbContext is not safe for parallel queries).
+            var row = await _context.Database
+                .SqlQuery<ActivityCountRow>($"""
+                    SELECT
+                      (SELECT COUNT(*)::int FROM polls p
+                       WHERE p.creator_id = {userId} AND p.status <> 'DRAFT') AS "CardsPolls",
+                      (SELECT COUNT(*)::int FROM user_checks uc
+                       WHERE uc.user_id = {userId}) AS "CardsChecks",
+                      (SELECT COUNT(*)::int FROM poll_votes pv
+                       WHERE pv.voter_id = {userId}
+                         AND pv.voter_role = 'USER'
+                         AND NOT EXISTS (
+                           SELECT 1 FROM polls p WHERE p.id = pv.poll_id AND p.creator_id = {userId}
+                         )) AS "VotesPolls",
+                      (SELECT COUNT(*)::int FROM user_check_votes ucv
+                       WHERE ucv.voter_id = {userId}
+                         AND ucv.voter_role = 'USER'
+                         AND NOT EXISTS (
+                           SELECT 1 FROM user_checks uc
+                           WHERE uc.id = ucv.user_check_id AND uc.user_id = {userId}
+                         )) AS "VotesChecks"
+                    """)
+                .AsNoTracking()
+                .SingleAsync(cancellationToken);
 
-            // voter_id holds a user id or a guest id, so the role is part of the match. The owner's own answer on a
-            // poll or check they made is excluded.
-            var pollVotes = await _context.PollVotes
-                .CountAsync(vote => vote.VoterId == userId
-                    && vote.VoterRole == VoterRole.User
-                    && !_context.Polls.Any(poll => poll.Id == vote.PollId && poll.CreatorId == userId),
-                    cancellationToken);
-            var checkVotes = await _context.UserCheckVotes
-                .CountAsync(vote => vote.VoterId == userId
-                    && vote.VoterRole == VoterRole.User
-                    && !_context.UserChecks.Any(check => check.Id == vote.UserCheckId && check.UserId == userId),
-                    cancellationToken);
+            return new UserActivityCounts(
+                row.CardsPolls + row.CardsChecks,
+                row.VotesPolls + row.VotesChecks);
+        }
 
-            return new UserActivityCounts(polls + checks, pollVotes + checkVotes);
+        private sealed class ActivityCountRow
+        {
+            public int CardsPolls { get; set; }
+            public int CardsChecks { get; set; }
+            public int VotesPolls { get; set; }
+            public int VotesChecks { get; set; }
         }
     }
 }
