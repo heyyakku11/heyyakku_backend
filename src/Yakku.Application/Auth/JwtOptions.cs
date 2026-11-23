@@ -1,5 +1,9 @@
 namespace Yakku.Application.Auth
 {
+    /// <summary>
+    /// Production/Staging JWT lifetime defaults. Runtime values come from
+    /// <see cref="Configuration.JwtSettings"/> (Development shortens these in appsettings.Development.json).
+    /// </summary>
     public static class JwtOptions
     {
         public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(15);

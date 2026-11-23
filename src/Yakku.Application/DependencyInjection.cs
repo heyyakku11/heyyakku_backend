@@ -11,6 +11,8 @@ using Yakku.Application.Caching;
 using Yakku.Application.Configuration;
 using Yakku.Application.Checks.Interfaces;
 using Yakku.Application.Checks.Services;
+using Yakku.Application.AppVersion.Interfaces;
+using Yakku.Application.AppVersion.Services;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Devices.Services;
 using Yakku.Application.Guests.Interfaces;
@@ -77,6 +79,7 @@ namespace Yakku.Application
             services.AddScoped<Yakku.Application.Plans.Interfaces.IPlanService, Yakku.Application.Plans.Services.PlanService>();
             services.AddScoped<IDeviceService, DeviceService>();
             services.AddScoped<IDeviceSessionBinder>(provider => (DeviceService)provider.GetRequiredService<IDeviceService>());
+            services.AddScoped<IAppVersionService, AppVersionService>();
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IPushNotificationService, PushNotificationService>();
             services.AddScoped<Yakku.Application.Entitlements.IEntitlementService, Yakku.Application.Entitlements.EntitlementService>();
@@ -112,14 +115,15 @@ namespace Yakku.Application
             });
             services.AddSingleton<ITokenService>(sp =>
             {
-                var secret = sp.GetRequiredService<IOptions<JwtSettings>>().Value.Secret?.Trim().Trim('"');
+                var settings = sp.GetRequiredService<IOptions<JwtSettings>>().Value;
+                var secret = settings.Secret?.Trim().Trim('"');
                 if (string.IsNullOrWhiteSpace(secret))
                 {
                     throw new InvalidOperationException(
                         "Jwt:Secret is not set. Add JWT_SECRET to your .env file or environment variables.");
                 }
 
-                return new TokenService(secret);
+                return new TokenService(secret, settings.AccessTokenLifetime);
             });
             return services;
         }

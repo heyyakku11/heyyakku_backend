@@ -29,6 +29,16 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.UserId)
                 .HasDatabaseName("IX_UserSessions_UserId");
 
+            // IsLive / TryRotate: session id + user among non-revoked rows (smaller than scanning via PK alone at scale).
+            builder.HasIndex(x => new { x.Id, x.UserId })
+                .HasFilter("\"RevokedAt\" IS NULL")
+                .HasDatabaseName("IX_UserSessions_Id_UserId_Live");
+
+            // ListLiveByUserId: live sessions for a user without scanning revoked history.
+            builder.HasIndex(x => new { x.UserId, x.ExpiresAt })
+                .HasFilter("\"RevokedAt\" IS NULL")
+                .HasDatabaseName("IX_UserSessions_UserId_Live");
+
             builder.HasOne(x => x.User)
                 .WithMany(x => x.Sessions)
                 .HasForeignKey(x => x.UserId)

@@ -9,7 +9,7 @@ Postgres stores users, profiles, sessions, guests, polls, votes, and system logs
 - .NET 10 / ASP.NET Core
 - PostgreSQL (EF Core + Npgsql)
 - Redis over TCP (`REDIS_URL`; local, Upstash, Redis Cloud, etc.)
-- JWT access tokens (15 minutes) + refresh sessions (30 days)
+- JWT access tokens (15 minutes) + refresh sessions (30 days); Development uses 1 minute / 1 day via `appsettings.Development.json`
 - FluentValidation, Swagger (Swashbuckle)
 
 ## Layout
@@ -156,6 +156,7 @@ The approved flow template must define exactly one variable, `##otp##`; the vali
 | `POST` | `/api/v1/media-upload-sessions/{id}/complete` | JWT **or** guest | Verify object (size, magic bytes, duration) |
 | `POST` | `/api/v1/media-upload-sessions/{id}/cancel` | JWT **or** guest | Cancel and purge unreferenced object |
 | `GET` | `/api/system/health` | — | Postgres / Redis health |
+| `GET` | `/api/v1/app/version` | — | Public app version gate: `platform` (`android`\|`ios`) + `version` (semver). Returns `forceUpdate` / `updateRequired`, store URL and message |
 
 Responses use a shared `ApiResponse` envelope. Guest auth is the HttpOnly `yakku_guest` cookie (15 days, `SameSite=Lax`) **or** header `X-Guest-Token: <guestToken>` (preferred for Flutter). JWT takes precedence when both are present.
 
@@ -200,6 +201,18 @@ Uploads use a single presigned PUT (no multipart). Actual size is enforced on co
 ### Guest expiry and cleanup
 
 Guests expire 15 days after creation (`Guest.Lifetime`; the cookie lifetime follows it). A daily background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
+
+## App version
+
+Mobile clients call `GET /api/v1/app/version?platform=android|ios&version=1.2.3` on launch (anonymous). The API compares the installed semver against per-platform config:
+
+| Condition | Flags |
+| --- | --- |
+| below `MinSupported` | `forceUpdate=true`, `updateRequired=true` |
+| at/above `MinSupported` and below `Latest` | soft update: `forceUpdate=false`, `updateRequired=true` |
+| at/above `Latest` | both false |
+
+Shared fields (`Message`, store URLs) live in `appsettings.json`. Override only `MinSupported` / `Latest` per platform in `appsettings.Development.json`, `appsettings.Staging.json`, and `appsettings.Production.json`. Raise `Latest` for soft prompts; raise `MinSupported` only when old builds must stop. Redeploy/restart after changing those files. Device register/update still accept `appVersion` / `appBuild` as metadata only — they are not the gate.
 
 ## Devices
 

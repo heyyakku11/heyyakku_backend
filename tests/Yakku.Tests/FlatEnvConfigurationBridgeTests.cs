@@ -49,4 +49,5 @@ public class FlatEnvConfigurationBridgeTests
         Assert.Equal("false", configuration["Msg91:Enabled"]);
         Assert.Equal("images", configuration["Storage:Buckets:Image"]);
     }
+
 }

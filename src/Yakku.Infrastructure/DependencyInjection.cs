@@ -328,6 +328,7 @@ namespace Yakku.Infrastructure
             services.Configure<WebOptions>(configuration.GetSection(WebOptions.SectionName));
             services.Configure<AdminOptions>(configuration.GetSection(AdminOptions.SectionName));
             services.Configure<ForwardedHeadersAppOptions>(configuration.GetSection(ForwardedHeadersAppOptions.SectionName));
+            services.Configure<AppVersionOptions>(configuration.GetSection(AppVersionOptions.SectionName));
         }
 
         private static void Require(string? value, string configKey, string envName)

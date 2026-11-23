@@ -25,6 +25,18 @@ namespace Yakku.Application.Configuration
         public const string SectionName = "Jwt";
 
         public string Secret { get; set; } = string.Empty;
+
+        /// <summary>Access JWT lifetime in minutes. Staging/Production default 15; Development overrides to 1.</summary>
+        public int AccessTokenMinutes { get; set; } = 15;
+
+        /// <summary>Refresh token lifetime in days. Staging/Production default 30; Development overrides to 1.</summary>
+        public int RefreshTokenDays { get; set; } = 30;
+
+        public TimeSpan AccessTokenLifetime =>
+            TimeSpan.FromMinutes(AccessTokenMinutes > 0 ? AccessTokenMinutes : 15);
+
+        public TimeSpan RefreshTokenLifetime =>
+            TimeSpan.FromDays(RefreshTokenDays > 0 ? RefreshTokenDays : 30);
     }
 
     public sealed class CorsSettings
@@ -182,5 +194,25 @@ namespace Yakku.Application.Configuration
         public const string SectionName = "ForwardedHeaders";
 
         public int ProxyHopCount { get; set; } = 1;
+    }
+
+    public sealed class AppVersionOptions
+    {
+        public const string SectionName = "AppVersion";
+
+        public string Message { get; set; } = "Please update to continue using Yakku.";
+
+        public AppVersionPlatformOptions Android { get; set; } = new();
+
+        public AppVersionPlatformOptions Ios { get; set; } = new();
+    }
+
+    public sealed class AppVersionPlatformOptions
+    {
+        public string MinSupported { get; set; } = "1.0.0";
+
+        public string Latest { get; set; } = "1.0.0";
+
+        public string StoreUrl { get; set; } = string.Empty;
     }
 }

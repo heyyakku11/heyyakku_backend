@@ -3580,6 +3580,14 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_UserSessions_UserId");
 
+                    b.HasIndex("Id", "UserId")
+                        .HasDatabaseName("IX_UserSessions_Id_UserId_Live")
+                        .HasFilter("\"RevokedAt\" IS NULL");
+
+                    b.HasIndex("UserId", "ExpiresAt")
+                        .HasDatabaseName("IX_UserSessions_UserId_Live")
+                        .HasFilter("\"RevokedAt\" IS NULL");
+
                     b.ToTable("user_sessions", (string)null);
                 });
 

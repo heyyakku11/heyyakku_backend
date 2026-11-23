@@ -9,8 +9,9 @@ namespace Yakku.Application.Auth.Services
     public class TokenService : ITokenService
     {
         private readonly byte[] _signingKey;
+        private readonly TimeSpan _accessTokenLifetime;
 
-        public TokenService(string secret)
+        public TokenService(string secret, TimeSpan? accessTokenLifetime = null)
         {
             if (string.IsNullOrWhiteSpace(secret) || Encoding.UTF8.GetByteCount(secret) < 32)
             {
@@ -19,6 +20,7 @@ namespace Yakku.Application.Auth.Services
             }
 
             _signingKey = Encoding.UTF8.GetBytes(secret);
+            _accessTokenLifetime = accessTokenLifetime ?? JwtOptions.AccessTokenLifetime;
         }
 
         public string CreateAccessToken(Guid userId, Guid sessionId)
@@ -39,7 +41,7 @@ namespace Yakku.Application.Auth.Services
             var token = new JwtSecurityToken(
                 claims: claims,
                 notBefore: now,
-                expires: now.Add(JwtOptions.AccessTokenLifetime),
+                expires: now.Add(_accessTokenLifetime),
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
@@ -65,7 +67,7 @@ namespace Yakku.Application.Auth.Services
             var token = new JwtSecurityToken(
                 claims: claims,
                 notBefore: now,
-                expires: now.Add(JwtOptions.AccessTokenLifetime),
+                expires: now.Add(_accessTokenLifetime),
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);

@@ -10,6 +10,10 @@ namespace Yakku.Application.Common.Responses
         public const string Forbidden = "FORBIDDEN";
         public const string Conflict = "CONFLICT";
         public const string DeviceConflict = "DEVICE_CONFLICT";
+
+        /// <summary>Client app version is below the minimum supported version (reserved for a future hard gate).</summary>
+        public const string ForceUpdateRequired = "FORCE_UPDATE_REQUIRED";
+
         public const string AlreadyVoted = "ALREADY_VOTED";
         public const string AlreadyUsed = "ALREADY_USED";
         public const string RegistrationExpired = "REGISTRATION_EXPIRED";

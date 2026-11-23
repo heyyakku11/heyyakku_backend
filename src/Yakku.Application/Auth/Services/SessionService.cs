@@ -1,8 +1,10 @@
 using FluentValidation;
+using Microsoft.Extensions.Options;
 using Yakku.Application.Audit;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
+using Yakku.Application.Configuration;
 using Yakku.Application.Devices.DTOs;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Common.Responses;
@@ -25,6 +27,7 @@ namespace Yakku.Application.Auth.Services
         private readonly IDeviceRepository _devices;
         private readonly IDeviceSessionBinder _deviceBinder;
         private readonly IAuditLogWriter _audit;
+        private readonly TimeSpan _refreshTokenLifetime;
 
         public SessionService(
             IUserSessionRepository sessions,
@@ -32,7 +35,8 @@ namespace Yakku.Application.Auth.Services
             IValidator<RefreshTokenRequest> refreshTokenValidator,
             IDeviceRepository devices,
             IDeviceSessionBinder deviceBinder,
-            IAuditLogWriter audit)
+            IAuditLogWriter audit,
+            IOptions<JwtSettings>? jwtSettings = null)
         {
             _sessions = sessions;
             _tokenService = tokenService;
@@ -40,6 +44,8 @@ namespace Yakku.Application.Auth.Services
             _devices = devices;
             _deviceBinder = deviceBinder;
             _audit = audit;
+            _refreshTokenLifetime = jwtSettings?.Value.RefreshTokenLifetime
+                ?? JwtOptions.RefreshTokenLifetime;
         }
 
         public Task<TokenResponse> CreateAsync(
@@ -101,7 +107,7 @@ namespace Yakku.Application.Auth.Services
             var session = new UserSession(
                 userId,
                 RefreshTokenHasher.Hash(string.Empty, secret),
-                utcNow.Add(JwtOptions.RefreshTokenLifetime));
+                utcNow.Add(_refreshTokenLifetime));
             var evictedSessionIds = new List<Guid>();
             DeviceLoginBindResult? bound = null;
 
@@ -172,7 +178,7 @@ namespace Yakku.Application.Auth.Services
                 session.Id,
                 session.RefreshTokenHash,
                 RefreshTokenHasher.Hash(string.Empty, secret),
-                utcNow.Add(JwtOptions.RefreshTokenLifetime),
+                utcNow.Add(_refreshTokenLifetime),
                 utcNow,
                 cancellationToken);
             if (!rotated)
