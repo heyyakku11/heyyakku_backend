@@ -24,6 +24,8 @@ namespace Yakku.Domain.Entities
         public string? ErrorCode { get; private set; }
         public string? ErrorMessage { get; private set; }
         public int? LatencyMs { get; private set; }
+        /// <summary>Normalized request path when this row was written from an API call; null for non-HTTP work.</summary>
+        public string? ApiRoute { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime? ProviderAcceptedAt { get; private set; }
         public DateTime? DeliveryUpdatedAt { get; private set; }
@@ -47,6 +49,7 @@ namespace Yakku.Domain.Entities
             string? errorCode,
             string? errorMessage,
             int? latencyMs,
+            string? apiRoute = null,
             DateTime? createdAt = null)
         {
             var now = createdAt ?? DateTime.UtcNow;
@@ -68,6 +71,7 @@ namespace Yakku.Domain.Entities
             ErrorCode = errorCode;
             ErrorMessage = errorMessage;
             LatencyMs = latencyMs;
+            ApiRoute = apiRoute;
             CreatedAt = now;
             ProviderAcceptedAt = status == NotificationAuditStatus.Accepted ? now : null;
         }

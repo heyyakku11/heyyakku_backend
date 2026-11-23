@@ -2,7 +2,7 @@ namespace Yakku.Application.Email
 {
     public static class OtpEmailQueueOptions
     {
-        public const int Capacity = 100;
+        public const int Capacity = 200;
         public const int MaxAttempts = 3;
         public static readonly TimeSpan[] RetryDelays =
         [

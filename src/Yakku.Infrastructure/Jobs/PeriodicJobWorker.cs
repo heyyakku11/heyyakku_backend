@@ -71,15 +71,14 @@ namespace Yakku.Infrastructure.Jobs
                     exception.GetType().Name);
 
                 await using var scope = _scopeFactory.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<IAuditLogWriter>().WriteSystemAsync(
-                    new SystemLogEntry(
-                        SystemLogCategory.BackgroundJob,
-                        SystemLogSeverity.Error,
-                        _jobName,
-                        "Background job failed.",
-                        ExceptionType: exception.GetType().Name,
-                        Metadata: new Dictionary<string, string?> { ["job"] = _jobName }),
-                    CancellationToken.None);
+                await ExceptionSystemLog.WriteAsync(
+                    scope.ServiceProvider.GetRequiredService<IAuditLogWriter>(),
+                    exception,
+                    _jobName,
+                    statusCode: 500,
+                    category: SystemLogCategory.BackgroundJob,
+                    extraMetadata: new Dictionary<string, string?> { ["job"] = _jobName },
+                    cancellationToken: CancellationToken.None);
             }
         }
     }

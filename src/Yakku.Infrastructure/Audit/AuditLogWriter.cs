@@ -37,7 +37,7 @@ namespace Yakku.Infrastructure.Audit
             AuthenticationAuditEntry entry,
             CancellationToken cancellationToken = default)
         {
-            var request = CaptureRequest();
+            var request = CaptureRequest(entry.LatencyMs);
             var log = new AuthenticationAuditLog(
                 entry.ActorType,
                 entry.ActorId,
@@ -49,13 +49,15 @@ namespace Yakku.Infrastructure.Audit
                 request.IpAddress,
                 request.UserAgent,
                 request.TraceId,
-                AuditSanitizer.SerializeMetadata(entry.Metadata));
+                AuditSanitizer.SerializeMetadata(entry.Metadata),
+                request.LatencyMs,
+                ResolveApiRoute(entry.ApiRoute, request.ApiRoute));
             return SaveAsync(context => context.AuthenticationAuditLogs.Add(log), "authentication");
         }
 
         public Task WritePollAsync(PollAuditEntry entry, CancellationToken cancellationToken = default)
         {
-            var request = CaptureRequest();
+            var request = CaptureRequest(entry.LatencyMs);
             var voterRef = entry.VoterUserId is Guid voter
                 ? AuditSanitizer.PseudonymizeVoter(voter, entry.PollId)
                 : null;
@@ -70,7 +72,9 @@ namespace Yakku.Infrastructure.Audit
                 AuditSanitizer.Truncate(entry.ToStatus, 20),
                 AuditSanitizer.SanitizeCode(entry.ErrorCode, 64),
                 request.TraceId,
-                AuditSanitizer.SerializeMetadata(entry.Metadata));
+                AuditSanitizer.SerializeMetadata(entry.Metadata),
+                request.LatencyMs,
+                ResolveApiRoute(entry.ApiRoute, request.ApiRoute));
             return SaveAsync(context => context.PollAuditLogs.Add(log), "poll");
         }
 
@@ -78,6 +82,7 @@ namespace Yakku.Infrastructure.Audit
             NotificationAuditEntry entry,
             CancellationToken cancellationToken = default)
         {
+            var request = CaptureRequest(entry.LatencyMs);
             var log = new NotificationAuditLog(
                 entry.Channel,
                 AuditSanitizer.Truncate(entry.Provider, 32)!,
@@ -92,23 +97,24 @@ namespace Yakku.Infrastructure.Audit
                 AuditSanitizer.Truncate(entry.ProviderMessageId, 256),
                 AuditSanitizer.SanitizeCode(entry.ErrorCode, 64),
                 AuditSanitizer.SanitizeText(entry.ErrorMessage, 500),
-                entry.LatencyMs is int latency ? Math.Max(0, latency) : null);
+                request.LatencyMs,
+                ResolveApiRoute(entry.ApiRoute, request.ApiRoute));
             return SaveAsync(context => context.NotificationAuditLogs.Add(log), "notification");
         }
 
         public Task WriteSystemAsync(SystemLogEntry entry, CancellationToken cancellationToken = default)
         {
-            var request = CaptureRequest();
+            var request = CaptureRequest(entry.DurationMs);
             var log = new SystemLog(
                 entry.Category,
                 entry.Severity,
                 AuditSanitizer.Truncate(entry.Source, 100)!,
                 AuditSanitizer.SanitizeText(entry.Message, 500) ?? "(no message)",
                 AuditSanitizer.Truncate(entry.ExceptionType, 200),
-                AuditSanitizer.Truncate(entry.HttpMethod, 10),
-                AuditSanitizer.NormalizePath(entry.Path),
+                AuditSanitizer.Truncate(entry.HttpMethod, 10) ?? request.HttpMethod,
+                AuditSanitizer.NormalizePath(entry.Path) ?? request.ApiRoute,
                 entry.StatusCode is >= 100 and <= 599 ? entry.StatusCode : null,
-                entry.DurationMs is int duration ? Math.Max(0, duration) : null,
+                request.LatencyMs,
                 request.TraceId,
                 AuditSanitizer.SerializeMetadata(entry.Metadata));
             return SaveAsync(context => context.SystemLogs.Add(log), "system");
@@ -187,15 +193,16 @@ namespace Yakku.Infrastructure.Audit
             }
         }
 
-        private RequestInfo CaptureRequest()
+        private RequestInfo CaptureRequest(int? explicitLatencyMs = null)
         {
             var http = _httpContextAccessor.HttpContext;
+            var latencyMs = AuditRequestTiming.Resolve(explicitLatencyMs, http?.Items);
             var traceId = AuditSanitizer.Truncate(
                 Activity.Current?.TraceId.ToString() ?? http?.TraceIdentifier,
                 64);
             if (http is null)
             {
-                return new RequestInfo(null, null, traceId);
+                return new RequestInfo(null, null, traceId, latencyMs, null, null);
             }
 
             var ip = http.Connection.RemoteIpAddress;
@@ -205,9 +212,25 @@ namespace Yakku.Infrastructure.Audit
             }
 
             var userAgent = http.Request.Headers.UserAgent.ToString();
-            return new RequestInfo(ip, AuditSanitizer.SanitizeUserAgent(userAgent), traceId);
+            return new RequestInfo(
+                ip,
+                AuditSanitizer.SanitizeUserAgent(userAgent),
+                traceId,
+                latencyMs,
+                AuditSanitizer.Truncate(http.Request.Method, 10),
+                AuditSanitizer.NormalizePath(http.Request.Path.Value));
         }
 
-        private readonly record struct RequestInfo(IPAddress? IpAddress, string? UserAgent, string? TraceId);
+        /// <summary>Explicit route wins; otherwise use the current HTTP path. Stays null outside a request.</summary>
+        private static string? ResolveApiRoute(string? explicitRoute, string? requestRoute)
+            => AuditSanitizer.NormalizePath(explicitRoute) ?? requestRoute;
+
+        private readonly record struct RequestInfo(
+            IPAddress? IpAddress,
+            string? UserAgent,
+            string? TraceId,
+            int? LatencyMs,
+            string? HttpMethod,
+            string? ApiRoute);
     }
 }

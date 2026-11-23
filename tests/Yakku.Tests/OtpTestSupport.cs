@@ -33,6 +33,27 @@ internal sealed class FakeSmsService : ISmsService
         _ => Task.FromResult(SmsSendResult.Failed(failure, 200, 7));
 }
 
+/// <summary>Drops SMS jobs (tests that never enable or exercise delivery).</summary>
+internal sealed class NoOpOtpSmsQueue : IOtpSmsQueue
+{
+    public ValueTask EnqueueAsync(SmsOtpJob job, CancellationToken cancellationToken = default)
+        => ValueTask.CompletedTask;
+}
+
+/// <summary>Runs the real worker processor inline so signup tests stay synchronous after enqueue.</summary>
+internal sealed class InlineOtpSmsQueue : IOtpSmsQueue
+{
+    private readonly Func<SmsOtpJob, CancellationToken, Task> _process;
+
+    public InlineOtpSmsQueue(Func<SmsOtpJob, CancellationToken, Task> process)
+    {
+        _process = process;
+    }
+
+    public ValueTask EnqueueAsync(SmsOtpJob job, CancellationToken cancellationToken = default)
+        => new(_process(job, cancellationToken));
+}
+
 /// <summary>Keeps everything a component logs, in every form it could leak through, so tests can search it.</summary>
 internal sealed class CapturingLogger<T> : ILogger<T>
 {

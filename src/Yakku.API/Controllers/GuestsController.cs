@@ -53,7 +53,7 @@ namespace Yakku.API.Controllers
             // One identity per session: a caller already signed in has no use for a guest identity.
             if (User.Identity?.IsAuthenticated == true)
             {
-                return ApiExceptionResults.From(new AppException(
+                return ApiExceptionResults.From(HttpContext, new AppException(
                     409,
                     ApiErrorCodes.Conflict,
                     "This session is already authenticated and does not need a guest identity."));

@@ -2,7 +2,7 @@ namespace Yakku.Application.Auth.Sms
 {
     /// <summary>
     /// Delivers an OTP that the backend has already generated and stored. It never generates, stores or verifies
-    /// OTPs, and it does not retry: a repeated send could text the user twice.
+    /// OTPs. Retries belong to the OTP SMS worker, not this client: a single HTTP call must not text the user twice.
     /// </summary>
     public interface ISmsService
     {

@@ -5,6 +5,7 @@ using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Auth.Models;
 using Yakku.Application.Auth.Services;
+using Yakku.Application.Auth.Sms;
 using Yakku.Application.Audit;
 using Yakku.Application.Common;
 using Yakku.Application.Common.Exceptions;
@@ -162,8 +163,8 @@ public class AccountDeletionTests
                 new InlineValidator<ResendOtpRequest>(),
                 new InlineValidator<VerifyOtpRequest>(),
                 Audit,
-                new FakeSnapshot(),
                 new FakeSmsService(),
+                new NoOpOtpSmsQueue(),
                 OtpPolicy.Default,
                 NullLogger<AuthService>.Instance);
         }
@@ -177,12 +178,6 @@ public class AccountDeletionTests
         public RecordingAuditLogWriter Audit { get; }
         public AccountDeletionService Service { get; }
         public AuthService Auth { get; }
-    }
-
-    private sealed class FakeSnapshot : ILoginSnapshotReader
-    {
-        public Task<LoginSnapshot> GetAsync(Guid userId, string? installationId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new LoginSnapshot("abc123", "Draft", "Unknown", false));
     }
 
     private sealed class FakeUsers : IUserRepository

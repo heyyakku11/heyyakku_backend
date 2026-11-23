@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Yakku.Application.Audit;
 using Yakku.Application.Common.Responses;
-using Yakku.Domain.Enums;
 
 namespace Yakku.API.Middleware
 {
@@ -28,18 +27,17 @@ namespace Yakku.API.Middleware
             var schemaMismatch = DatabaseSchemaErrors.IsSchemaMismatch(exception);
             var statusCode = schemaMismatch ? StatusCodes.Status503ServiceUnavailable : StatusCodes.Status500InternalServerError;
 
-            // Only the exception type and the route are persisted; messages can carry user input or SQL values.
-            await _audit.WriteSystemAsync(
-                new SystemLogEntry(
-                    SystemLogCategory.Exception,
-                    SystemLogSeverity.Error,
-                    nameof(GlobalExceptionHandler),
-                    "Unhandled exception while processing a request.",
-                    ExceptionType: exception.GetType().FullName ?? exception.GetType().Name,
-                    HttpMethod: httpContext.Request.Method,
-                    Path: httpContext.Request.Path.Value,
-                    StatusCode: statusCode),
-                CancellationToken.None);
+            await ExceptionSystemLog.WriteAsync(
+                _audit,
+                exception,
+                nameof(GlobalExceptionHandler),
+                httpContext.Request.Method,
+                httpContext.Request.Path.Value,
+                statusCode,
+                extraMetadata: schemaMismatch
+                    ? new Dictionary<string, string?> { ["schemaMismatch"] = "true" }
+                    : null,
+                cancellationToken: CancellationToken.None);
 
             var response = schemaMismatch
                 ? ApiResponse.Fail(

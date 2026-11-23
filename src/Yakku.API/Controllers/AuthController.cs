@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using Yakku.API.Auth;
 using Yakku.API.Guests;
 using Yakku.API.Media;
+using Yakku.API.Middleware;
+using Yakku.Application.Audit;
 using Yakku.Application.Auth.DTOs;
 using Yakku.Application.Auth.Interfaces;
 using Yakku.Application.Common.Exceptions;
@@ -40,7 +42,7 @@ namespace Yakku.API.Controllers
         [EnableRateLimiting("otp-send")]
         [HttpPost("send")]
         [EndpointSummary("Send OTP for User Authentication")]
-        [EndpointDescription("Sends an OTP by SMS for login or registration (Indian mobile numbers only). Returns 400 inside the resend cooldown, 429 when the number or the caller has asked too often, and 503 when the SMS could not be delivered. The OTP is never returned.")]
+        [EndpointDescription("Queues an OTP SMS for login or registration (Indian mobile numbers only). When SMS is enabled the API returns after the message is handed to the in-process delivery worker; MSG91 acceptance is recorded asynchronously. Returns 400 inside the resend cooldown or for a non-deliverable number, 429 when the number or the caller has asked too often, and 503 when the OTP could not be queued. The OTP is never returned.")]
         [ProducesResponseType(typeof(ApiResponse<RequestOtpResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]
@@ -56,7 +58,7 @@ namespace Yakku.API.Controllers
             }
             catch (AppException ex)
             {
-                return ToErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
         }
 
@@ -86,7 +88,7 @@ namespace Yakku.API.Controllers
             }
             catch (AppException ex)
             {
-                return ToErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
         }
 
@@ -106,7 +108,7 @@ namespace Yakku.API.Controllers
             }
             catch (AppException ex)
             {
-                return ToErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
         }
 
@@ -126,7 +128,7 @@ namespace Yakku.API.Controllers
             }
             catch (AppException ex)
             {
-                return ToErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
         }
 
@@ -145,7 +147,7 @@ namespace Yakku.API.Controllers
             }
             catch (AppException ex)
             {
-                return ToErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
         }
 
@@ -172,6 +174,24 @@ namespace Yakku.API.Controllers
                 _logger.LogError(
                     "Guest claim threw unexpectedly ({ExceptionType}); sign-in continues.",
                     exception.GetType().Name);
+                var audit = HttpContext.RequestServices.GetService<IAuditLogWriter>();
+                if (audit is not null)
+                {
+                    _ = ExceptionSystemLog.WriteAsync(
+                        audit,
+                        exception,
+                        nameof(AuthController),
+                        HttpContext.Request.Method,
+                        HttpContext.Request.Path.Value,
+                        StatusCodes.Status500InternalServerError,
+                        extraMetadata: new Dictionary<string, string?>
+                        {
+                            ["stage"] = "guest_claim",
+                            ["userId"] = userId.ToString("D")
+                        },
+                        cancellationToken: CancellationToken.None);
+                }
+
                 outcome = GuestClaimResult.Failed;
             }
 
@@ -183,25 +203,6 @@ namespace Yakku.API.Controllers
             {
                 _guestCookies.Clear(HttpContext);
             }
-        }
-
-        private static ObjectResult ToErrorResult(AppException exception)
-        {
-            var response = ApiResponse.Fail(
-                exception.Message,
-                [
-                    new ApiError
-                    {
-                        Code = exception.ErrorCode,
-                        Message = exception.ErrorMessage,
-                        Field = exception.Field
-                    }
-                ]);
-
-            return new ObjectResult(response)
-            {
-                StatusCode = exception.StatusCode
-            };
         }
     }
 }

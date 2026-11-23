@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yakku.Application.Audit;
@@ -16,15 +17,18 @@ namespace Yakku.Infrastructure.Payments
         private static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(3);
 
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly TimeProvider _time;
         private readonly ILogger<PaymentLogWriter> _logger;
 
         public PaymentLogWriter(
             IServiceScopeFactory scopeFactory,
+            IHttpContextAccessor httpContextAccessor,
             TimeProvider time,
             ILogger<PaymentLogWriter> logger)
         {
             _scopeFactory = scopeFactory;
+            _httpContextAccessor = httpContextAccessor;
             _time = time;
             _logger = logger;
         }
@@ -35,6 +39,10 @@ namespace Yakku.Infrastructure.Payments
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(WriteTimeout);
+
+                var latencyMs = AuditRequestTiming.Resolve(
+                    entry.LatencyMs,
+                    _httpContextAccessor.HttpContext?.Items);
 
                 var log = PaymentLog.Create(
                     AuditSanitizer.Truncate(entry.EventType, 64)!,
@@ -48,7 +56,8 @@ namespace Yakku.Infrastructure.Payments
                     AuditSanitizer.Truncate(entry.CorrelationId, 64),
                     AuditSanitizer.Truncate(entry.RazorpayOrderId, 64),
                     AuditSanitizer.Truncate(entry.RazorpayPaymentId, 64),
-                    AuditSanitizer.SerializeMetadata(entry.Metadata));
+                    AuditSanitizer.SerializeMetadata(entry.Metadata),
+                    latencyMs);
 
                 await using var scope = _scopeFactory.CreateAsyncScope();
                 var context = scope.ServiceProvider.GetRequiredService<YakkuDbContext>();

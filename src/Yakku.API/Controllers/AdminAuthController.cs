@@ -65,11 +65,11 @@ namespace Yakku.API.Controllers
             }
             catch (ValidationException ex)
             {
-                return ToValidationErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
             catch (AppException ex)
             {
-                return ToErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
         }
 
@@ -216,7 +216,7 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok<object?>(null, "Logged out from all sessions successfully"));
         }
 
-        private static async Task<IActionResult> RunAsync(Func<Task<IActionResult>> action)
+        private async Task<IActionResult> RunAsync(Func<Task<IActionResult>> action)
         {
             try
             {
@@ -224,39 +224,12 @@ namespace Yakku.API.Controllers
             }
             catch (ValidationException ex)
             {
-                return ToValidationErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
             catch (AppException ex)
             {
-                return ToErrorResult(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
-        }
-
-        private static BadRequestObjectResult ToValidationErrorResult(ValidationException exception)
-        {
-            return new BadRequestObjectResult(
-                ApiResponse.Fail(
-                    "Validation failed",
-                    ApiErrorMapper.FromValidationException(exception)));
-        }
-
-        private static ObjectResult ToErrorResult(AppException exception)
-        {
-            var response = ApiResponse.Fail(
-                exception.Message,
-                [
-                    new ApiError
-                    {
-                        Code = exception.ErrorCode,
-                        Message = exception.ErrorMessage,
-                        Field = exception.Field
-                    }
-                ]);
-
-            return new ObjectResult(response)
-            {
-                StatusCode = exception.StatusCode
-            };
         }
     }
 }

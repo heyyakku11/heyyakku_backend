@@ -28,8 +28,8 @@ namespace Yakku.Application.Auth.Services
         private readonly IValidator<ResendOtpRequest> _resendOtpValidator;
         private readonly IValidator<VerifyOtpRequest> _verifyOtpValidator;
         private readonly IAuditLogWriter _audit;
-        private readonly ILoginSnapshotReader _loginSnapshot;
         private readonly ISmsService _sms;
+        private readonly IOtpSmsQueue _smsQueue;
         private readonly OtpPolicy _policy;
         private readonly ILogger<AuthService> _logger;
 
@@ -46,12 +46,13 @@ namespace Yakku.Application.Auth.Services
             IValidator<ResendOtpRequest> resendOtpValidator,
             IValidator<VerifyOtpRequest> verifyOtpValidator,
             IAuditLogWriter audit,
-            ILoginSnapshotReader loginSnapshot,
             ISmsService sms,
+            IOtpSmsQueue smsQueue,
             OtpPolicy policy,
             ILogger<AuthService> logger)
         {
             _sms = sms;
+            _smsQueue = smsQueue;
             _policy = policy;
             _logger = logger;
             _nameHold = policy.Ttl + TimeSpan.FromMinutes(1);
@@ -64,7 +65,6 @@ namespace Yakku.Application.Auth.Services
             _resendOtpValidator = resendOtpValidator;
             _verifyOtpValidator = verifyOtpValidator;
             _audit = audit;
-            _loginSnapshot = loginSnapshot;
         }
 
         public async Task<RequestOtpResponse> RequestOtpAsync(
@@ -124,10 +124,9 @@ namespace Yakku.Application.Auth.Services
         }
 
         /// <summary>
-        /// Generate, store (atomically, with the cooldown and send limit), then deliver. The OTP only counts as sent
-        /// once the SMS provider has accepted it; if it did not, the stored OTP is invalidated so nobody is left with
-        /// a code that was never delivered. Redis and the provider cannot share a transaction, so this is compensation
-        /// by id: it removes only this request's challenge and never a newer one from a concurrent request.
+        /// Generate, store (atomically, with the cooldown and send limit), then hand off to the SMS worker.
+        /// When SMS is enabled the request returns after a successful enqueue; MSG91 acceptance is recorded
+        /// asynchronously. If the worker never gets a provider accept, it revokes only this challenge id.
         /// </summary>
         private async Task IssueAndSendOtpAsync(
             string phoneNumber,
@@ -136,8 +135,8 @@ namespace Yakku.Application.Auth.Services
             CancellationToken cancellationToken)
         {
             var otp = _otpGenerator.Generate();
-            // When SMS is off (Development), store plaintext so the code can be read from Redis.
-            // When SMS is on, store only the hash.
+            // When SMS is off, store plaintext so the code can be read from Redis (local/tests without MSG91).
+            // When SMS is on (including Development with Msg91:Enabled), store only the hash.
             var challenge = new OtpChallenge
             {
                 ChallengeId = Guid.NewGuid(),
@@ -179,42 +178,28 @@ namespace Yakku.Application.Auth.Services
                 return;
             }
 
-            SmsSendResult result;
+            if (!IndianMobileNumber.TryFormatForMsg91(phoneNumber, out _))
+            {
+                await RevokeUndeliveredAsync(phoneNumber, challenge.ChallengeId);
+                throw ToDeliveryFailure(SmsFailureCategory.InvalidRecipient);
+            }
+
             try
             {
-                result = await _sms.SendOtpAsync(
-                    new SmsOtpMessage(phoneNumber, otp, challenge.ChallengeId),
+                await _smsQueue.EnqueueAsync(
+                    new SmsOtpJob(challenge.ChallengeId, phoneNumber, otp),
                     cancellationToken);
             }
-            catch
+            catch (OperationCanceledException)
             {
-                // Includes the caller cancelling mid-send: the OTP is stored but its delivery is unknown.
+                // Caller cancelled while waiting for queue space: challenge is stored but not handed off.
                 await RevokeUndeliveredAsync(phoneNumber, challenge.ChallengeId);
                 throw;
             }
-
-            _ = _audit.WriteNotificationAsync(
-                new NotificationAuditEntry(
-                    NotificationChannel.Sms,
-                    "msg91",
-                    AuditEvents.Notification.OtpSms,
-                    null,
-                    null,
-                    phoneNumber,
-                    challenge.ChallengeId,
-                    1,
-                    false,
-                    result.Accepted ? NotificationAuditStatus.Accepted : NotificationAuditStatus.Failed,
-                    result.ProviderRequestId,
-                    result.Accepted ? null : result.Failure.ToString(),
-                    null,
-                    result.LatencyMs),
-                CancellationToken.None);
-
-            if (!result.Accepted)
+            catch
             {
                 await RevokeUndeliveredAsync(phoneNumber, challenge.ChallengeId);
-                throw ToDeliveryFailure(result.Failure);
+                throw new AppException(503, ApiErrorCodes.ServiceUnavailable, DeliveryFailedMessage);
             }
         }
 
@@ -449,27 +434,11 @@ namespace Yakku.Application.Auth.Services
             CancellationToken cancellationToken)
         {
             var tokens = await _sessionService.CreateAsync(user.Id, installation, cancellationToken);
-            var snapshot = await _loginSnapshot.GetAsync(user.Id, installation?.InstallationId, cancellationToken);
 
             return new VerifyOtpResponse
             {
                 UserId = user.Id,
                 Purpose = purpose.ToString(),
-                User = new VerifyOtpUser
-                {
-                    AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
-                    PersonalityCard = new VerifyOtpPersonalityCard
-                    {
-                        ShareCode = snapshot.CardShareCode,
-                        Status = snapshot.CardStatus
-                    },
-                    Permissions = new VerifyOtpPermissions
-                    {
-                        Notification = snapshot.NotificationPermission,
-                        IsPushAllowed = snapshot.IsPushAllowed
-                    },
-                    CommunityNotifyRequested = snapshot.CommunityNotifyRequested
-                },
                 Auth = tokens
             };
         }

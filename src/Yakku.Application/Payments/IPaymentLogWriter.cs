@@ -22,5 +22,6 @@ namespace Yakku.Application.Payments
         string? CorrelationId = null,
         string? RazorpayOrderId = null,
         string? RazorpayPaymentId = null,
-        IReadOnlyDictionary<string, string?>? Metadata = null);
+        IReadOnlyDictionary<string, string?>? Metadata = null,
+        int? LatencyMs = null);
 }

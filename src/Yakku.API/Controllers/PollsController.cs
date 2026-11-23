@@ -60,11 +60,11 @@ namespace Yakku.API.Controllers
             }
             catch (ValidationException ex)
             {
-                return ApiExceptionResults.From(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
             catch (AppException ex)
             {
-                return ApiExceptionResults.From(ex);
+                return ApiExceptionResults.From(HttpContext, ex);
             }
         }
 

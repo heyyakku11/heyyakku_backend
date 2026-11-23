@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 using Yakku.Application.Audit;
 using Yakku.Application.Auth;
 using Yakku.Application.Auth.DTOs;
@@ -13,6 +15,7 @@ using Yakku.Application.Common.Responses;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 using Yakku.Infrastructure.Redis;
+using Yakku.Infrastructure.Sms;
 
 namespace Yakku.Tests;
 
@@ -162,53 +165,50 @@ public sealed class OtpSignupFlowTests
         Assert.Equal(Phone, h.Sms.Last.PhoneNumber);
     }
 
-    // ---- delivery failure after the OTP was stored ----------------------------------------------------------
+    // ---- delivery failure after the OTP was stored (async worker; API still returns 200) --------------------
 
     [SkippableTheory]
-    [InlineData(SmsFailureCategory.Authentication)]
-    [InlineData(SmsFailureCategory.Template)]
-    [InlineData(SmsFailureCategory.Network)]
-    [InlineData(SmsFailureCategory.Timeout)]
-    [InlineData(SmsFailureCategory.ProviderError)]
-    [InlineData(SmsFailureCategory.ProviderRateLimited)]
-    [InlineData(SmsFailureCategory.Rejected)]
-    [InlineData(SmsFailureCategory.InvalidResponse)]
-    public async Task WhenTheProviderDoesNotAccept_TheOtpIsInvalidated_AndTheClientGetsAGenericError(SmsFailureCategory failure)
+    [InlineData(SmsFailureCategory.Authentication, 1)]
+    [InlineData(SmsFailureCategory.Template, 1)]
+    [InlineData(SmsFailureCategory.Rejected, 1)]
+    [InlineData(SmsFailureCategory.InvalidResponse, 1)]
+    [InlineData(SmsFailureCategory.InvalidRecipient, 1)]
+    [InlineData(SmsFailureCategory.Network, 3)]
+    [InlineData(SmsFailureCategory.Timeout, 3)]
+    [InlineData(SmsFailureCategory.ProviderError, 3)]
+    [InlineData(SmsFailureCategory.ProviderRateLimited, 3)]
+    public async Task WhenTheProviderDoesNotAccept_TheApiStillSucceeds_AndTheWorkerInvalidatesTheOtp(
+        SmsFailureCategory failure,
+        int expectedAttempts)
     {
         var h = await StartAsync();
         h.Sms.Behavior = FakeSmsService.FailsWith(failure);
 
-        var exception = await AssertFailsAsync(h.NewAuth().RequestOtpAsync(Request()), 503, ApiErrorCodes.ServiceUnavailable);
+        var response = await h.NewAuth().RequestOtpAsync(Request());
 
-        // No provider internals reach the client.
-        var visible = exception.Message + exception.ErrorMessage + exception.ErrorCode;
-        Assert.DoesNotContain(failure.ToString(), visible, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("msg91", visible, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Registration", response.Purpose);
+        Assert.Equal(expectedAttempts, h.Sms.Sent.Count);
 
-        // The stored OTP is gone and unusable; nothing is left behind that blocks a retry.
         var otp = h.Sms.Last.Otp;
         Assert.False(await _redis.Database.KeyExistsAsync(ChallengeKey));
         Assert.False(await _redis.Database.KeyExistsAsync(SendCountKey));
         await AssertFailsAsync(h.NewAuth().VerifyOtpAsync(Verify(otp)), 404, ApiErrorCodes.OtpNotFound);
         Assert.Empty(h.Users.Snapshot);
 
-        // Recorded as a failed attempt with the category, never the OTP.
-        var audit = Assert.Single(h.Audit.Notifications);
-        Assert.Equal(NotificationAuditStatus.Failed, audit.Status);
-        Assert.Equal(failure.ToString(), audit.ErrorCode);
-        Assert.DoesNotContain(otp, JsonSerializer.Serialize(audit));
-
-        // Nothing sensitive was logged by the signup service either.
+        var audits = h.Audit.Notifications.Where(entry => entry.Status == NotificationAuditStatus.Failed).ToList();
+        Assert.Equal(expectedAttempts, audits.Count);
+        Assert.All(audits, entry => Assert.Equal(failure.ToString(), entry.ErrorCode));
+        Assert.DoesNotContain(otp, JsonSerializer.Serialize(audits));
         Assert.DoesNotContain(otp, h.Log.AllText);
-        Assert.DoesNotContain("9876543210", h.Log.AllText);
+        Assert.DoesNotContain(otp, h.WorkerLog.AllText);
     }
 
     [SkippableFact]
     public async Task AfterAFailedDelivery_TheUserCanAskAgainImmediately()
     {
         var h = await StartAsync();
-        h.Sms.Behavior = FakeSmsService.FailsWith(SmsFailureCategory.Network);
-        await Assert.ThrowsAsync<AppException>(() => h.NewAuth().RequestOtpAsync(Request()));
+        h.Sms.Behavior = FakeSmsService.FailsWith(SmsFailureCategory.Authentication);
+        await h.NewAuth().RequestOtpAsync(Request());
 
         h.Sms.Behavior = FakeSmsService.Accepts;
         var response = await h.NewAuth().RequestOtpAsync(Request());
@@ -220,25 +220,15 @@ public sealed class OtpSignupFlowTests
     }
 
     [SkippableFact]
-    public async Task ANumberTheProviderCannotText_GetsAValidationError_AndNoOtpIsLeftBehind()
-    {
-        var h = await StartAsync();
-        h.Sms.Behavior = FakeSmsService.FailsWith(SmsFailureCategory.InvalidRecipient);
-
-        var exception = await AssertFailsAsync(h.NewAuth().RequestOtpAsync(Request()), 400, ApiErrorCodes.ValidationError);
-
-        Assert.Equal("phoneNumber", exception.Field);
-        Assert.False(await _redis.Database.KeyExistsAsync(ChallengeKey));
-    }
-
-    [SkippableFact]
-    public async Task AnUnexpectedSmsException_InvalidatesTheOtp_AndPropagates()
+    public async Task AnUnexpectedSmsException_IsRetriedThenTheOtpIsInvalidated()
     {
         var h = await StartAsync();
         h.Sms.Behavior = _ => throw new InvalidOperationException("provider client blew up");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => h.NewAuth().RequestOtpAsync(Request()));
+        var response = await h.NewAuth().RequestOtpAsync(Request());
 
+        Assert.Equal("Registration", response.Purpose);
+        Assert.Equal(OtpSmsQueueOptions.MaxAttempts, h.Sms.Sent.Count);
         Assert.False(await _redis.Database.KeyExistsAsync(ChallengeKey));
         Assert.False(await _redis.Database.KeyExistsAsync(SendCountKey));
     }
@@ -272,12 +262,12 @@ public sealed class OtpSignupFlowTests
         };
         h.Sms.Behavior = async _ =>
         {
-            // While this request is talking to the provider, a newer OTP replaces its challenge.
+            // While this job is talking to the provider, a newer OTP replaces its challenge.
             await h.Store.SetAsync(Phone, newer, TimeSpan.FromMinutes(5));
             return SmsSendResult.Failed(SmsFailureCategory.Network);
         };
 
-        await AssertFailsAsync(h.NewAuth().RequestOtpAsync(Request()), 503, ApiErrorCodes.ServiceUnavailable);
+        await h.NewAuth().RequestOtpAsync(Request());
 
         var verified = await h.NewAuth().VerifyOtpAsync(Verify("654321"));
         Assert.Equal("Registration", verified.Purpose);
@@ -306,15 +296,15 @@ public sealed class OtpSignupFlowTests
     }
 
     [SkippableFact]
-    public async Task WhenRedisFailsDuringRollback_TheDeliveryErrorIsStillWhatTheCallerGets()
+    public async Task WhenRedisFailsDuringRollback_TheWorkerLogsAndLeavesTheChallengeToExpire()
     {
         var h = await StartAsync();
         h.Store = new RevokeFailingStore(h.Store);
-        h.Sms.Behavior = FakeSmsService.FailsWith(SmsFailureCategory.Network);
+        h.Sms.Behavior = FakeSmsService.FailsWith(SmsFailureCategory.Authentication);
 
-        await AssertFailsAsync(h.NewAuth().RequestOtpAsync(Request()), 503, ApiErrorCodes.ServiceUnavailable);
+        await h.NewAuth().RequestOtpAsync(Request());
 
-        Assert.Contains("expires on its own", h.Log.AllText);
+        Assert.Contains("expires on its own", h.WorkerLog.AllText);
     }
 
     [SkippableFact]
@@ -566,11 +556,18 @@ public sealed class OtpSignupFlowTests
 
     private sealed class Harness
     {
+        private readonly Channel<SmsOtpJob> _smsChannel =
+            Channel.CreateBounded<SmsOtpJob>(OtpSmsQueueOptions.Capacity);
+
         public Harness(IOtpChallengeStore store, OtpPolicy policy, bool userExists)
         {
             Store = store;
             Policy = policy;
             Users = new FakeUsers(userExists ? [new User(Phone, "Quiet Fox")] : []);
+            WorkerLog = new CapturingLogger<OtpSmsWorker>();
+            var scopeFactory = new StoreScopeFactory(() => Store);
+            Worker = new OtpSmsWorker(_smsChannel, scopeFactory, Sms, WorkerLog, Audit);
+            SmsQueue = new InlineOtpSmsQueue((job, token) => Worker.ProcessJobAsync(job, token));
         }
 
         public IOtpChallengeStore Store { get; set; }
@@ -581,9 +578,15 @@ public sealed class OtpSignupFlowTests
 
         public FakeSmsService Sms { get; } = new();
 
+        public IOtpSmsQueue SmsQueue { get; }
+
+        public OtpSmsWorker Worker { get; }
+
         public ThreadSafeAuditWriter Audit { get; } = new();
 
         public CapturingLogger<AuthService> Log { get; } = new();
+
+        public CapturingLogger<OtpSmsWorker> WorkerLog { get; }
 
         /// <summary>A fresh service per call, as the scoped registration gives one per request.</summary>
         public AuthService NewAuth() => new(
@@ -596,10 +599,35 @@ public sealed class OtpSignupFlowTests
             new ResendOtpValidator(),
             new VerifyOtpValidator(),
             Audit,
-            new FakeSnapshot(),
             Sms,
+            SmsQueue,
             Policy,
             Log);
+    }
+
+    private sealed class StoreScopeFactory : IServiceScopeFactory
+    {
+        private readonly Func<IOtpChallengeStore> _store;
+
+        public StoreScopeFactory(Func<IOtpChallengeStore> store) => _store = store;
+
+        public IServiceScope CreateScope() => new StoreScope(_store());
+
+        private sealed class StoreScope : IServiceScope, IServiceProvider
+        {
+            private readonly IOtpChallengeStore _store;
+
+            public StoreScope(IOtpChallengeStore store) => _store = store;
+
+            public IServiceProvider ServiceProvider => this;
+
+            public object? GetService(Type serviceType)
+                => serviceType == typeof(IOtpChallengeStore) ? _store : null;
+
+            public void Dispose()
+            {
+            }
+        }
     }
 
     private sealed class FakeUsers : IUserRepository
@@ -662,12 +690,6 @@ public sealed class OtpSignupFlowTests
 
         public Task RevokeAllAsync(Guid userId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
-    }
-
-    private sealed class FakeSnapshot : ILoginSnapshotReader
-    {
-        public Task<LoginSnapshot> GetAsync(Guid userId, string? installationId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new LoginSnapshot("abc123", "Draft", "Unknown", false));
     }
 
     private sealed class FixedNameAllocator : Yakku.Application.Users.Interfaces.IAnonymousNameAllocator

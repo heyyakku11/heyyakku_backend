@@ -30,6 +30,7 @@ namespace Yakku.API.Middleware
                 return;
             }
 
+            AuditRequestTiming.MarkStart(context.Items);
             var stopwatch = Stopwatch.StartNew();
             try
             {

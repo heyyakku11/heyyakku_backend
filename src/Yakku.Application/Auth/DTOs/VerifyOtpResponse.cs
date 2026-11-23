@@ -17,43 +17,8 @@ namespace Yakku.Application.Auth.DTOs
         /// <summary>True when this login cancelled a pending account deletion.</summary>
         public bool AccountRestored { get; set; }
 
-        /// <summary>Who signed in.</summary>
-        public VerifyOtpUser User { get; set; } = new();
-
         /// <summary>The tokens for this session.</summary>
         public TokenResponse Auth { get; set; } = new();
-    }
-
-    public class VerifyOtpUser
-    {
-        public string AnonymousName { get; set; } = string.Empty;
-
-        /// <summary>The user's personality card: its share code and where it is in its lifecycle.</summary>
-        public VerifyOtpPersonalityCard PersonalityCard { get; set; } = new();
-
-        /// <summary>Permission state of the device that signed in.</summary>
-        public VerifyOtpPermissions Permissions { get; set; } = new();
-
-        /// <summary>True when the user has asked to be notified when the community goes live. False until they do.</summary>
-        public bool CommunityNotifyRequested { get; set; }
-    }
-
-    public class VerifyOtpPersonalityCard
-    {
-        /// <summary>The code in the card's share link.</summary>
-        public string ShareCode { get; set; } = string.Empty;
-
-        /// <summary>Draft, Collecting or Completed.</summary>
-        public string Status { get; set; } = string.Empty;
-    }
-
-    public class VerifyOtpPermissions
-    {
-        /// <summary>Unknown, Granted or Denied. Unknown when no device was sent or it never reported one.</summary>
-        public string Notification { get; set; } = "Unknown";
-
-        /// <summary>Whether push is switched on for this device.</summary>
-        public bool IsPushAllowed { get; set; }
     }
 
     /// <summary>What <see cref="Yakku.Application.Auth.Interfaces.ILoginSnapshotReader"/> returns.</summary>

@@ -204,6 +204,16 @@ namespace Yakku.Infrastructure
             services.AddSingleton<IAdminEmailQueue, AdminEmailQueue>();
             services.AddHostedService<AdminEmailWorker>();
 
+            var smsChannel = Channel.CreateBounded<SmsOtpJob>(new BoundedChannelOptions(OtpSmsQueueOptions.Capacity)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
+            services.AddSingleton(smsChannel);
+            services.AddSingleton<IOtpSmsQueue, OtpSmsQueue>();
+            services.AddHostedService<OtpSmsWorker>();
+
             // Frequency-based vote notification batching. Settings come from the "VoteNotifications" section or
             // VoteNotifications__* environment variables (a .env file is loaded into the environment above, so it
             // counts too) and are validated when the host starts.

@@ -72,6 +72,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.LatencyMs)
                 .HasColumnName("latency_ms");
 
+            builder.Property(x => x.ApiRoute)
+                .HasColumnName("api_route")
+                .HasMaxLength(200);
+
             builder.Property(x => x.CreatedAt)
                 .HasColumnName("created_at")
                 .IsRequired();

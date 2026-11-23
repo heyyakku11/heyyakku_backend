@@ -84,7 +84,7 @@ public class AuthReliabilityTests
         {
             UserId = Guid.NewGuid(),
             Purpose = "Registration",
-            User = new VerifyOtpUser { AnonymousName = "Goku" },
+            AccountRestored = false,
             Auth = new TokenResponse { AccessToken = "access", RefreshToken = "refresh" }
         };
 
@@ -94,8 +94,10 @@ public class AuthReliabilityTests
 
         Assert.DoesNotContain("userId", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(response.UserId.ToString(), json);
-        Assert.Contains("\"auth\":{\"accessToken\":\"access\"", json);
-        Assert.Contains("\"user\":{\"anonymousName\":\"Goku\"", json);
+        Assert.Contains("\"purpose\":\"Registration\"", json);
+        Assert.Contains("\"accountRestored\":false", json);
+        Assert.Contains("\"auth\":{\"accessToken\":\"access\",\"refreshToken\":\"refresh\"}", json);
+        Assert.DoesNotContain("\"user\":", json);
         Assert.NotEqual(Guid.Empty, response.UserId);
     }
 

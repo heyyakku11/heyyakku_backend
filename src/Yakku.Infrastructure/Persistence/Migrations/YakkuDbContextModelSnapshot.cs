@@ -582,6 +582,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("actor_type");
 
+                    b.Property<string>("ApiRoute")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("api_route");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1650,6 +1655,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ApiRoute")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("api_route");
+
                     b.Property<int>("AttemptNumber")
                         .HasColumnType("integer")
                         .HasColumnName("attempt_number");
@@ -2561,6 +2571,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ActorUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("actor_user_id");
+
+                    b.Property<string>("ApiRoute")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("api_route");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")

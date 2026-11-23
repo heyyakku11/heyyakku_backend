@@ -13,7 +13,9 @@ namespace Yakku.Application.Audit
         string? FailureReason = null,
         string? Subject = null,
         Guid? SessionId = null,
-        IReadOnlyDictionary<string, string?>? Metadata = null);
+        IReadOnlyDictionary<string, string?>? Metadata = null,
+        int? LatencyMs = null,
+        string? ApiRoute = null);
 
     /// <summary>
     /// <c>VoterUserId</c> is pseudonymised before storage. Never put the chosen option, custom answer or reason in here.
@@ -28,7 +30,9 @@ namespace Yakku.Application.Audit
         string? ToStatus = null,
         string? ErrorCode = null,
         Guid? VoterUserId = null,
-        IReadOnlyDictionary<string, string?>? Metadata = null);
+        IReadOnlyDictionary<string, string?>? Metadata = null,
+        int? LatencyMs = null,
+        string? ApiRoute = null);
 
     /// <summary>
     /// <c>Recipient</c> is masked before storage. <c>Status</c> records provider acceptance only, not delivery.
@@ -47,7 +51,8 @@ namespace Yakku.Application.Audit
         string? ProviderMessageId = null,
         string? ErrorCode = null,
         string? ErrorMessage = null,
-        int? LatencyMs = null);
+        int? LatencyMs = null,
+        string? ApiRoute = null);
 
     public sealed record SystemLogEntry(
         SystemLogCategory Category,

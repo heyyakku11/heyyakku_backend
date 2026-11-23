@@ -30,7 +30,10 @@ public sealed class AuditIntegrationTests
     public async Task Authentication_StoresHashedSubject_RequestContext_AndNoSecrets()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
-        var writer = NewWriter(ip: "203.0.113.9", userAgent: "Mozilla/5.0\r\nInjected: header");
+        var writer = NewWriter(
+            ip: "203.0.113.9",
+            userAgent: "Mozilla/5.0\r\nInjected: header",
+            path: $"/api/v1/auth/verify/{Guid.NewGuid()}?token=secret");
         var email = $"jane.{Guid.NewGuid():N}@example.com";
 
         await writer.WriteAuthenticationAsync(new AuthenticationAuditEntry(
@@ -44,7 +47,8 @@ public sealed class AuditIntegrationTests
             {
                 ["refreshToken"] = "super-secret-refresh",
                 ["reason"] = "attempts"
-            }));
+            },
+            LatencyMs: 42));
 
         await using var context = _fixture.CreateContext();
         var hash = AuditSanitizer.HashSubject(email)!;
@@ -56,6 +60,52 @@ public sealed class AuditIntegrationTests
         Assert.DoesNotContain("super-secret-refresh", row.Metadata ?? string.Empty);
         Assert.Contains("attempts", row.Metadata);
         Assert.DoesNotContain("jane", row.SubjectHash);
+        Assert.Equal(42, row.LatencyMs);
+        Assert.Equal("/api/v1/auth/verify/{id}", row.ApiRoute);
+    }
+
+    [SkippableFact]
+    public async Task Authentication_LeavesApiRouteNullOutsideHttpContext()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        var writer = NewWriter();
+        var subject = $"+9198{Guid.NewGuid():N}"[..13];
+
+        await writer.WriteAuthenticationAsync(new AuthenticationAuditEntry(
+            AuditActorType.System,
+            null,
+            AuditEvents.Auth.OtpRequested,
+            AuditOutcome.Success,
+            Subject: subject));
+
+        await using var context = _fixture.CreateContext();
+        var hash = AuditSanitizer.HashSubject(subject)!;
+        var row = await context.AuthenticationAuditLogs.SingleAsync(log => log.SubjectHash == hash);
+        Assert.Null(row.ApiRoute);
+    }
+
+    [SkippableFact]
+    public async Task Authentication_RecordsElapsedRequestLatencyWhenNotSupplied()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        var writer = NewWriter(
+            ip: "203.0.113.10",
+            userAgent: "latency-test",
+            markRequestStart: true);
+        await Task.Delay(25);
+
+        await writer.WriteAuthenticationAsync(new AuthenticationAuditEntry(
+            AuditActorType.User,
+            null,
+            AuditEvents.Auth.OtpRequested,
+            AuditOutcome.Success,
+            Subject: $"+9199{Guid.NewGuid():N}"[..13]));
+
+        await using var context = _fixture.CreateContext();
+        var row = await context.AuthenticationAuditLogs
+            .OrderByDescending(log => log.CreatedAt)
+            .FirstAsync(log => log.EventType == AuditEvents.Auth.OtpRequested && log.IpAddress == IPAddress.Parse("203.0.113.10"));
+        Assert.True(row.LatencyMs is >= 20);
     }
 
     [SkippableFact]
@@ -327,7 +377,7 @@ public sealed class AuditIntegrationTests
         var oldSystem = new SystemLog(
             SystemLogCategory.Latency, SystemLogSeverity.Warning, tag, "Slow request.", null, null, null, null, null, null, null, now.AddDays(-45));
         var oldNotification = new NotificationAuditLog(
-            NotificationChannel.Email, "resend", tag, null, null, null, null, 1, false, NotificationAuditStatus.Accepted, null, null, null, null, now.AddDays(-100));
+            NotificationChannel.Email, "resend", tag, null, null, null, null, 1, false, NotificationAuditStatus.Accepted, null, null, null, null, createdAt: now.AddDays(-100));
         context.AddRange(oldAuth, freshAuth, pollRow, ancientPollRow, oldSystem, oldNotification);
         await context.SaveChangesAsync();
 
@@ -361,14 +411,18 @@ public sealed class AuditIntegrationTests
             log.Source == nameof(AuditRetentionService) && log.Category == SystemLogCategory.BackgroundJob));
     }
 
-    private AuditLogWriter NewWriter(string? ip = null, string? userAgent = null)
+    private AuditLogWriter NewWriter(
+        string? ip = null,
+        string? userAgent = null,
+        bool markRequestStart = false,
+        string? path = null)
     {
         var services = new ServiceCollection();
         services.AddDbContext<YakkuDbContext>(options => options.UseNpgsql(_fixture.ConnectionString));
         var provider = services.BuildServiceProvider();
 
         var accessor = new HttpContextAccessor();
-        if (ip is not null || userAgent is not null)
+        if (ip is not null || userAgent is not null || markRequestStart || path is not null)
         {
             var http = new DefaultHttpContext();
             if (ip is not null)
@@ -379,6 +433,16 @@ public sealed class AuditIntegrationTests
             if (userAgent is not null)
             {
                 http.Request.Headers.UserAgent = userAgent;
+            }
+
+            if (path is not null)
+            {
+                http.Request.Path = path;
+            }
+
+            if (markRequestStart)
+            {
+                AuditRequestTiming.MarkStart(http.Items);
             }
 
             accessor.HttpContext = http;

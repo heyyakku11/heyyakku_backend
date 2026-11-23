@@ -23,17 +23,9 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             string? installationId,
             CancellationToken cancellationToken = default)
         {
-            var cardTask = ReadCardAsync(userId, cancellationToken);
-            var communityTask = _context.CommunityWaitlist
-                .AsNoTracking()
-                .AnyAsync(entry => entry.UserId == userId, cancellationToken);
-            var deviceTask = string.IsNullOrWhiteSpace(installationId)
-                ? Task.FromResult<DeviceRow?>(null)
-                : ReadDeviceAsync(userId, installationId, cancellationToken);
-
-            await Task.WhenAll(cardTask, communityTask, deviceTask);
-
-            var card = await cardTask;
+            // DbContext is not thread-safe: never start overlapping operations on the same instance
+            // (Task.WhenAll / parallel awaits will throw InvalidOperationException).
+            var card = await ReadCardAsync(userId, cancellationToken);
             if (card is null)
             {
                 await _personality.EnsureCardAsync(userId, cancellationToken);
@@ -41,12 +33,20 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     ?? throw PersonalityExceptions.CardNotFound();
             }
 
+            var communityNotifyRequested = await _context.CommunityWaitlist
+                .AsNoTracking()
+                .AnyAsync(entry => entry.UserId == userId, cancellationToken);
+
             var permission = NotificationPermissionStatus.Unknown;
             var pushAllowed = false;
-            if (await deviceTask is { } device)
+            if (!string.IsNullOrWhiteSpace(installationId))
             {
-                permission = device.NotificationPermission ?? NotificationPermissionStatus.Unknown;
-                pushAllowed = device.IsPushAllowed;
+                var device = await ReadDeviceAsync(userId, installationId, cancellationToken);
+                if (device is not null)
+                {
+                    permission = device.NotificationPermission ?? NotificationPermissionStatus.Unknown;
+                    pushAllowed = device.IsPushAllowed;
+                }
             }
 
             return new LoginSnapshot(
@@ -54,7 +54,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 card.Status.ToString(),
                 permission.ToString(),
                 pushAllowed,
-                await communityTask);
+                communityNotifyRequested);
         }
 
         private Task<CardRow?> ReadCardAsync(Guid userId, CancellationToken cancellationToken)

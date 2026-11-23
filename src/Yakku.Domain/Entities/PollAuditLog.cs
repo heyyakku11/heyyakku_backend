@@ -21,6 +21,8 @@ namespace Yakku.Domain.Entities
         public string? TraceId { get; private set; }
         public string? Metadata { get; private set; }
         public int? LatencyMs { get; private set; }
+        /// <summary>Normalized request path when this row was written from an API call; null for non-HTTP work.</summary>
+        public string? ApiRoute { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
         private PollAuditLog()
@@ -40,6 +42,7 @@ namespace Yakku.Domain.Entities
             string? traceId,
             string? metadata,
             int? latencyMs = null,
+            string? apiRoute = null,
             DateTime? createdAt = null)
         {
             Id = Guid.NewGuid();
@@ -55,6 +58,7 @@ namespace Yakku.Domain.Entities
             TraceId = traceId;
             Metadata = metadata;
             LatencyMs = latencyMs;
+            ApiRoute = apiRoute;
             CreatedAt = createdAt ?? DateTime.UtcNow;
         }
     }
