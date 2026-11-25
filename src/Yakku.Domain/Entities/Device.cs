@@ -8,7 +8,6 @@ namespace Yakku.Domain.Entities
     {
         public Guid Id { get; private set; }
         public Guid? UserId { get; private set; }
-        public Guid? GuestId { get; private set; }
 
         /// <summary>
         /// The one login session that currently owns this installation. <see cref="UserId"/> is the account that
@@ -43,7 +42,6 @@ namespace Yakku.Domain.Entities
         public DateTime UpdatedAt { get; private set; }
 
         public User? User { get; private set; }
-        public Guest? Guest { get; private set; }
         public ICollection<UserSession> Sessions { get; private set; } = new List<UserSession>();
 
         private Device()
@@ -60,11 +58,6 @@ namespace Yakku.Domain.Entities
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
             LastSeenAt = CreatedAt;
-        }
-
-        public static Device ForGuest(string installationId, DevicePlatform platform, Guid guestId)
-        {
-            return new Device(installationId, platform) { GuestId = guestId };
         }
 
         public static string ComputeTokenHash(string pushToken)
@@ -91,28 +84,9 @@ namespace Yakku.Domain.Entities
                 notificationPermission);
         }
 
-        public void RegisterForGuest(
-            Guid guestId,
-            DevicePlatform platform,
-            string? pushToken,
-            string? deviceModel,
-            string? osVersion,
-            string? appVersion,
-            string? appBuild,
-            string? locale,
-            string? timezone,
-            NotificationPermissionStatus? notificationPermission)
-        {
-            AssignToGuest(guestId);
-            ApplyRegistration(
-                platform, pushToken, deviceModel, osVersion, appVersion, appBuild, locale, timezone,
-                notificationPermission);
-        }
-
         /// <summary>
-        /// An installation has exactly one owner: assigning a user releases any guest owner. A different user never
-        /// inherits the previous account's session pointer; <paramref name="sessionId"/> (if any) must belong to
-        /// <paramref name="userId"/>.
+        /// Associates this installation with an account. A different user never inherits the previous account's
+        /// session pointer; <paramref name="sessionId"/> (if any) must belong to <paramref name="userId"/>.
         /// </summary>
         public void AssignToUser(Guid userId, Guid? sessionId = null)
         {
@@ -122,18 +96,10 @@ namespace Yakku.Domain.Entities
             }
 
             UserId = userId;
-            GuestId = null;
             if (sessionId is not null)
             {
                 CurrentSessionId = sessionId;
             }
-        }
-
-        public void AssignToGuest(Guid guestId)
-        {
-            GuestId = guestId;
-            UserId = null;
-            CurrentSessionId = null;
         }
 
         /// <summary>

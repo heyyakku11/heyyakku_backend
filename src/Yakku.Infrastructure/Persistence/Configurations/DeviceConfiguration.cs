@@ -10,10 +10,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
         {
             builder.ToTable("devices", table =>
             {
-                // An installation has at most one owner. (Neither is allowed: an orphan whose user was deleted.)
-                table.HasCheckConstraint(
-                    "CK_devices_single_owner",
-                    "NOT (\"UserId\" IS NOT NULL AND \"GuestId\" IS NOT NULL)");
                 table.HasCheckConstraint(
                     "CK_devices_push_token_hash_matches_token",
                     "(\"PushToken\" IS NULL) = (\"PushTokenHash\" IS NULL)");
@@ -76,10 +72,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.UserId)
                 .HasDatabaseName("IX_Devices_UserId");
 
-            builder.HasIndex(x => x.GuestId)
-                .HasFilter("\"GuestId\" IS NOT NULL")
-                .HasDatabaseName("IX_Devices_GuestId");
-
             // A push token belongs to exactly one installation.
             builder.HasIndex(x => x.PushTokenHash)
                 .IsUnique()
@@ -111,13 +103,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasForeignKey(x => x.UserId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.SetNull);
-
-            // A guest's installations go with the guest when it is purged (they are transferred first on claim).
-            builder.HasOne(x => x.Guest)
-                .WithMany()
-                .HasForeignKey(x => x.GuestId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

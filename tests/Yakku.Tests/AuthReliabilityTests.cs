@@ -85,6 +85,8 @@ public class AuthReliabilityTests
             UserId = Guid.NewGuid(),
             Purpose = "Registration",
             AccountRestored = false,
+            AnonymousName = "QuietFox",
+            CurrentPlanCode = "free",
             Auth = new TokenResponse { AccessToken = "access", RefreshToken = "refresh" }
         };
 
@@ -96,6 +98,8 @@ public class AuthReliabilityTests
         Assert.DoesNotContain(response.UserId.ToString(), json);
         Assert.Contains("\"purpose\":\"Registration\"", json);
         Assert.Contains("\"accountRestored\":false", json);
+        Assert.Contains("\"anonymousName\":\"QuietFox\"", json);
+        Assert.Contains("\"currentPlanCode\":\"free\"", json);
         Assert.Contains("\"auth\":{\"accessToken\":\"access\",\"refreshToken\":\"refresh\"}", json);
         Assert.DoesNotContain("\"user\":", json);
         Assert.NotEqual(Guid.Empty, response.UserId);

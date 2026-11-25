@@ -99,25 +99,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 })
                 .ToListAsync(cancellationToken);
 
-            // The most recently seen installation of each guest on this page, in one extra query.
-            var ids = rows.Select(row => row.Id).ToList();
-            var devices = await _context.Devices
-                .AsNoTracking()
-                .Where(device => device.GuestId != null && ids.Contains(device.GuestId.Value))
-                .OrderByDescending(device => device.LastSeenAt)
-                .Select(device => new
-                {
-                    GuestId = device.GuestId!.Value,
-                    device.Platform,
-                    device.DeviceModel,
-                    device.OsVersion,
-                    device.AppVersion
-                })
-                .ToListAsync(cancellationToken);
-            var latestDevice = devices
-                .GroupBy(device => device.GuestId)
-                .ToDictionary(group => group.Key, group => group.First());
-
             return new AdminPage<AdminGuestResponse>
             {
                 TotalCount = total,
@@ -129,15 +110,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     ExpiresAt = row.ExpiresAt,
                     LastSeenAt = row.LastSeenAt,
                     CardVotes = row.PollVotes + row.CheckVotes,
-                    Device = latestDevice.TryGetValue(row.Id, out var device)
-                        ? new AdminGuestDeviceResponse
-                        {
-                            Platform = device.Platform.ToString(),
-                            DeviceModel = device.DeviceModel,
-                            OsVersion = device.OsVersion,
-                            AppVersion = device.AppVersion
-                        }
-                        : null
+                    Device = null
                 }).ToList()
             };
         }

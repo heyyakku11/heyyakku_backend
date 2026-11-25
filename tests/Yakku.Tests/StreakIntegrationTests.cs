@@ -675,8 +675,6 @@ public sealed class StreakIntegrationTests
         var devices = new DeviceService(
             new DeviceRepository(context),
             new UserSessionRepository(context),
-            new GuestRepository(context),
-            new GuestTokenHasher(),
             new RegisterDeviceValidator(),
             new UpdateDeviceValidator(),
             new RecordingAuditLogWriter());

@@ -226,12 +226,11 @@ An installation (`installationId` + platform) has **one owner**, taken from the 
 | Token already on another installation of the **same owner** | Stale copy is cleared |
 | Token or installation held by **someone else** | `409 DEVICE_CONFLICT`, no takeover |
 | Notification permission `denied` | Token is cleared, push stops, record is kept |
-| Guest signs in (register or login) | Guest installations move to the user inside the same transaction as the upload-session claim; expired / missing guest credential transfers nothing; a failure rolls everything back and never fails the login |
+| Guest signs in (register or login) | Guest media/upload sessions and votes are claimed; devices are not guest-owned and bind on login/register only |
 | Logout (single session) | Revokes that session only. That device receives no push once no live session is linked to it; the installation **stays linked to the account** (ownership never changes silently) and its token is cleared unless another live session still uses it. Other devices of the user are unaffected. The next login must register the device again |
 | Logout all | Every session is revoked, so none of the user's devices receives push |
 | Session evicted by a newer login (more than 5) | The evicted session's device stops receiving push, because it no longer has a live session |
 | Next account on the same phone | May register the installation once the previous owner has no live session on it (i.e. after logout) |
-| Guest purged after expiry | Its remaining installations are deleted with it |
 
 ## Audit logs and monitoring
 

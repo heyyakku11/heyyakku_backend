@@ -864,27 +864,21 @@ public sealed class SessionDeviceAssociationTests
     }
 
     [SkippableFact]
-    public async Task ALoginBindFailure_StillCreatesTheSession()
+    public async Task Login_BindsAFreeInstallation_ToTheNewSession()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var user = await AddUserAsync(context);
-        var guest = new Guest("hash-" + Guid.NewGuid().ToString("N"), DateTime.UtcNow);
-        context.Guests.Add(guest);
-        await context.SaveChangesAsync();
         var installation = NewInstallation();
-        await NewDeviceService(context).RegisterAsync(DeviceCaller.ForGuest(guest.Id), installation);
 
-        // The OTP is already consumed by the time the device is bound: a guest-owned installation must not
-        // lock the user out, and must not be taken over without the guest claim.
         var login = await NewSessionService(context).CreateAsync(user.Id, installation);
 
         await using var verify = _fixture.CreateContext();
         var session = await verify.UserSessions.SingleAsync(s => s.Id == SessionIdOf(login.RefreshToken));
-        Assert.Null(session.DeviceId);
         var device = await verify.Devices.SingleAsync(d => d.InstallationId == installation.InstallationId);
-        Assert.Equal(guest.Id, device.GuestId);
-        Assert.Null(device.UserId);
+        Assert.Equal(device.Id, session.DeviceId);
+        Assert.Equal(user.Id, device.UserId);
+        Assert.Equal(session.Id, device.CurrentSessionId);
     }
 
     // ---- helpers -----------------------------------------------------------------------------------------------
@@ -956,8 +950,6 @@ public sealed class SessionDeviceAssociationTests
         return new DeviceService(
             new DeviceRepository(context),
             new UserSessionRepository(context),
-            new GuestRepository(context),
-            new GuestTokenHasher(),
             new RegisterDeviceValidator(),
             new UpdateDeviceValidator(),
             new RecordingAuditLogWriter());

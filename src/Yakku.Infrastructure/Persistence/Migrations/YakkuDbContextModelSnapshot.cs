@@ -1205,9 +1205,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
-                    b.Property<Guid?>("GuestId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("InstallationId")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1267,10 +1264,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_Devices_CurrentSessionId")
                         .HasFilter("\"CurrentSessionId\" IS NOT NULL");
 
-                    b.HasIndex("GuestId")
-                        .HasDatabaseName("IX_Devices_GuestId")
-                        .HasFilter("\"GuestId\" IS NOT NULL");
-
                     b.HasIndex("PushTokenHash")
                         .IsUnique()
                         .HasDatabaseName("IX_Devices_PushTokenHash")
@@ -1292,8 +1285,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_devices_push_allowed_requires_granted", "NOT \"IsPushAllowed\" OR COALESCE(\"NotificationPermission\" = 'Granted', FALSE)");
 
                             t.HasCheckConstraint("CK_devices_push_token_hash_matches_token", "(\"PushToken\" IS NULL) = (\"PushTokenHash\" IS NULL)");
-
-                            t.HasCheckConstraint("CK_devices_single_owner", "NOT (\"UserId\" IS NOT NULL AND \"GuestId\" IS NOT NULL)");
                         });
                 });
 
@@ -3052,7 +3043,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_share_codes_content_type", "\"content_type\" IN ('POLL', 'CHECK', 'PERSONALITY')");
 
-                            t.HasCheckConstraint("CK_share_codes_one_target", "(\"content_type\" = 'POLL' AND \"poll_id\" IS NOT NULL AND \"user_check_id\" IS NULL AND \"personality_card_id\" IS NULL)\nOR\n(\"content_type\" = 'CHECK' AND \"poll_id\" IS NULL AND \"user_check_id\" IS NOT NULL AND \"personality_card_id\" IS NULL)\nOR\n(\"content_type\" = 'PERSONALITY' AND \"poll_id\" IS NULL AND \"user_check_id\" IS NULL AND \"personality_card_id\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_share_codes_one_target", "(\"content_type\" = 'POLL' AND \"poll_id\" IS NOT NULL AND \"user_check_id\" IS NULL AND \"personality_card_id\" IS NULL)\r\nOR\r\n(\"content_type\" = 'CHECK' AND \"poll_id\" IS NULL AND \"user_check_id\" IS NOT NULL AND \"personality_card_id\" IS NULL)\r\nOR\r\n(\"content_type\" = 'PERSONALITY' AND \"poll_id\" IS NULL AND \"user_check_id\" IS NULL AND \"personality_card_id\" IS NOT NULL)");
                         });
                 });
 
@@ -4098,11 +4089,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.Device", b =>
                 {
-                    b.HasOne("Yakku.Domain.Entities.Guest", "Guest")
-                        .WithMany()
-                        .HasForeignKey("GuestId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.HasOne("Yakku.Domain.Entities.User", "User")
                         .WithMany("Devices")
                         .HasForeignKey("UserId")
@@ -4114,8 +4100,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("Id", "UserId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("FK_devices_user_sessions_CurrentSessionId_UserId");
-
-                    b.Navigation("Guest");
 
                     b.Navigation("User");
                 });

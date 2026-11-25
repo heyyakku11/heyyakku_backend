@@ -375,7 +375,7 @@ public class GuestLifecycleTests
             VoteClaims = new InMemoryGuestVoteClaims();
             Tokens = new GuestSessionTokenFactory(TestJwtSecret);
             Identity = new GuestIdentityService(Guests, Tokens, Hasher, Audit);
-            Claim = new GuestMediaClaimService(Guests, Hasher, Sessions, new InMemoryDeviceRepository(), VoteClaims, Audit);
+            Claim = new GuestMediaClaimService(Guests, Hasher, Sessions, VoteClaims, Audit);
             Cleanup = new GuestCleanupService(
                 Guests,
                 Sessions,

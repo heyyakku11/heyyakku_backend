@@ -45,20 +45,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         }
 
         public Task<Device?> GetOwnedByInstallationIdAsync(
-            Guid? userId,
-            Guid? guestId,
+            Guid userId,
             string installationId,
             CancellationToken cancellationToken = default)
         {
-            if (userId is null && guestId is null)
-            {
-                return Task.FromResult<Device?>(null);
-            }
-
             return _context.Devices
-                .Where(device => device.InstallationId == installationId
-                    && ((userId != null && device.UserId == userId)
-                        || (guestId != null && device.GuestId == guestId)))
+                .Where(device => device.InstallationId == installationId && device.UserId == userId)
                 .OrderByDescending(device => device.LastSeenAt)
                 .FirstOrDefaultAsync(cancellationToken);
         }
@@ -235,33 +227,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             {
                 entry.State = EntityState.Detached;
             }
-        }
-
-        public async Task<int> TransferGuestDevicesAsync(
-            Guid guestId,
-            Guid userId,
-            CancellationToken cancellationToken = default)
-        {
-            var utcNow = DateTime.UtcNow;
-            var moved = await _context.Devices
-                .Where(device => device.GuestId == guestId)
-                .ExecuteUpdateAsync(
-                    setters => setters
-                        .SetProperty(device => device.UserId, userId)
-                        .SetProperty(device => device.GuestId, (Guid?)null)
-                        .SetProperty(device => device.UpdatedAt, utcNow),
-                    cancellationToken);
-
-            // ExecuteUpdate bypasses the change tracker. A copy still tracked with the old guest owner would be
-            // cascade-deleted along with the guest, so drop it; it is re-read from the database when needed.
-            foreach (var entry in _context.ChangeTracker.Entries<Device>()
-                         .Where(entry => entry.Entity.GuestId == guestId)
-                         .ToList())
-            {
-                entry.State = EntityState.Detached;
-            }
-
-            return moved;
         }
 
         public async Task AddAsync(Device device, CancellationToken cancellationToken = default)

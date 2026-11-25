@@ -172,7 +172,7 @@ public class GuestMediaUploadTests
                 new UpdatePollValidator(),
                 Audit,
                 new NoOpStreakService());
-            Claim = new GuestMediaClaimService(Guests, hasher, SessionStore, new InMemoryDeviceRepository(), new InMemoryGuestVoteClaims(), Audit);
+            Claim = new GuestMediaClaimService(Guests, hasher, SessionStore, new InMemoryGuestVoteClaims(), Audit);
         }
 
         public RecordingAuditLogWriter Audit { get; } = new();

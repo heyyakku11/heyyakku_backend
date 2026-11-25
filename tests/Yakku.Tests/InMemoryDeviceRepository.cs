@@ -32,13 +32,11 @@ internal sealed class InMemoryDeviceRepository : IDeviceRepository
         => GetByInstallationIdAndPlatformAsync(installationId, platform, cancellationToken);
 
     public Task<Device?> GetOwnedByInstallationIdAsync(
-        Guid? userId,
-        Guid? guestId,
+        Guid userId,
         string installationId,
         CancellationToken cancellationToken = default)
         => Task.FromResult(_devices.FirstOrDefault(device =>
-            device.InstallationId == installationId
-            && ((userId is not null && device.UserId == userId) || (guestId is not null && device.GuestId == guestId))));
+            device.InstallationId == installationId && device.UserId == userId));
 
     public Task<IReadOnlyList<Device>> GetByPushTokenHashAsync(
         string pushTokenHash,
@@ -101,13 +99,6 @@ internal sealed class InMemoryDeviceRepository : IDeviceRepository
         var device = _devices.FirstOrDefault(d => d.Id == deviceId && d.PushTokenHash == pushTokenHash);
         device?.ClearPushToken();
         return Task.FromResult(device is not null);
-    }
-
-    public Task<int> TransferGuestDevicesAsync(Guid guestId, Guid userId, CancellationToken cancellationToken = default)
-    {
-        var moved = _devices.Where(device => device.GuestId == guestId).ToList();
-        moved.ForEach(device => device.AssignToUser(userId));
-        return Task.FromResult(moved.Count);
     }
 
     public Task AddAsync(Device device, CancellationToken cancellationToken = default)

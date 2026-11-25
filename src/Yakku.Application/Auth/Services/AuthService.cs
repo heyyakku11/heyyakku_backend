@@ -439,6 +439,8 @@ namespace Yakku.Application.Auth.Services
             {
                 UserId = user.Id,
                 Purpose = purpose.ToString(),
+                AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
+                CurrentPlanCode = user.Plan?.Code ?? Plan.FreeCode,
                 Auth = tokens
             };
         }

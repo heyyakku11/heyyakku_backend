@@ -36,25 +36,19 @@ public sealed class DeviceManagementIntegrationTests
     // ---- register / upsert -------------------------------------------------------------------------------------
 
     [SkippableFact]
-    public async Task Guest_RegistersAnInstallation_AndRepeatingItUpdatesInsteadOfDuplicating()
+    public async Task Guest_CannotRegisterADevice()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var guest = await AddGuestAsync(context);
-        var service = NewDeviceService(context);
         var request = NewRequest();
 
-        var first = await service.RegisterAsync(DeviceCaller.ForGuest(guest.Id), request);
-        request.AppVersion = "2.0.0";
-        var second = await service.RegisterAsync(DeviceCaller.ForGuest(guest.Id), request);
+        var exception = await Assert.ThrowsAnyAsync<AppException>(() =>
+            NewDeviceService(context).RegisterAsync(DeviceCaller.ForGuest(guest.Id), request));
 
-        Assert.True(first.Created);
-        Assert.False(second.Created);
+        Assert.Equal(401, exception.StatusCode);
         await using var verify = _fixture.CreateContext();
-        var row = await verify.Devices.SingleAsync(d => d.InstallationId == request.InstallationId);
-        Assert.Equal(guest.Id, row.GuestId);
-        Assert.Null(row.UserId);
-        Assert.Equal("2.0.0", row.AppVersion);
+        Assert.False(await verify.Devices.AnyAsync(d => d.InstallationId == request.InstallationId));
     }
 
     [SkippableFact]
@@ -73,7 +67,6 @@ public sealed class DeviceManagementIntegrationTests
         await using var verify = _fixture.CreateContext();
         var row = await verify.Devices.SingleAsync(d => d.InstallationId == request.InstallationId);
         Assert.Equal(user.Id, row.UserId);
-        Assert.Null(row.GuestId);
         Assert.Equal(row.Id, (await verify.UserSessions.SingleAsync(s => s.Id == session.Id)).DeviceId);
         Assert.Equal(Device.ComputeTokenHash(request.PushToken!), row.PushTokenHash);
     }
@@ -350,7 +343,7 @@ public sealed class DeviceManagementIntegrationTests
     }
 
     [SkippableFact]
-    public async Task MissingDevice_IsNotFound_AndGuestsMustNameTheInstallation()
+    public async Task MissingDevice_IsNotFound_AndGuestsAreUnauthorized()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
@@ -362,12 +355,12 @@ public sealed class DeviceManagementIntegrationTests
             DeviceCaller.ForUser(user.Id, session.Id), "does-not-exist", new UpdateDeviceRequest()));
         var noSessionDevice = await Assert.ThrowsAnyAsync<AppException>(() => service.UnregisterCurrentAsync(
             DeviceCaller.ForUser(user.Id, session.Id), null));
-        var guestWithoutHeader = await Assert.ThrowsAnyAsync<AppException>(() => service.UpdateCurrentAsync(
+        var guestCaller = await Assert.ThrowsAnyAsync<AppException>(() => service.UpdateCurrentAsync(
             DeviceCaller.ForGuest(guest.Id), null, new UpdateDeviceRequest()));
 
         Assert.Equal(404, missing.StatusCode);
         Assert.Equal(404, noSessionDevice.StatusCode);
-        Assert.Equal(400, guestWithoutHeader.StatusCode);
+        Assert.Equal(401, guestCaller.StatusCode);
     }
 
     [SkippableFact]
@@ -454,29 +447,6 @@ public sealed class DeviceManagementIntegrationTests
         Assert.Equal(user.Id, row.UserId);
         Assert.Null((await verify.UserSessions.SingleAsync(s => s.Id == session.Id)).RevokedAt);
         Assert.Single(audit.Authentication, e => e.EventType == AuditEvents.Device.Unregistered);
-    }
-
-    [SkippableFact]
-    public async Task Guest_CanUpdateAndUnregister_ItsOwnInstallationOnly()
-    {
-        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
-        await using var context = _fixture.CreateContext();
-        var guest = await AddGuestAsync(context);
-        var otherGuest = await AddGuestAsync(context);
-        var service = NewDeviceService(context);
-        var request = NewRequest();
-        await service.RegisterAsync(DeviceCaller.ForGuest(guest.Id), request);
-
-        var updated = await service.UpdateCurrentAsync(
-            DeviceCaller.ForGuest(guest.Id), request.InstallationId, new UpdateDeviceRequest { AppVersion = "9.9" });
-        var foreign = await Assert.ThrowsAnyAsync<AppException>(() =>
-            service.UnregisterCurrentAsync(DeviceCaller.ForGuest(otherGuest.Id), request.InstallationId));
-        await service.UnregisterCurrentAsync(DeviceCaller.ForGuest(guest.Id), request.InstallationId);
-
-        Assert.Equal("9.9", updated.AppVersion);
-        Assert.Equal(404, foreign.StatusCode);
-        await using var verify = _fixture.CreateContext();
-        Assert.False((await verify.Devices.SingleAsync(d => d.InstallationId == request.InstallationId)).IsActive);
     }
 
     // ---- logout ------------------------------------------------------------------------------------------------
@@ -584,26 +554,22 @@ public sealed class DeviceManagementIntegrationTests
         Assert.True((await verify.Devices.SingleAsync(d => d.InstallationId == theirs.InstallationId)).IsActive);
     }
 
-    // ---- guest to user -----------------------------------------------------------------------------------------
+    // ---- guest claim (devices are user-only) -------------------------------------------------------------------
 
     [SkippableFact]
-    public async Task GuestClaim_TransfersTheInstallation_ToTheNewUser()
+    public async Task GuestClaim_DeletesTheGuest_WithoutDeviceTransfer()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var user = await AddUserAsync(context);
         var (guest, raw) = await AddGuestWithTokenAsync(context);
-        var request = NewRequest();
-        await NewDeviceService(context).RegisterAsync(DeviceCaller.ForGuest(guest.Id), request);
 
         var result = await NewClaimService(context).ClaimAndDeleteGuestAsync(raw, user.Id);
 
         Assert.Equal(GuestClaimResult.Claimed, result);
         await using var verify = _fixture.CreateContext();
-        var row = await verify.Devices.SingleAsync(d => d.InstallationId == request.InstallationId);
-        Assert.Equal(user.Id, row.UserId);
-        Assert.Null(row.GuestId);
         Assert.False(await verify.Guests.AnyAsync(g => g.Id == guest.Id));
+        Assert.Equal(0, await verify.Devices.CountAsync());
     }
 
     [SkippableFact]
@@ -613,34 +579,26 @@ public sealed class DeviceManagementIntegrationTests
         await using var context = _fixture.CreateContext();
         var user = await AddUserAsync(context);
         var (guest, raw) = await AddGuestWithTokenAsync(context, createdDaysAgo: 30);
-        var request = NewRequest();
-        context.Devices.Add(NewGuestDevice(guest.Id, request));
-        await context.SaveChangesAsync();
 
         var result = await NewClaimService(context).ClaimAndDeleteGuestAsync(raw, user.Id);
 
         Assert.Equal(GuestClaimResult.Expired, result);
         await using var verify = _fixture.CreateContext();
-        var row = await verify.Devices.SingleAsync(d => d.InstallationId == request.InstallationId);
-        Assert.Equal(guest.Id, row.GuestId);
-        Assert.Null(row.UserId);
+        Assert.True(await verify.Guests.AnyAsync(g => g.Id == guest.Id));
     }
 
     [SkippableFact]
-    public async Task GuestClaim_FailureRollsBackTheDeviceTransferToo()
+    public async Task GuestClaim_FailureLeavesTheGuestIntact()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var user = await AddUserAsync(context);
         var (guest, raw) = await AddGuestWithTokenAsync(context);
-        var request = NewRequest();
-        await NewDeviceService(context).RegisterAsync(DeviceCaller.ForGuest(guest.Id), request);
         var failing = new FailingSaveGuestRepository(new GuestRepository(context));
         var service = new GuestMediaClaimService(
             failing,
             Hasher,
             new MediaUploadSessionRepository(context),
-            new DeviceRepository(context),
             new GuestVoteClaimRepository(context),
             new RecordingAuditLogWriter());
 
@@ -648,44 +606,15 @@ public sealed class DeviceManagementIntegrationTests
 
         Assert.Equal(GuestClaimResult.Failed, result);
         await using var verify = _fixture.CreateContext();
-        var row = await verify.Devices.SingleAsync(d => d.InstallationId == request.InstallationId);
-        Assert.Equal(guest.Id, row.GuestId);
-        Assert.Null(row.UserId);
         Assert.True(await verify.Guests.AnyAsync(g => g.Id == guest.Id));
     }
 
     [SkippableFact]
-    public async Task User_TakingOverAGuestInstallation_NeedsProofOfTheGuestCredential()
-    {
-        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
-        await using var context = _fixture.CreateContext();
-        var (user, session) = await AddUserWithSessionAsync(context);
-        var (guest, raw) = await AddGuestWithTokenAsync(context);
-        var service = NewDeviceService(context);
-        var request = NewRequest();
-        await service.RegisterAsync(DeviceCaller.ForGuest(guest.Id), request);
-
-        var refused = await Assert.ThrowsAnyAsync<AppException>(() =>
-            service.RegisterAsync(DeviceCaller.ForUser(user.Id, session.Id), request));
-        Assert.Equal(409, refused.StatusCode);
-
-        var accepted = await service.RegisterAsync(DeviceCaller.ForUser(user.Id, session.Id, raw), request);
-        Assert.False(accepted.Created);
-        await using var verify = _fixture.CreateContext();
-        var row = await verify.Devices.SingleAsync(d => d.InstallationId == request.InstallationId);
-        Assert.Equal(user.Id, row.UserId);
-        Assert.Null(row.GuestId);
-    }
-
-    [SkippableFact]
-    public async Task GuestPurge_RemovesItsInstallations_WithoutViolatingTheForeignKey()
+    public async Task GuestPurge_RemovesExpiredGuests()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var (guest, _) = await AddGuestWithTokenAsync(context, createdDaysAgo: 30);
-        var request = NewRequest();
-        context.Devices.Add(NewGuestDevice(guest.Id, request));
-        await context.SaveChangesAsync();
         var sessions = new MediaUploadSessionRepository(context);
         var cleanup = new GuestCleanupService(
             new GuestRepository(context),
@@ -699,7 +628,6 @@ public sealed class DeviceManagementIntegrationTests
         Assert.Equal(0, result.GuestsFailed);
         await using var verify = _fixture.CreateContext();
         Assert.False(await verify.Guests.AnyAsync(g => g.Id == guest.Id));
-        Assert.False(await verify.Devices.AnyAsync(d => d.InstallationId == request.InstallationId));
     }
 
     // ---- validation and constraints ----------------------------------------------------------------------------
@@ -709,9 +637,9 @@ public sealed class DeviceManagementIntegrationTests
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
-        var guest = await AddGuestAsync(context);
+        var (user, session) = await AddUserWithSessionAsync(context);
         var service = NewDeviceService(context);
-        var caller = DeviceCaller.ForGuest(guest.Id);
+        var caller = DeviceCaller.ForUser(user.Id, session.Id);
 
         var cases = new List<Action<RegisterDeviceRequest>>
         {
@@ -734,39 +662,32 @@ public sealed class DeviceManagementIntegrationTests
 
         await Assert.ThrowsAsync<ValidationException>(() => service.UpdateCurrentAsync(
             caller, "abc", new UpdateDeviceRequest { Timezone = new string('z', 101) }));
-        Assert.False(await context.Devices.AnyAsync(d => d.GuestId == guest.Id));
+        Assert.False(await context.Devices.AnyAsync(d => d.UserId == user.Id));
     }
 
     [SkippableFact]
-    public async Task Database_Constraints_EnforceOneOwnerAndOneHolderPerToken()
+    public async Task Database_Constraints_EnforceOneHolderPerToken()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var user = await AddUserAsync(context);
-        var guest = await AddGuestAsync(context);
         var now = DateTime.UtcNow;
-
-        var twoOwners = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO devices ("Id","UserId","GuestId","InstallationId","Platform","IsActive","CreatedAt","UpdatedAt")
-            VALUES ({Guid.NewGuid()}, {user.Id}, {guest.Id}, {"inst-" + Guid.NewGuid():N}, 'Android', true, {now}, {now})
-            """));
-        Assert.Equal(PostgresErrorCodes.CheckViolation, twoOwners.SqlState);
 
         var token = "dup-" + Guid.NewGuid().ToString("N");
         var hash = Device.ComputeTokenHash(token);
         await context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO devices ("Id","GuestId","InstallationId","Platform","IsActive","PushToken","PushTokenHash","CreatedAt","UpdatedAt")
-            VALUES ({Guid.NewGuid()}, {guest.Id}, {"inst-" + Guid.NewGuid():N}, 'Android', true, {token}, {hash}, {now}, {now})
+            INSERT INTO devices ("Id","UserId","InstallationId","Platform","IsActive","PushToken","PushTokenHash","CreatedAt","UpdatedAt")
+            VALUES ({Guid.NewGuid()}, {user.Id}, {"inst-" + Guid.NewGuid():N}, 'Android', true, {token}, {hash}, {now}, {now})
             """);
         var duplicate = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO devices ("Id","GuestId","InstallationId","Platform","IsActive","PushToken","PushTokenHash","CreatedAt","UpdatedAt")
-            VALUES ({Guid.NewGuid()}, {guest.Id}, {"inst-" + Guid.NewGuid():N}, 'iOS', true, {token}, {hash}, {now}, {now})
+            INSERT INTO devices ("Id","UserId","InstallationId","Platform","IsActive","PushToken","PushTokenHash","CreatedAt","UpdatedAt")
+            VALUES ({Guid.NewGuid()}, {user.Id}, {"inst-" + Guid.NewGuid():N}, 'iOS', true, {token}, {hash}, {now}, {now})
             """));
         Assert.Equal(PostgresErrorCodes.UniqueViolation, duplicate.SqlState);
 
         var mismatched = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO devices ("Id","GuestId","InstallationId","Platform","IsActive","PushToken","CreatedAt","UpdatedAt")
-            VALUES ({Guid.NewGuid()}, {guest.Id}, {"inst-" + Guid.NewGuid():N}, 'Android', true, {"no-hash"}, {now}, {now})
+            INSERT INTO devices ("Id","UserId","InstallationId","Platform","IsActive","PushToken","CreatedAt","UpdatedAt")
+            VALUES ({Guid.NewGuid()}, {user.Id}, {"inst-" + Guid.NewGuid():N}, 'Android', true, {"no-hash"}, {now}, {now})
             """));
         Assert.Equal(PostgresErrorCodes.CheckViolation, mismatched.SqlState);
     }
@@ -778,8 +699,6 @@ public sealed class DeviceManagementIntegrationTests
         return new DeviceService(
             new DeviceRepository(context),
             new UserSessionRepository(context),
-            new GuestRepository(context),
-            Hasher,
             new RegisterDeviceValidator(),
             new UpdateDeviceValidator(),
             audit ?? new RecordingAuditLogWriter());
@@ -802,7 +721,6 @@ public sealed class DeviceManagementIntegrationTests
             new GuestRepository(context),
             Hasher,
             new MediaUploadSessionRepository(context),
-            new DeviceRepository(context),
             new GuestVoteClaimRepository(context),
             new RecordingAuditLogWriter());
     }
@@ -825,15 +743,6 @@ public sealed class DeviceManagementIntegrationTests
             Timezone = "UTC",
             NotificationPermission = "granted"
         };
-    }
-
-    private static Device NewGuestDevice(Guid guestId, RegisterDeviceRequest request)
-    {
-        var device = Device.ForGuest(request.InstallationId, DevicePlatform.Android, guestId);
-        device.RegisterForGuest(
-            guestId, DevicePlatform.Android, request.PushToken, request.DeviceModel, request.OsVersion,
-            request.AppVersion, request.AppBuild, request.Locale, request.Timezone, NotificationPermissionStatus.Granted);
-        return device;
     }
 
     private static async Task<User> AddUserAsync(YakkuDbContext context)

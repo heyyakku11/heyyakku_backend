@@ -17,6 +17,12 @@ namespace Yakku.Application.Auth.DTOs
         /// <summary>True when this login cancelled a pending account deletion.</summary>
         public bool AccountRestored { get; set; }
 
+        /// <summary>The user's display name on the platform.</summary>
+        public string AnonymousName { get; set; } = string.Empty;
+
+        /// <summary>Plan code currently on the account (free, yakku_lite, yakku_love).</summary>
+        public string CurrentPlanCode { get; set; } = string.Empty;
+
         /// <summary>The tokens for this session.</summary>
         public TokenResponse Auth { get; set; } = new();
     }

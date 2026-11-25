@@ -6,7 +6,6 @@ using Yakku.Application.Common.Responses;
 using Yakku.Application.Devices.DTOs;
 using Yakku.Application.Devices.Interfaces;
 using Yakku.Application.Devices.Mapper;
-using Yakku.Application.Guests.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
 
@@ -16,8 +15,6 @@ namespace Yakku.Application.Devices.Services
     {
         private readonly IDeviceRepository _devices;
         private readonly IUserSessionRepository _sessions;
-        private readonly IGuestRepository _guests;
-        private readonly IGuestTokenHasher _guestTokenHasher;
         private readonly IValidator<RegisterDeviceRequest> _registerValidator;
         private readonly IValidator<UpdateDeviceRequest> _updateValidator;
         private readonly IAuditLogWriter _audit;
@@ -25,16 +22,12 @@ namespace Yakku.Application.Devices.Services
         public DeviceService(
             IDeviceRepository devices,
             IUserSessionRepository sessions,
-            IGuestRepository guests,
-            IGuestTokenHasher guestTokenHasher,
             IValidator<RegisterDeviceRequest> registerValidator,
             IValidator<UpdateDeviceRequest> updateValidator,
             IAuditLogWriter audit)
         {
             _devices = devices;
             _sessions = sessions;
-            _guests = guests;
-            _guestTokenHasher = guestTokenHasher;
             _registerValidator = registerValidator;
             _updateValidator = updateValidator;
             _audit = audit;
@@ -222,23 +215,11 @@ namespace Yakku.Application.Devices.Services
                     ?? throw DeviceNotFound();
                 EnsureAssociatedWithCaller(device, caller);
 
-                if (caller.IsUser)
-                {
-                    // Conditional on the caller's own session still being the installation's current one, so a
-                    // delayed unregister cannot switch off an installation that has since moved to another session.
-                    var wasUserEnabled = device.IsActive || device.PushToken is not null;
-                    var affected = await _devices.DeactivateBySessionAsync(caller.SessionId!.Value, transactionToken);
-                    changed = wasUserEnabled && affected > 0;
-                    return;
-                }
-
-                var wasEnabled = device.IsActive || device.PushToken is not null;
-                device.Deactivate();
-                if (wasEnabled)
-                {
-                    await _devices.SaveChangesAsync(transactionToken);
-                    changed = true;
-                }
+                // Conditional on the caller's own session still being the installation's current one, so a
+                // delayed unregister cannot switch off an installation that has since moved to another session.
+                var wasUserEnabled = device.IsActive || device.PushToken is not null;
+                var affected = await _devices.DeactivateBySessionAsync(caller.SessionId!.Value, transactionToken);
+                changed = wasUserEnabled && affected > 0;
             }, cancellationToken);
 
             if (changed)
@@ -279,13 +260,16 @@ namespace Yakku.Application.Devices.Services
             RegisterDeviceRequest request,
             CancellationToken cancellationToken)
         {
+            if (!caller.IsUser)
+            {
+                throw Unauthorized();
+            }
+
             // Lock the installation row so register, login and logout on it are serialized.
             var existing = await _devices.GetByInstallationIdAndPlatformForUpdateAsync(
                 installationId, platform, cancellationToken);
-            var provenGuestId = await ResolveProvenGuestIdAsync(caller, cancellationToken);
 
-            if (caller.IsUser
-                && !await _sessions.IsLiveAsync(
+            if (!await _sessions.IsLiveAsync(
                     caller.SessionId!.Value, caller.UserId!.Value, DateTime.UtcNow, cancellationToken))
             {
                 // Logged out (or evicted/expired) after the request was authenticated: never associate it.
@@ -294,7 +278,7 @@ namespace Yakku.Application.Devices.Services
 
             if (existing is not null)
             {
-                await EnsureCanTakeOverAsync(existing, caller, provenGuestId, cancellationToken);
+                await EnsureCanTakeOverAsync(existing, caller, cancellationToken);
             }
 
             var storedToken = permission == NotificationPermissionStatus.Denied
@@ -306,36 +290,25 @@ namespace Yakku.Application.Devices.Services
             }
 
             var created = existing is null;
-            var device = existing ?? (caller.IsUser
-                ? new Device(installationId, platform, caller.UserId)
-                : Device.ForGuest(installationId, platform, caller.GuestId!.Value));
+            var device = existing ?? new Device(installationId, platform, caller.UserId);
 
-            if (caller.IsUser)
+            // Re-read inside the transaction: a rolled-back first attempt detaches earlier entities.
+            var session = await _sessions.GetByIdAsync(caller.SessionId!.Value, cancellationToken)
+                ?? throw Unauthorized();
+            if (session.DeviceId is Guid boundDeviceId && boundDeviceId != device.Id)
             {
-                // Re-read inside the transaction: a rolled-back first attempt detaches earlier entities.
-                var session = await _sessions.GetByIdAsync(caller.SessionId!.Value, cancellationToken)
-                    ?? throw Unauthorized();
-                if (session.DeviceId is Guid boundDeviceId && boundDeviceId != device.Id)
-                {
-                    throw new AppException(
-                        409,
-                        ApiErrorCodes.DeviceConflict,
-                        "This session belongs to another installation. Sign in again on this installation.",
-                        "installationId");
-                }
+                throw new AppException(
+                    409,
+                    ApiErrorCodes.DeviceConflict,
+                    "This session belongs to another installation. Sign in again on this installation.",
+                    "installationId");
+            }
 
-                device.Register(
-                    caller.UserId!.Value, platform, request.PushToken, request.DeviceModel, request.OsVersion,
-                    request.AppVersion, request.AppBuild, request.Locale, request.Timezone, permission,
-                    session.Id);
-                session.AssignDevice(device.Id);
-            }
-            else
-            {
-                device.RegisterForGuest(
-                    caller.GuestId!.Value, platform, request.PushToken, request.DeviceModel, request.OsVersion,
-                    request.AppVersion, request.AppBuild, request.Locale, request.Timezone, permission);
-            }
+            device.Register(
+                caller.UserId!.Value, platform, request.PushToken, request.DeviceModel, request.OsVersion,
+                request.AppVersion, request.AppBuild, request.Locale, request.Timezone, permission,
+                session.Id);
+            session.AssignDevice(device.Id);
 
             if (created)
             {
@@ -353,10 +326,9 @@ namespace Yakku.Application.Devices.Services
         private async Task EnsureCanTakeOverAsync(
             Device existing,
             DeviceCaller caller,
-            Guid? provenGuestId,
             CancellationToken cancellationToken)
         {
-            if (IsOwnedBy(existing, caller, provenGuestId))
+            if (IsOwnedBy(existing, caller))
             {
                 return;
             }
@@ -372,21 +344,6 @@ namespace Yakku.Application.Devices.Services
                         "installation_owned_by_another_account",
                         "This installation is registered to another account.");
                 }
-
-                return;
-            }
-
-            if (existing.GuestId is Guid ownerGuestId)
-            {
-                var ownerGuest = await _guests.GetByIdAsync(ownerGuestId, cancellationToken);
-                if (ownerGuest is null || ownerGuest.IsExpired(DateTime.UtcNow))
-                {
-                    return;
-                }
-
-                throw new DeviceOwnershipException(
-                    "installation_owned_by_another_guest",
-                    "This installation is registered to another session.");
             }
         }
 
@@ -400,7 +357,6 @@ namespace Yakku.Application.Devices.Services
             DeviceCaller caller,
             CancellationToken cancellationToken)
         {
-            var provenGuestId = await ResolveProvenGuestIdAsync(caller, cancellationToken);
             var others = (await _devices.GetByPushTokenHashAsync(Device.ComputeTokenHash(token), cancellationToken))
                 .Where(device => device.Id != selfId)
                 .ToList();
@@ -413,7 +369,7 @@ namespace Yakku.Application.Devices.Services
             {
                 // A holder with no live owner is stale (logged out, expired, reinstalled app); a token is never
                 // taken from a device that still has a live owner of its own.
-                if (!IsOwnedBy(other, caller, provenGuestId) && !await IsStaleHolderAsync(other, cancellationToken))
+                if (!IsOwnedBy(other, caller) && !await IsStaleHolderAsync(other, cancellationToken))
                 {
                     throw new DeviceOwnershipException(
                         "push_token_owned_by_another_device",
@@ -434,6 +390,11 @@ namespace Yakku.Application.Devices.Services
             string? installationId,
             CancellationToken cancellationToken)
         {
+            if (!caller.IsUser)
+            {
+                throw Unauthorized();
+            }
+
             if (!string.IsNullOrWhiteSpace(installationId))
             {
                 var id = installationId.Trim();
@@ -447,16 +408,7 @@ namespace Yakku.Application.Devices.Services
                 }
 
                 return await _devices.GetOwnedByInstallationIdAsync(
-                    caller.UserId, caller.GuestId, id, cancellationToken);
-            }
-
-            if (!caller.IsUser)
-            {
-                throw new AppException(
-                    400,
-                    ApiErrorCodes.ValidationError,
-                    "The X-Installation-Id header is required.",
-                    "installationId");
+                    caller.UserId!.Value, id, cancellationToken);
             }
 
             if (session?.DeviceId is not Guid deviceId)
@@ -468,17 +420,12 @@ namespace Yakku.Application.Devices.Services
             return device?.UserId == caller.UserId ? device : null;
         }
 
-        /// <summary>Validates the caller and, for users, that their login session is still live.</summary>
+        /// <summary>Validates that the caller is a signed-in user with a live login session.</summary>
         private async Task<UserSession?> ValidateCallerAsync(DeviceCaller caller, CancellationToken cancellationToken)
         {
-            if (caller.UserId is null && caller.GuestId is null)
-            {
-                throw Unauthorized();
-            }
-
             if (caller.UserId is not Guid userId)
             {
-                return null;
+                throw Unauthorized();
             }
 
             if (caller.SessionId is not Guid sessionId || sessionId == Guid.Empty)
@@ -499,25 +446,9 @@ namespace Yakku.Application.Devices.Services
             return session;
         }
 
-        /// <summary>The guest whose token the signed-in user also presented, if it is valid and unexpired.</summary>
-        private async Task<Guid?> ResolveProvenGuestIdAsync(DeviceCaller caller, CancellationToken cancellationToken)
+        private static bool IsOwnedBy(Device device, DeviceCaller caller)
         {
-            if (!caller.IsUser || string.IsNullOrWhiteSpace(caller.PresentedGuestToken))
-            {
-                return null;
-            }
-
-            var guest = await _guests.GetByTokenHashAsync(
-                _guestTokenHasher.Hash(caller.PresentedGuestToken.Trim()),
-                cancellationToken);
-            return guest is not null && !guest.IsExpired(DateTime.UtcNow) ? guest.Id : null;
-        }
-
-        private static bool IsOwnedBy(Device device, DeviceCaller caller, Guid? provenGuestId)
-        {
-            return (caller.UserId is not null && device.UserId == caller.UserId)
-                || (caller.GuestId is not null && device.GuestId == caller.GuestId)
-                || (provenGuestId is not null && device.GuestId == provenGuestId);
+            return caller.UserId is not null && device.UserId == caller.UserId;
         }
 
         public async Task<DeviceLoginBindResult> BindLoginAsync(
@@ -540,14 +471,6 @@ namespace Yakku.Application.Devices.Services
             Guid? previousUserId = null;
             if (existing is not null)
             {
-                if (existing.GuestId is not null)
-                {
-                    // A guest's installation moves to the account through the guest-claim step, not here.
-                    throw new DeviceOwnershipException(
-                        "installation_owned_by_guest",
-                        "This installation is registered to a guest session.");
-                }
-
                 if (existing.CurrentSessionId is Guid previousSessionId && previousSessionId != session.Id)
                 {
                     // One active account per installation: the session that used to own it ends. Its user and
@@ -624,18 +547,12 @@ namespace Yakku.Application.Devices.Services
                 && await _sessions.IsLiveAsync(sessionId, userId, DateTime.UtcNow, cancellationToken);
         }
 
-        /// <summary>True when nobody live owns the device: no live session for a user, an expired or gone guest.</summary>
+        /// <summary>True when nobody live owns the device: no live session for a user, or an orphan row.</summary>
         private async Task<bool> IsStaleHolderAsync(Device holder, CancellationToken cancellationToken)
         {
             if (holder.UserId is not null)
             {
                 return !await HasLiveCurrentSessionAsync(holder, cancellationToken);
-            }
-
-            if (holder.GuestId is Guid guestId)
-            {
-                var guest = await _guests.GetByIdAsync(guestId, cancellationToken);
-                return guest is null || guest.IsExpired(DateTime.UtcNow);
             }
 
             return true;
@@ -650,8 +567,8 @@ namespace Yakku.Application.Devices.Services
         {
             return _audit.WriteAuthenticationAsync(
                 new AuthenticationAuditEntry(
-                    caller.IsUser ? AuditActorType.User : AuditActorType.Guest,
-                    caller.UserId ?? caller.GuestId,
+                    AuditActorType.User,
+                    caller.UserId,
                     eventType,
                     outcome,
                     reason,
