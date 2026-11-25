@@ -69,6 +69,19 @@ namespace Yakku.API.Controllers
             return Ok(ApiResponse.Ok(result.Items, "Your checks retrieved successfully", result.Meta));
         }
 
+        /// <summary>One made check the caller owns, with options and tallies when results are unlocked.</summary>
+        [HttpGet("mine/{id:guid}")]
+        [EndpointSummary("Get My Check")]
+        [EndpointDescription("Returns one made check the signed-in user owns, including options and vote tallies when results are unlocked. The mine list is summary-only (empty options); use this for the results screen. Returns 404 when it does not exist or is not yours.")]
+        [ProducesResponseType(typeof(ApiResponse<UserCheckResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetMineById(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await _checkService.GetMineByIdAsync(id, User.GetRequiredUserId(), cancellationToken);
+            return Ok(ApiResponse.Ok(result, "Check retrieved successfully"));
+        }
+
         /// <summary>Opens one of the caller's closed made cards again.</summary>
         [HttpPost("mine/{id:guid}/reshare")]
         [EndpointSummary("Reshare My Card")]
