@@ -9,7 +9,7 @@ Postgres stores users, profiles, sessions, guests, polls, votes, and system logs
 - .NET 10 / ASP.NET Core
 - PostgreSQL (EF Core + Npgsql)
 - Redis over TCP (`REDIS_URL`; local, Upstash, Redis Cloud, etc.)
-- JWT access tokens (15 minutes) + refresh sessions (30 days); Development uses 1 minute / 1 day via `appsettings.Development.json`
+- JWT access tokens (15 minutes) + refresh sessions (30 days); Development uses 5 minutes / 7 days via `appsettings.Development.json`
 - FluentValidation, Swagger (Swashbuckle)
 
 ## Layout

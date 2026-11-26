@@ -26,10 +26,10 @@ namespace Yakku.Application.Configuration
 
         public string Secret { get; set; } = string.Empty;
 
-        /// <summary>Access JWT lifetime in minutes. Staging/Production default 15; Development overrides to 1.</summary>
+        /// <summary>Access JWT lifetime in minutes. Staging/Production default 15; Development overrides to 5.</summary>
         public int AccessTokenMinutes { get; set; } = 15;
 
-        /// <summary>Refresh token lifetime in days. Staging/Production default 30; Development overrides to 1.</summary>
+        /// <summary>Refresh token lifetime in days. Staging/Production default 30; Development overrides to 7.</summary>
         public int RefreshTokenDays { get; set; } = 30;
 
         public TimeSpan AccessTokenLifetime =>
