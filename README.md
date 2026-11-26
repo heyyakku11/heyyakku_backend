@@ -45,6 +45,7 @@ Fill in `.env`. Never commit that file; `.env.example` is the template that stay
 | `REDIS_URL` | Yes | Redis connection URL (`redis://`, `rediss://`, or StackExchange form). Provider-agnostic. |
 | `JWT_SECRET` | Yes | Access-token signing key (at least 32 characters) |
 | `MSG91_AUTH_KEY`, `MSG91_FLOW_ID` | Yes when `Msg91:Enabled` is true (Staging/Production) | OTP SMS delivery; see [MSG91 configuration](#msg91-configuration). `MSG91_SENDER_ID` is optional. Enablement is set in appsettings, not `.env`. |
+| `Otp__ReviewAccount__Enabled`, `Otp__ReviewAccount__PhoneNumber`, `Otp__ReviewAccount__Code` | No | Optional review (test) account for app-store reviewers; see [Review account](#review-account-fixed-otp). Off unless `Enabled` is `true`. |
 | `ADMIN_*`, `TRUSTED_PROXY_HOPS` | No | Admin cookie-session, CSRF and login-throttle settings with secure defaults; see [docs/admin-auth.md](docs/admin-auth.md). |
 | `CORS_ORIGINS` | No | Comma-separated browser origins allowed to send credentials (`yakku_guest` cookie). Leave empty when the API and web app share the same origin. |
 | `AWS_ENDPOINT_URL_S3` | Yes | Neon Object Storage S3 endpoint (path-style) |
@@ -112,6 +113,18 @@ The OTP validity is not configurable by environment: it is the constant `OtpOpti
 The approved flow template must define exactly one variable, `##otp##`; the validity is fixed text:
 
 > Your YAKKU verification code is ##otp##. Use this OTP to verify your mobile number. It is valid for 5 minutes. Do not share it with anyone.
+
+### Review account (fixed OTP)
+
+For app-store reviewers (for example Google Play) who cannot receive an SMS, one phone number can be given a fixed OTP. It is configured only through environment variables and is **off by default**:
+
+| Variable | Purpose |
+|---|---|
+| `Otp__ReviewAccount__Enabled` | `true` to turn the review account on. |
+| `Otp__ReviewAccount__PhoneNumber` | The review number: `+91` followed by ten digits (an Indian mobile). |
+| `Otp__ReviewAccount__Code` | The fixed OTP. Exactly 6 digits (the verify endpoint only accepts 6). A secret: pick a non-obvious value. |
+
+When enabled, `POST /api/v1/auth/send` for that number stores the fixed code and **sends no SMS**; `POST /api/v1/auth/verify` with the fixed code then registers (first time) or logs in, exactly like a normal sign-in. Every other number is unaffected. The normal limits still apply to the review number (60 s resend cooldown, 5 OTPs per hour, 5 wrong guesses per OTP), and an OTP must still be requested first. The app refuses to start if the account is enabled with a bad phone number or a code that is not 6 digits. The code is never logged. Set the variables only in the environments the reviewers use, and turn the account off (or rotate the code) after the review.
 
 ### Auth error codes
 

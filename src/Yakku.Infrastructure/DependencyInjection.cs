@@ -56,6 +56,15 @@ namespace Yakku.Infrastructure
             services.AddSingleton(msg91);
             services.AddSingleton(OtpPolicy.Default);
 
+            // The optional review (test) account: one number, one fixed code, no SMS. Off unless enabled.
+            var reviewSection = configuration.GetSection(ReviewAccountOptions.SectionName);
+            var reviewAccount = ReviewAccountOptions.Create(
+                reviewSection["Enabled"],
+                reviewSection["PhoneNumber"],
+                reviewSection["Code"]);
+            reviewAccount.ThrowIfInvalid();
+            services.AddSingleton(reviewAccount);
+
             if (msg91.Enabled)
             {
                 // One typed client from IHttpClientFactory: pooled handlers, HTTPS only, a hard timeout, no retries.

@@ -32,6 +32,7 @@ namespace Yakku.Application.Auth.Services
         private readonly IOtpSmsQueue _smsQueue;
         private readonly OtpPolicy _policy;
         private readonly ILogger<AuthService> _logger;
+        private readonly ReviewAccountOptions _reviewAccount;
 
         /// <summary>A reserved name outlives its OTP challenge slightly, then frees itself if unclaimed.</summary>
         private readonly TimeSpan _nameHold;
@@ -49,12 +50,14 @@ namespace Yakku.Application.Auth.Services
             ISmsService sms,
             IOtpSmsQueue smsQueue,
             OtpPolicy policy,
-            ILogger<AuthService> logger)
+            ILogger<AuthService> logger,
+            ReviewAccountOptions? reviewAccount = null)
         {
             _sms = sms;
             _smsQueue = smsQueue;
             _policy = policy;
             _logger = logger;
+            _reviewAccount = reviewAccount ?? ReviewAccountOptions.Disabled;
             _nameHold = policy.Ttl + TimeSpan.FromMinutes(1);
             _userRepository = userRepository;
             _otpChallengeStore = otpChallengeStore;
@@ -134,7 +137,10 @@ namespace Yakku.Application.Auth.Services
             string? anonymousName,
             CancellationToken cancellationToken)
         {
-            var otp = _otpGenerator.Generate();
+            // The review (test) account signs in with a fixed code and is never sent an SMS. It still goes through
+            // the same challenge store, so the resend cooldown, hourly send limit and wrong-guess limit all apply.
+            var isReviewAccount = _reviewAccount.IsReviewAccount(phoneNumber);
+            var otp = isReviewAccount ? _reviewAccount.Code : _otpGenerator.Generate();
             // When SMS is off, store plaintext so the code can be read from Redis (local/tests without MSG91).
             // When SMS is on (including Development with Msg91:Enabled), store only the hash.
             var challenge = new OtpChallenge
@@ -167,6 +173,14 @@ namespace Yakku.Application.Auth.Services
             if (!string.IsNullOrWhiteSpace(anonymousName))
             {
                 await _anonymousNames.RefreshAsync(anonymousName, _nameHold, cancellationToken);
+            }
+
+            if (isReviewAccount)
+            {
+                _logger.LogInformation(
+                    "Review account OTP issued; SMS skipped (challenge {ChallengeId}).",
+                    challenge.ChallengeId);
+                return;
             }
 
             if (!_sms.IsEnabled)
