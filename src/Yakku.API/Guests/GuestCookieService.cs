@@ -10,6 +10,12 @@ namespace Yakku.API.Guests
     {
         public const string CookieName = "yakku_guest";
 
+        /// <summary>
+        /// How long the browser keeps the <c>yakku_guest</c> cookie. Independent of <see cref="Guest.Lifetime"/>,
+        /// which still governs the guest's stored expiry.
+        /// </summary>
+        public static readonly TimeSpan CookieLifetime = TimeSpan.FromHours(24);
+
         private readonly IGuestIdentityService _guestIdentityService;
 
         private readonly ILogger<GuestCookieService>? _logger;
@@ -79,7 +85,7 @@ namespace Yakku.API.Guests
                 HttpOnly = true,
                 Secure = request.IsHttps,
                 SameSite = SameSiteMode.Lax,
-                MaxAge = Guest.Lifetime,
+                MaxAge = CookieLifetime,
                 Path = "/",
                 IsEssential = true
             };

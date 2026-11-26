@@ -59,7 +59,7 @@ public class GuestCookieSecurityTests
         Assert.Contains("secure", lower);
         Assert.Contains("samesite=lax", lower);
         Assert.Contains("path=/", lower);
-        Assert.Contains("max-age=1296000", lower); // 15 days (Guest.Lifetime), a persistent cookie
+        Assert.Contains("max-age=86400", lower); // 24 hours (GuestCookieService.CookieLifetime)
         Assert.DoesNotContain("domain=", lower);   // host-only
     }
 

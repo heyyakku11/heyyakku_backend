@@ -158,7 +158,7 @@ The approved flow template must define exactly one variable, `##otp##`; the vali
 | `GET` | `/api/system/health` | — | Postgres / Redis health |
 | `GET` | `/api/v1/app/version` | — | Public app version gate: `platform` (`android`\|`ios`) + `version` (semver). Returns `forceUpdate` / `updateRequired`, store URL and message |
 
-Responses use a shared `ApiResponse` envelope. Guest auth is the HttpOnly `yakku_guest` cookie (15 days, `SameSite=Lax`) **or** header `X-Guest-Token: <guestToken>` (preferred for Flutter). JWT takes precedence when both are present.
+Responses use a shared `ApiResponse` envelope. Guest auth is the HttpOnly `yakku_guest` cookie (24 hours, `SameSite=Lax`) **or** header `X-Guest-Token: <guestToken>` (preferred for Flutter). JWT takes precedence when both are present.
 
 ## Voting (polls and checks)
 
@@ -200,7 +200,7 @@ Uploads use a single presigned PUT (no multipart). Actual size is enforced on co
 
 ### Guest expiry and cleanup
 
-Guests expire 15 days after creation (`Guest.Lifetime`; the cookie lifetime follows it). A daily background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
+Guests expire 15 days after creation (`Guest.Lifetime`). The `yakku_guest` cookie lasts 24 hours (`GuestCookieService.CookieLifetime`), so browsers drop it sooner; clients that send `X-Guest-Token` keep working until the guest expires. A daily background job (`GuestCleanupWorker`) purges guests that have been expired for 7 days: it invalidates their upload sessions, deletes the stored objects, then removes the session rows and the guest. A guest whose objects could not be deleted yet is kept and retried on the next run, so the `Restrict` foreign key is never violated and no object is orphaned.
 
 ## App version
 

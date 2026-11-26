@@ -40,8 +40,8 @@ namespace Yakku.Domain.Entities
         public bool? CookiesEnabled { get; private set; }
 
         /// <summary>
-        /// How long a guest identity lives from creation. The one place this is defined: the expiry date stored on the
-        /// guest and the lifetime of the <c>yakku_guest</c> cookie both use it.
+        /// How long a guest identity lives from creation. Defines the expiry date stored on the guest. The browser
+        /// cookie has its own lifetime (see <c>GuestCookieService.CookieLifetime</c>).
         /// </summary>
         public static readonly TimeSpan Lifetime = TimeSpan.FromDays(15);
 
