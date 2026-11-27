@@ -10,10 +10,5 @@ namespace Yakku.Application.Payments.Interfaces
             int page,
             int pageSize,
             CancellationToken cancellationToken = default);
-
-        Task<PaymentOrderStatusResponse> GetOrderAsync(
-            Guid userId,
-            Guid orderId,
-            CancellationToken cancellationToken = default);
     }
 }

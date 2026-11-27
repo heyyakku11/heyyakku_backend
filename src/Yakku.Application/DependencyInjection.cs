@@ -45,6 +45,7 @@ namespace Yakku.Application
             services.AddScoped<Yakku.Application.SavedCards.Interfaces.ISavedCardService, Yakku.Application.SavedCards.Services.SavedCardService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ISessionService, SessionService>();
+            services.AddScoped<IWebSessionService, SessionService>();
             services.AddScoped<ISessionCleanupService, SessionCleanupService>();
             services.AddScoped<IAdminAuthService, AdminAuthService>();
             services.AddScoped<IAdminSessionService, AdminSessionService>();
@@ -56,7 +57,7 @@ namespace Yakku.Application
             services.AddScoped<IAccountDeletionService, AccountDeletionService>();
             services.AddScoped<IAnonymousNameAllocator, AnonymousNameAllocator>();
             services.AddScoped<IAnonymousNameService, AnonymousNameService>();
-            services.AddScoped<IUserSettingsService, UserSettingsService>();
+            services.AddScoped<IUserPermissionService, UserPermissionService>();
             services.AddScoped<IGuestIdentityService, GuestIdentityService>();
             services.AddScoped<IGuestMediaClaimService, GuestMediaClaimService>();
             services.AddScoped<IGuestCleanupService, GuestCleanupService>();

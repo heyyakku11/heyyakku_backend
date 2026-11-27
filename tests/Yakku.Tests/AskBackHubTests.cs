@@ -531,7 +531,7 @@ public sealed class AskBackHubTests
             var user = new User($"572{sequence:D10}", $"hub-anon-{sequence}");
             context.Users.Add(user);
             await context.SaveChangesAsync();
-            return new TestUser(user.Id, Guid.NewGuid(), user.Profile.AnonymousName, user.PhoneNumber);
+            return new TestUser(user.Id, Guid.NewGuid(), user.AnonymousName, user.PhoneNumber);
         }
 
         public async Task<(TestUser Asker, TestUser Voter, Guid ConversationId)> StartConversationAsync()

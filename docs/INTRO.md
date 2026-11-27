@@ -8,7 +8,7 @@ Anonymous OTP-based API. Users prove email ownership with a 6-digit code. A **us
 |---|---|
 | `Yakku.API` | HTTP controllers, middleware, Swagger |
 | `Yakku.Application` | Auth/poll use cases, validators, DTOs |
-| `Yakku.Domain` | `User`, `UserProfile`, polls, enums |
+| `Yakku.Domain` | `User`, `UserPermission`, polls, enums |
 | `Yakku.Infrastructure` | Postgres (EF Core), Redis (`REDIS_URL`), email |
 
 ## Where data lives
@@ -17,7 +17,8 @@ Anonymous OTP-based API. Users prove email ownership with a 6-digit code. A **us
 |---|---|---|
 | Pending OTP challenge | Redis (TCP via `REDIS_URL`) | `auth:otp:{email}` |
 | Verified user | Postgres `Users` | unique `Email` |
-| Display name, avatar | Postgres `UserProfiles` | unique `DisplayName` |
+| Anonymous name | Postgres `users` | unique `AnonymousName` (case-insensitive) |
+| Permissions (ask back, push, SMS, WhatsApp) | Postgres `user_permissions` | one row per user, `user_id` |
 | Polls | Postgres `Polls` / `PollOptions` | — |
 
 There is **no** Redis user key (`auth:user:{email}`, `user:{id}`, etc.). Redis is OTP-only.
@@ -89,7 +90,7 @@ Body: `{ "email": "user@example.com", "otp": "483921" }`
 | No key / expired | — | unchanged |
 | Wrong OTP | Same key, `attemptCount++`, original TTL kept | unchanged |
 | 5 failed attempts | Key remains; verify blocked until a new OTP is requested (after cooldown) | unchanged |
-| Success + **Registration** | Key **deleted** | Insert `Users` + `UserProfiles` |
+| Success + **Registration** | Key **deleted** | Insert `users` + `user_permissions` |
 | Success + **Login** | Key **deleted** | Update `LastLoginAt` |
 
 If OTP is never verified, the Redis key expires in 10 minutes. No unverified user is left in Postgres.

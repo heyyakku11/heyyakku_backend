@@ -26,7 +26,12 @@ namespace Yakku.Domain.Entities
 
         /// <summary>When the current paid plan ends. Null on the free plan. After it, the user counts as free.</summary>
         public DateTime? PlanExpiresAt { get; private set; }
-        public UserProfile Profile { get; private set; } = null!;
+
+        /// <summary>How the user appears in the app. Unique, compared without regard to case.</summary>
+        public string AnonymousName { get; private set; } = string.Empty;
+
+        /// <summary>The user's permissions (ask back, push, SMS, WhatsApp), created together with the account.</summary>
+        public UserPermission Permissions { get; private set; } = null!;
 
         /// <summary>The user's personality card, created together with the account.</summary>
         public PersonalityCard PersonalityCard { get; private set; } = null!;
@@ -50,7 +55,8 @@ namespace Yakku.Domain.Entities
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
             LoginAt = DateTime.UtcNow;
-            Profile = new UserProfile(Id, anonymousName);
+            AnonymousName = anonymousName;
+            Permissions = new UserPermission(Id);
             PersonalityCard = new PersonalityCard(Id);
         }
 

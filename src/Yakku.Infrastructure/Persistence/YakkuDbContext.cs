@@ -22,7 +22,7 @@ namespace Yakku.Infrastructure.Persistence
         public DbSet<User> Users => Set<User>();
         public DbSet<UserDeletionRequest> UserDeletionRequests => Set<UserDeletionRequest>();
         public DbSet<Plan> Plans => Set<Plan>();
-        public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+        public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
         public DbSet<UserSession> UserSessions => Set<UserSession>();
         public DbSet<Guest> Guests => Set<Guest>();
         public DbSet<Device> Devices => Set<Device>();

@@ -83,10 +83,7 @@ public class AuthReliabilityTests
         var response = new VerifyOtpResponse
         {
             UserId = Guid.NewGuid(),
-            Purpose = "Registration",
-            AccountRestored = false,
-            AnonymousName = "QuietFox",
-            CurrentPlanCode = "free",
+            IsNewUser = true,
             Auth = new TokenResponse { AccessToken = "access", RefreshToken = "refresh" }
         };
 
@@ -96,10 +93,11 @@ public class AuthReliabilityTests
 
         Assert.DoesNotContain("userId", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(response.UserId.ToString(), json);
-        Assert.Contains("\"purpose\":\"Registration\"", json);
-        Assert.Contains("\"accountRestored\":false", json);
-        Assert.Contains("\"anonymousName\":\"QuietFox\"", json);
-        Assert.Contains("\"currentPlanCode\":\"free\"", json);
+        Assert.Contains("\"isNewUser\":true", json);
+        Assert.DoesNotContain("purpose", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("accountRestored", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("anonymousName", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("currentPlanCode", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"auth\":{\"accessToken\":\"access\",\"refreshToken\":\"refresh\"}", json);
         Assert.DoesNotContain("\"user\":", json);
         Assert.NotEqual(Guid.Empty, response.UserId);
@@ -142,7 +140,7 @@ public class AuthReliabilityTests
 
         public ControllerHarness(Func<string?, Task<GuestClaimResult>> claim, bool sendToken = true)
         {
-            Response = new VerifyOtpResponse { UserId = Guid.NewGuid(), Purpose = "Registration" };
+            Response = new VerifyOtpResponse { UserId = Guid.NewGuid(), IsNewUser = true };
             Claim = new StubClaimService(claim);
             Http = new DefaultHttpContext();
             if (sendToken)
@@ -215,6 +213,9 @@ public class AuthReliabilityTests
             => throw new NotSupportedException();
 
         public Task<VerifyOtpResponse> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(_response);
+
+        public Task<VerifyOtpResponse> VerifyOtpForWebAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default)
             => Task.FromResult(_response);
     }
 

@@ -102,18 +102,18 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
         public async Task<bool> AcceptsAskBacksAsync(Guid userId, CancellationToken cancellationToken = default)
         {
-            // A user with no profile row cannot be asked back either.
-            return await _context.UserProfiles
+            // A user with no permissions row cannot be asked back either.
+            return await _context.UserPermissions
                 .AsNoTracking()
-                .AnyAsync(profile => profile.UserId == userId && profile.AllowAskBack, cancellationToken);
+                .AnyAsync(permission => permission.UserId == userId && permission.AllowAskBack, cancellationToken);
         }
 
         public Task<string?> GetAnonymousNameAsync(Guid userId, CancellationToken cancellationToken = default)
         {
-            return _context.UserProfiles
+            return _context.Users
                 .AsNoTracking()
-                .Where(profile => profile.UserId == userId)
-                .Select(profile => (string?)profile.AnonymousName)
+                .Where(user => user.Id == userId)
+                .Select(user => (string?)user.AnonymousName)
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
@@ -1018,10 +1018,10 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             }
 
             var ids = userIds.ToArray();
-            return await _context.UserProfiles
+            return await _context.Users
                 .AsNoTracking()
-                .Where(profile => ids.Contains(profile.UserId))
-                .ToDictionaryAsync(profile => profile.UserId, profile => profile.AnonymousName, cancellationToken);
+                .Where(user => ids.Contains(user.Id))
+                .ToDictionaryAsync(user => user.Id, user => user.AnonymousName, cancellationToken);
         }
 
         private async Task<AskBackContextResponse> LoadContextAsync(

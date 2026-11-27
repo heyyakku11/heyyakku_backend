@@ -7,6 +7,11 @@ namespace Yakku.Infrastructure.Persistence.Configurations
 {
     internal class UserConfiguration : IEntityTypeConfiguration<User>
     {
+        public const string AnonymousNameIndex = "IX_Users_AnonymousName";
+
+        /// <summary>Stored lower-case copy of the name, so the unique index is case-insensitive.</summary>
+        public const string AnonymousNameKey = "AnonymousNameKey";
+
         public void Configure(EntityTypeBuilder<User> builder)
         {
             builder.ToTable("users");
@@ -15,6 +20,18 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.PhoneNumber)
                 .IsRequired()
                 .HasMaxLength(20);
+
+            builder.Property(x => x.AnonymousName)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            builder.Property<string>(AnonymousNameKey)
+                .HasColumnName(AnonymousNameKey)
+                .HasComputedColumnSql("lower(\"AnonymousName\")", stored: true);
+
+            builder.HasIndex(AnonymousNameKey)
+                .IsUnique()
+                .HasDatabaseName(AnonymousNameIndex);
 
             builder.Property(x => x.Status)
                 .HasConversion<string>()
@@ -43,9 +60,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsUnique()
                 .HasDatabaseName("IX_Users_PhoneNumber");
 
-            builder.HasOne(x => x.Profile)
+            builder.HasOne(x => x.Permissions)
                 .WithOne(x => x.User)
-                .HasForeignKey<UserProfile>(x => x.UserId)
+                .HasForeignKey<UserPermission>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasOne(x => x.DeletionRequest)

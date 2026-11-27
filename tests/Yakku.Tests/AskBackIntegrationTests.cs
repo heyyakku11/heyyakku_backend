@@ -46,7 +46,7 @@ public sealed class AskBackIntegrationTests
         Assert.True(created);
         Assert.Equal("active", conversation.Status);
         Assert.Equal("asker", conversation.MyRole);
-        Assert.Equal(scene.Voter.Profile.AnonymousName, conversation.Other.AnonymousName);
+        Assert.Equal(scene.Voter.AnonymousName, conversation.Other.AnonymousName);
         Assert.Equal("Which presentation is better?", conversation.Context.Question);
         Assert.Equal("Option A", conversation.Context.SelectedOption);
         Assert.Equal("Because it is clearer", conversation.Context.Reason);
@@ -76,7 +76,7 @@ public sealed class AskBackIntegrationTests
         var asVoter = await service.GetConversationAsync(scene.Voter.Id, conversation.Id);
 
         Assert.Equal("voter", asVoter.MyRole);
-        Assert.Equal(scene.Asker.Profile.AnonymousName, asVoter.Other.AnonymousName);
+        Assert.Equal(scene.Asker.AnonymousName, asVoter.Other.AnonymousName);
         Assert.DoesNotContain(scene.Asker.PhoneNumber, JsonSerializer.Serialize(asVoter));
     }
 
@@ -335,14 +335,14 @@ public sealed class AskBackIntegrationTests
 
         Assert.Equal("Why that one?", sent.Content);
         Assert.True(sent.IsMine);
-        Assert.Equal(scene.Asker.Profile.AnonymousName, sent.SenderName);
+        Assert.Equal(scene.Asker.AnonymousName, sent.SenderName);
         Assert.InRange(sent.CreatedAt, before, DateTime.UtcNow.AddSeconds(1));
         Assert.DoesNotContain(scene.Asker.Id.ToString(), JsonSerializer.Serialize(sent));
 
         // The other side sees the same message as not theirs, without the asker's identity.
         var asVoter = (await service.ListMessagesAsync(scene.Voter.Id, conversationId, null, null, null)).Items.Single();
         Assert.False(asVoter.IsMine);
-        Assert.Equal(scene.Asker.Profile.AnonymousName, asVoter.SenderName);
+        Assert.Equal(scene.Asker.AnonymousName, asVoter.SenderName);
         Assert.DoesNotContain(scene.Asker.PhoneNumber, JsonSerializer.Serialize(asVoter));
 
         // The original reason is not copied into the chat.
@@ -562,7 +562,7 @@ public sealed class AskBackIntegrationTests
         Assert.Equal(1, collected[0].UnreadCount);
         Assert.False(collected[0].LastMessage!.IsMine);
         Assert.Equal(AskBackOptions.PreviewLength + 1, collected[0].LastMessage!.Preview.Length);
-        Assert.Equal(voters[0].Profile.AnonymousName, collected[0].Other.AnonymousName);
+        Assert.Equal(voters[0].AnonymousName, collected[0].Other.AnonymousName);
         Assert.All(collected.Skip(1), c => Assert.Equal(0, c.UnreadCount));
     }
 
@@ -719,7 +719,7 @@ public sealed class AskBackIntegrationTests
         var (items, meta) = await service.ListBlocksAsync(scene.Voter.Id, page: 1, pageSize: 20);
         Assert.Equal(1, meta.TotalCount);
         Assert.Single(items);
-        Assert.Equal(scene.Asker.Profile.AnonymousName, items[0].AnonymousName);
+        Assert.Equal(scene.Asker.AnonymousName, items[0].AnonymousName);
         Assert.Equal(conversationId, items[0].SourceConversationId);
         Assert.DoesNotContain(scene.Asker.Id.ToString(), JsonSerializer.Serialize(items));
 
@@ -916,7 +916,7 @@ public sealed class AskBackIntegrationTests
             Assert.True(payload.Data.ContainsKey("notificationId"));
             var serialized = JsonSerializer.Serialize(payload);
             Assert.DoesNotContain("secret", serialized);
-            Assert.DoesNotContain(scene.Asker.Profile.AnonymousName, serialized);
+            Assert.DoesNotContain(scene.Asker.AnonymousName, serialized);
             Assert.DoesNotContain(scene.Asker.PhoneNumber, serialized);
         }
 

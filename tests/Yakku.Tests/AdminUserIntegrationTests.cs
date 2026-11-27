@@ -35,7 +35,7 @@ public class AdminUserIntegrationTests
         var onlyActive = await service.ListUsersAsync("active", 1, 50);
 
         var row = Assert.Single(all.Items, item => item.Id == active.Id);
-        Assert.Equal(active.Profile.AnonymousName, row.AnonymousName);
+        Assert.Equal(active.AnonymousName, row.AnonymousName);
         Assert.Equal(active.PhoneNumber, row.PhoneNumber);
         Assert.Equal("active", row.Status);
         Assert.Equal("free", row.Plan.Code);

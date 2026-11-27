@@ -47,7 +47,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     poll.CreatedAt,
                     poll.ExpiresAt,
                     poll.Status,
-                    CreatorAnonymousName = poll.Creator.Profile.AnonymousName,
+                    CreatorAnonymousName = poll.Creator.AnonymousName,
                     VoteCount = _context.PollVotes.Count(vote => vote.PollId == poll.Id),
                     ReasonCount = _context.PollVotes.Count(vote => vote.PollId == poll.Id && vote.Reason != null)
                 })

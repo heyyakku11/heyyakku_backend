@@ -24,7 +24,7 @@ public sealed class PaymentPhase6Tests
     }
 
     [SkippableFact]
-    public async Task History_AndOrderStatus_AreOwnerScoped()
+    public async Task History_IsOwnerScoped()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
@@ -37,12 +37,8 @@ public sealed class PaymentPhase6Tests
         Assert.Contains(items, item => item.OrderId == order.Id);
         Assert.True(meta.TotalCount >= 1);
 
-        var status = await queries.GetOrderAsync(owner.Id, order.Id);
-        Assert.Equal(order.Id, status.OrderId);
-        Assert.Equal(PaymentOrderStatus.Pending.ToString(), status.Status);
-
-        var denied = await Assert.ThrowsAsync<AppException>(() => queries.GetOrderAsync(other.Id, order.Id));
-        Assert.Equal(404, denied.StatusCode);
+        var (otherItems, _) = await queries.GetHistoryAsync(other.Id, page: 1, pageSize: 10);
+        Assert.DoesNotContain(otherItems, item => item.OrderId == order.Id);
     }
 
     [SkippableFact]

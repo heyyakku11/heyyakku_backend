@@ -80,7 +80,7 @@ namespace Yakku.API.Controllers
 
                 await ClaimGuestAsync(result.UserId, cancellationToken);
 
-                var message = result.Purpose == "Registration"
+                var message = result.IsNewUser
                     ? "Registration successful"
                     : "Login successful";
 
@@ -157,52 +157,14 @@ namespace Yakku.API.Controllers
         /// </summary>
         private async Task ClaimGuestAsync(Guid userId, CancellationToken cancellationToken)
         {
-            var guestToken = MediaCallerResolver.ReadGuestToken(HttpContext);
-            if (string.IsNullOrWhiteSpace(guestToken))
-            {
-                return;
-            }
-
-            GuestClaimResult outcome;
-            try
-            {
-                outcome = await _guestMediaClaim.TryClaimAsync(guestToken, userId, cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                // TryClaimAsync is written never to throw; this is the backstop so that can never become a 500.
-                _logger.LogError(
-                    "Guest claim threw unexpectedly ({ExceptionType}); sign-in continues.",
-                    exception.GetType().Name);
-                var audit = HttpContext.RequestServices.GetService<IAuditLogWriter>();
-                if (audit is not null)
-                {
-                    _ = ExceptionSystemLog.WriteAsync(
-                        audit,
-                        exception,
-                        nameof(AuthController),
-                        HttpContext.Request.Method,
-                        HttpContext.Request.Path.Value,
-                        StatusCodes.Status500InternalServerError,
-                        extraMetadata: new Dictionary<string, string?>
-                        {
-                            ["stage"] = "guest_claim",
-                            ["userId"] = userId.ToString("D")
-                        },
-                        cancellationToken: CancellationToken.None);
-                }
-
-                outcome = GuestClaimResult.Failed;
-            }
-
-            _logger.LogInformation("Guest claim finished with outcome {Outcome}.", outcome);
-
-            // Claimed, unknown and expired tokens are useless from now on and are dropped. After a failure the
-            // guest (rolled back, intact) and its credential are kept so the next sign-in can retry.
-            if (outcome != GuestClaimResult.Failed)
-            {
-                _guestCookies.Clear(HttpContext);
-            }
+            await GuestClaimHandler.ClaimAsync(
+                HttpContext,
+                _guestMediaClaim,
+                _guestCookies,
+                _logger,
+                userId,
+                nameof(AuthController),
+                cancellationToken);
         }
     }
 }

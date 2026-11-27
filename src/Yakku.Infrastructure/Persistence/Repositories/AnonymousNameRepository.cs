@@ -21,12 +21,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             try
             {
-                var updated = await _context.UserProfiles
-                    .Where(profile => profile.UserId == userId)
+                var updated = await _context.Users
+                    .Where(user => user.Id == userId)
                     .ExecuteUpdateAsync(
                         setters => setters
-                            .SetProperty(profile => profile.AnonymousName, anonymousName)
-                            .SetProperty(profile => profile.UpdatedAt, DateTime.UtcNow),
+                            .SetProperty(user => user.AnonymousName, anonymousName)
+                            .SetProperty(user => user.UpdatedAt, DateTime.UtcNow),
                         cancellationToken);
 
                 return updated == 0 ? AnonymousNameUpdateResult.ProfileNotFound : AnonymousNameUpdateResult.Updated;
@@ -41,7 +41,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             var postgres = exception as PostgresException ?? exception.InnerException as PostgresException;
             return postgres is { SqlState: PostgresErrorCodes.UniqueViolation }
-                   && string.Equals(postgres.ConstraintName, UserProfileConfiguration.AnonymousNameIndex, StringComparison.Ordinal);
+                   && string.Equals(postgres.ConstraintName, UserConfiguration.AnonymousNameIndex, StringComparison.Ordinal);
         }
     }
 }

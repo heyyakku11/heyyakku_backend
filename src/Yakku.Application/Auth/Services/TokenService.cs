@@ -25,6 +25,11 @@ namespace Yakku.Application.Auth.Services
 
         public string CreateAccessToken(Guid userId, Guid sessionId)
         {
+            return CreateAccessToken(userId, sessionId, _accessTokenLifetime);
+        }
+
+        public string CreateAccessToken(Guid userId, Guid sessionId, TimeSpan lifetime)
+        {
             var now = DateTime.UtcNow;
             var claims = new[]
             {
@@ -41,7 +46,7 @@ namespace Yakku.Application.Auth.Services
             var token = new JwtSecurityToken(
                 claims: claims,
                 notBefore: now,
-                expires: now.Add(_accessTokenLifetime),
+                expires: now.Add(lifetime),
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);

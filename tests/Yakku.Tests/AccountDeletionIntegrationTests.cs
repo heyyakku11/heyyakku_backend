@@ -53,7 +53,7 @@ public sealed class AccountDeletionIntegrationTests
 
         await using var verify = _fixture.CreateContext();
         Assert.False(await verify.Users.AnyAsync(u => u.Id == doomed.Id));
-        Assert.False(await verify.UserProfiles.AnyAsync(p => p.UserId == doomed.Id));
+        Assert.False(await verify.UserPermissions.AnyAsync(p => p.UserId == doomed.Id));
         Assert.False(await verify.Polls.AnyAsync(p => p.CreatorId == doomed.Id));
         Assert.False(await verify.PollVotes.AnyAsync(v => v.VoterId == doomed.Id));
         Assert.False(await verify.PollVotes.AnyAsync(v => v.PollId == ownPoll.Id));

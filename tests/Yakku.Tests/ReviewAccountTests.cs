@@ -62,7 +62,7 @@ public sealed class ReviewAccountTests
         await h.Auth().RequestOtpAsync(Request(ReviewPhone));
         var registered = await h.Auth().VerifyOtpAsync(Verify(ReviewPhone, ReviewCode));
 
-        Assert.Equal("Registration", registered.Purpose);
+        Assert.True(registered.IsNewUser);
         Assert.Single(h.Users.Snapshot);
         Assert.Equal(ReviewPhone, h.Users.Snapshot[0].PhoneNumber);
 
@@ -70,7 +70,7 @@ public sealed class ReviewAccountTests
         var loggedIn = await h.Auth().VerifyOtpAsync(Verify(ReviewPhone, ReviewCode));
 
         Assert.Equal("Login", login.Purpose);
-        Assert.Equal("Login", loggedIn.Purpose);
+        Assert.False(loggedIn.IsNewUser);
         Assert.Single(h.Users.Snapshot);
         Assert.Empty(h.Queue.Jobs);
     }
@@ -84,7 +84,7 @@ public sealed class ReviewAccountTests
 
         Assert.Equal(ReviewCode, h.Store.Get(ReviewPhone)!.OtpHash);
         var verified = await h.Auth().VerifyOtpAsync(Verify(ReviewPhone, ReviewCode));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class ReviewAccountTests
         Assert.Empty(h.Users.Snapshot);
 
         var verified = await h.Auth().VerifyOtpAsync(Verify(OtherPhone, GeneratedOtp));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
     }
 
     [Theory]

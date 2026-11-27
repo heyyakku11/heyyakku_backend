@@ -46,7 +46,41 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                         .SetProperty(vote => vote.VoterRole, VoterRole.User),
                     cancellationToken);
 
-            return new GuestVoteClaimResult(transferred, dropped);
+            // Personality votes: a guest vote on a card the user already voted on is dropped (one vote per user per
+            // card), and that card's counter shrinks with it. The rest become the user's votes. The vote's trait rows
+            // stay attached, and the "exactly one voter" check holds because the guest id is cleared in the same update.
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                UPDATE personality_cards c
+                SET total_votes = c.total_votes - d.cnt
+                FROM (
+                    SELECT g.personality_card_id, count(*)::int AS cnt
+                    FROM personality_votes g
+                    WHERE g.voter_guest_id = {guestId}
+                      AND EXISTS (
+                          SELECT 1 FROM personality_votes u
+                          WHERE u.personality_card_id = g.personality_card_id AND u.voter_user_id = {userId})
+                    GROUP BY g.personality_card_id
+                ) d
+                WHERE c.id = d.personality_card_id
+                """,
+                cancellationToken);
+
+            var personalityDropped = await _context.PersonalityVotes
+                .Where(vote => vote.VoterGuestId == guestId
+                               && _context.PersonalityVotes.Any(own =>
+                                   own.PersonalityCardId == vote.PersonalityCardId && own.VoterUserId == userId))
+                .ExecuteDeleteAsync(cancellationToken);
+
+            var personalityTransferred = await _context.PersonalityVotes
+                .Where(vote => vote.VoterGuestId == guestId)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(vote => vote.VoterUserId, userId)
+                        .SetProperty(vote => vote.VoterGuestId, (Guid?)null),
+                    cancellationToken);
+
+            return new GuestVoteClaimResult(transferred, dropped, personalityTransferred, personalityDropped);
         }
     }
 }

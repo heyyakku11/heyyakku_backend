@@ -72,7 +72,7 @@ public class AccountDeletionTests
 
         var response = await h.Auth.VerifyOtpAsync(new VerifyOtpRequest { PhoneNumber = Phone, Otp = "123456" });
 
-        Assert.True(response.AccountRestored);
+        Assert.False(response.IsNewUser);
         Assert.False(h.User.IsPendingDeletion);
         Assert.Contains(h.Audit.Authentication, e => e.EventType == AuditEvents.Auth.AccountDeletionCancelled);
     }
@@ -85,7 +85,7 @@ public class AccountDeletionTests
 
         var response = await h.Auth.VerifyOtpAsync(new VerifyOtpRequest { PhoneNumber = Phone, Otp = "123456" });
 
-        Assert.False(response.AccountRestored);
+        Assert.False(response.IsNewUser);
         Assert.DoesNotContain(h.Audit.Authentication, e => e.EventType == AuditEvents.Auth.AccountDeletionCancelled);
     }
 

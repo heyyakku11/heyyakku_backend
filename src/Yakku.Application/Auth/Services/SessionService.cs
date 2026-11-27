@@ -13,7 +13,7 @@ using Yakku.Domain.Enums;
 
 namespace Yakku.Application.Auth.Services
 {
-    public class SessionService : ISessionService
+    public class SessionService : ISessionService, IWebSessionService
     {
         /// <summary>
         /// Live login sessions one user may hold at a time, one per device. A login over the cap ends the session
@@ -158,6 +158,28 @@ namespace Yakku.Application.Auth.Services
             }
 
             return ToResponse(userId, session.Id, secret);
+        }
+
+        public async Task<string> StartAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var utcNow = DateTime.UtcNow;
+
+            // The refresh secret is generated only to fill the unique column. It is never returned or stored anywhere
+            // else, so this session can be used only through its access token, and only until it expires.
+            var session = new UserSession(
+                userId,
+                RefreshTokenHasher.Hash(string.Empty, RefreshTokenHasher.GenerateSecret()),
+                utcNow.Add(JwtOptions.WebSessionLifetime),
+                isWeb: true);
+
+            await _sessions.AddAsync(session, cancellationToken);
+            await _sessions.SaveChangesAsync(cancellationToken);
+
+            _ = AuditAsync(AuditEvents.Auth.SessionCreated, AuditOutcome.Success, userId, session.Id);
+
+            return _tokenService.CreateAccessToken(userId, session.Id, JwtOptions.WebSessionLifetime);
         }
 
         public async Task<TokenResponse> RefreshAsync(

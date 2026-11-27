@@ -94,7 +94,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             return _context.PersonalityCards
                 .AsNoTracking()
-                .Include(card => card.User).ThenInclude(user => user.Profile)
+                .Include(card => card.User)
                 .Include(card => card.SelfTraits).ThenInclude(item => item.Trait)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(card => card.ShareCode == shareCode, cancellationToken);

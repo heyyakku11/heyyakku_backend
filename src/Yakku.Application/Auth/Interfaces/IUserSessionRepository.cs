@@ -6,6 +6,7 @@ namespace Yakku.Application.Auth.Interfaces
     {
         Task AddAsync(UserSession session, CancellationToken cancellationToken = default);
         Task<UserSession?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        /// <summary>Live app sessions for the per-user cap. Website sessions are not counted.</summary>
         Task<IReadOnlyList<UserSession>> ListLiveByUserIdAsync(
             Guid userId,
             DateTime utcNow,

@@ -112,7 +112,9 @@ namespace Yakku.Application.Guests.Services
                 ["guestId"] = guestId?.ToString(),
                 ["sessionsTransferred"] = transferred.ToString(),
                 ["votesTransferred"] = votes.Transferred.ToString(),
-                ["votesDropped"] = votes.Dropped.ToString()
+                ["votesDropped"] = votes.Dropped.ToString(),
+                ["personalityVotesTransferred"] = votes.PersonalityTransferred.ToString(),
+                ["personalityVotesDropped"] = votes.PersonalityDropped.ToString()
             };
 
             var entry = result == GuestClaimResult.Claimed

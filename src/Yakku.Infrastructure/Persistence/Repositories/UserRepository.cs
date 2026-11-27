@@ -24,7 +24,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         public async Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Users
-                .Include(user => user.Profile)
+                .Include(user => user.Permissions)
                 .Include(user => user.Plan)
                 .Include(user => user.DeletionRequest)
                 .FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
@@ -33,7 +33,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         public async Task<User?> GetByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
         {
             return await _context.Users
-                .Include(user => user.Profile)
+                .Include(user => user.Permissions)
                 .Include(user => user.Plan)
                 .Include(user => user.DeletionRequest)
                 .FirstOrDefaultAsync(user => user.PhoneNumber == phoneNumber, cancellationToken);
@@ -43,8 +43,8 @@ namespace Yakku.Infrastructure.Persistence.Repositories
         {
             // Compared on the stored lower-case key, so it matches the case-insensitive unique index.
             var key = anonymousName.ToLowerInvariant();
-            return await _context.UserProfiles
-                .AnyAsync(profile => EF.Property<string>(profile, UserProfileConfiguration.AnonymousNameKey) == key, cancellationToken);
+            return await _context.Users
+                .AnyAsync(user => EF.Property<string>(user, UserConfiguration.AnonymousNameKey) == key, cancellationToken);
         }
 
         public async Task AddAsync(User user, CancellationToken cancellationToken = default)
@@ -64,7 +64,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             {
                 await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException exception) when (IsUniqueViolation(exception, UserProfileConfiguration.AnonymousNameIndex))
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception, UserConfiguration.AnonymousNameIndex))
             {
                 throw new AppException(
                     409,

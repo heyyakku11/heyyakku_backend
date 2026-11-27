@@ -11,6 +11,12 @@ namespace Yakku.Domain.Entities
         public DateTime? LastActiveAt { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
+        /// <summary>
+        /// True for a website login: short-lived, never refreshed, and outside the per-user live session cap, so
+        /// signing in on the web can never end a phone session.
+        /// </summary>
+        public bool IsWeb { get; private set; }
+
         public User User { get; private set; } = null!;
         public Device? Device { get; private set; }
 
@@ -18,9 +24,10 @@ namespace Yakku.Domain.Entities
         {
         }
 
-        public UserSession(Guid userId, string refreshTokenHash, DateTime expiresAt)
+        public UserSession(Guid userId, string refreshTokenHash, DateTime expiresAt, bool isWeb = false)
         {
             Id = Guid.NewGuid();
+            IsWeb = isWeb;
             UserId = userId;
             RefreshTokenHash = refreshTokenHash;
             ExpiresAt = expiresAt;

@@ -31,6 +31,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return await _context.UserSessions
                 .Where(session =>
                     session.UserId == userId
+                    && !session.IsWeb
                     && session.RevokedAt == null
                     && session.ExpiresAt > utcNow)
                 .ToListAsync(cancellationToken);

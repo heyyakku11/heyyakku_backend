@@ -97,18 +97,5 @@ namespace Yakku.API.Controllers
                 User.GetRequiredUserId(), page, pageSize, cancellationToken);
             return Ok(ApiResponse.Ok(items, "Payment history", meta));
         }
-
-        [HttpGet("orders/{orderId:guid}")]
-        [EnableRateLimiting("payments-write")]
-        [EndpointSummary("Payment order status")]
-        [EndpointDescription("Returns one of the caller's payment orders and its gateway attempts.")]
-        [ProducesResponseType(typeof(ApiResponse<PaymentOrderStatusResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetOrder(Guid orderId, CancellationToken cancellationToken)
-        {
-            var result = await _queries.GetOrderAsync(User.GetRequiredUserId(), orderId, cancellationToken);
-            return Ok(ApiResponse.Ok(result, "Payment order"));
-        }
     }
 }

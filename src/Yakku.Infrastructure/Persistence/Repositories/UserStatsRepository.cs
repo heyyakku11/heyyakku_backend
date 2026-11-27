@@ -22,14 +22,14 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .SqlQuery<ActivityCountRow>($"""
                     SELECT
                       (SELECT COUNT(*)::int FROM polls p
-                       WHERE p.creator_id = {userId} AND p.status <> 'DRAFT') AS "CardsPolls",
+                       WHERE p.created_by = {userId} AND p.status <> 'DRAFT') AS "CardsPolls",
                       (SELECT COUNT(*)::int FROM user_checks uc
                        WHERE uc.user_id = {userId}) AS "CardsChecks",
                       (SELECT COUNT(*)::int FROM poll_votes pv
                        WHERE pv.voter_id = {userId}
                          AND pv.voter_role = 'USER'
                          AND NOT EXISTS (
-                           SELECT 1 FROM polls p WHERE p.id = pv.poll_id AND p.creator_id = {userId}
+                           SELECT 1 FROM polls p WHERE p.id = pv.poll_id AND p.created_by = {userId}
                          )) AS "VotesPolls",
                       (SELECT COUNT(*)::int FROM user_check_votes ucv
                        WHERE ucv.voter_id = {userId}

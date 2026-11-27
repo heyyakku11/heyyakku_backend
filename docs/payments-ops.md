@@ -43,7 +43,6 @@ Admin refunds call Razorpay and store `payment_refunds`.
 | POST | `/api/v1/payments/orders` | User JWT |
 | POST | `/api/v1/payments/verify` | User JWT |
 | GET | `/api/v1/payments/history` | User JWT |
-| GET | `/api/v1/payments/orders/{orderId}` | User JWT (owner) |
 | POST | `/api/v1/webhooks/razorpay` | Anonymous + HMAC |
 | POST | `/api/v1/yakku/payments/attempts/{id}/refunds` | Admin |
 

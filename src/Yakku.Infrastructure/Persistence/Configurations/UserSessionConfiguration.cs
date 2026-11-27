@@ -15,6 +15,10 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasMaxLength(255);
 
+            builder.Property(x => x.IsWeb)
+                .IsRequired()
+                .HasDefaultValue(false);
+
             // Target of devices' (CurrentSessionId, UserId) foreign key.
             builder.HasAlternateKey(x => new { x.Id, x.UserId })
                 .HasName("AK_user_sessions_Id_UserId");

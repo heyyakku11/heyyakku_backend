@@ -308,15 +308,15 @@ public sealed class AnonymousNameIntegrationTests
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         var (mine, theirs) = await AddTwoUsersAsync();
-        var oldName = mine.Profile.AnonymousName;
-        var theirName = theirs.Profile.AnonymousName;
+        var oldName = mine.AnonymousName;
+        var theirName = theirs.AnonymousName;
         var reservations = new AnonymousNameUnitTests.MemoryReservations();
 
         await using var context = _fixture.CreateContext();
         var response = await NewService(context, reservations).RegenerateAsync(mine.Id);
 
         await using var check = _fixture.CreateContext();
-        var profiles = await check.UserProfiles.AsNoTracking().ToDictionaryAsync(p => p.UserId, p => p.AnonymousName);
+        var profiles = await check.Users.AsNoTracking().ToDictionaryAsync(u => u.Id, u => u.AnonymousName);
         Assert.Equal(response.AnonymousName, profiles[mine.Id]);
         Assert.NotEqual(oldName, profiles[mine.Id]);
         Assert.Equal(theirName, profiles[theirs.Id]);
@@ -328,18 +328,18 @@ public sealed class AnonymousNameIntegrationTests
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         var (mine, theirs) = await AddTwoUsersAsync();
-        var original = mine.Profile.AnonymousName;
+        var original = mine.AnonymousName;
 
         await using var context = _fixture.CreateContext();
         // Every candidate is somebody else's name, so every attempt is refused.
-        var allocator = new AnonymousNameAllocator(new FixedName(theirs.Profile.AnonymousName.ToUpperInvariant()), new UserRepository(context), new AnonymousNameUnitTests.MemoryReservations());
+        var allocator = new AnonymousNameAllocator(new FixedName(theirs.AnonymousName.ToUpperInvariant()), new UserRepository(context), new AnonymousNameUnitTests.MemoryReservations());
         var service = new AnonymousNameService(allocator, new AnonymousNameRepository(context));
 
         var exception = await Assert.ThrowsAsync<AppException>(() => service.RegenerateAsync(mine.Id));
 
         Assert.Equal(ApiErrorCodes.AnonymousNameUnavailable, exception.ErrorCode);
         await using var check = _fixture.CreateContext();
-        Assert.Equal(original, (await check.UserProfiles.AsNoTracking().SingleAsync(p => p.UserId == mine.Id)).AnonymousName);
+        Assert.Equal(original, (await check.Users.AsNoTracking().SingleAsync(u => u.Id == mine.Id)).AnonymousName);
     }
 
     [SkippableFact]
@@ -347,14 +347,14 @@ public sealed class AnonymousNameIntegrationTests
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         var (mine, theirs) = await AddTwoUsersAsync();
-        var original = mine.Profile.AnonymousName;
+        var original = mine.AnonymousName;
 
         await using var context = _fixture.CreateContext();
-        var result = await new AnonymousNameRepository(context).TryUpdateAsync(mine.Id, theirs.Profile.AnonymousName.ToUpperInvariant());
+        var result = await new AnonymousNameRepository(context).TryUpdateAsync(mine.Id, theirs.AnonymousName.ToUpperInvariant());
 
         Assert.Equal(AnonymousNameUpdateResult.Conflict, result);
         await using var check = _fixture.CreateContext();
-        Assert.Equal(original, (await check.UserProfiles.AsNoTracking().SingleAsync(p => p.UserId == mine.Id)).AnonymousName);
+        Assert.Equal(original, (await check.Users.AsNoTracking().SingleAsync(u => u.Id == mine.Id)).AnonymousName);
     }
 
     [SkippableFact]
@@ -406,9 +406,9 @@ public sealed class AnonymousNameIntegrationTests
         }));
 
         await using var check = _fixture.CreateContext();
-        var final = (await check.UserProfiles.AsNoTracking().SingleAsync(p => p.UserId == mine.Id)).AnonymousName;
+        var final = (await check.Users.AsNoTracking().SingleAsync(u => u.Id == mine.Id)).AnonymousName;
         Assert.Contains(final, results);
-        Assert.Equal(1, await check.UserProfiles.CountAsync(p => p.UserId == mine.Id));
+        Assert.Equal(1, await check.Users.CountAsync(u => u.Id == mine.Id));
     }
 
     private AnonymousNameService NewService(YakkuDbContext context, IAnonymousNameReservations reservations)

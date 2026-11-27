@@ -279,18 +279,33 @@ namespace Yakku.Application.Auth.Services
             };
         }
 
-        public async Task<VerifyOtpResponse> VerifyOtpAsync(
+        public Task<VerifyOtpResponse> VerifyOtpAsync(
             VerifyOtpRequest request,
             CancellationToken cancellationToken = default)
         {
+            return VerifyOtpAndAuditAsync(request, issueAppTokens: true, cancellationToken);
+        }
+
+        public Task<VerifyOtpResponse> VerifyOtpForWebAsync(
+            VerifyOtpRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return VerifyOtpAndAuditAsync(request, issueAppTokens: false, cancellationToken);
+        }
+
+        private async Task<VerifyOtpResponse> VerifyOtpAndAuditAsync(
+            VerifyOtpRequest request,
+            bool issueAppTokens,
+            CancellationToken cancellationToken)
+        {
             try
             {
-                var response = await VerifyOtpCoreAsync(request, cancellationToken);
+                var response = await VerifyOtpCoreAsync(request, issueAppTokens, cancellationToken);
                 _ = _audit.WriteAuthenticationAsync(
                     new AuthenticationAuditEntry(
                         AuditActorType.User,
                         response.UserId,
-                        response.Purpose == nameof(OtpPurpose.Registration)
+                        response.IsNewUser
                             ? AuditEvents.Auth.Registered
                             : AuditEvents.Auth.LoggedIn,
                         AuditOutcome.Success,
@@ -307,6 +322,7 @@ namespace Yakku.Application.Auth.Services
 
         private async Task<VerifyOtpResponse> VerifyOtpCoreAsync(
             VerifyOtpRequest request,
+            bool issueAppTokens,
             CancellationToken cancellationToken)
         {
             await _verifyOtpValidator.ValidateAndThrowAsync(request, cancellationToken);
@@ -351,16 +367,18 @@ namespace Yakku.Application.Auth.Services
             var challenge = verification.Challenge!;
             if (challenge.Purpose == OtpPurpose.Registration)
             {
-                return await CompleteRegistrationAsync(phoneNumber, challenge, ToInstallation(request.Device), cancellationToken);
+                return await CompleteRegistrationAsync(
+                    phoneNumber, challenge, ToInstallation(request.Device), issueAppTokens, cancellationToken);
             }
 
-            return await CompleteLoginAsync(phoneNumber, ToInstallation(request.Device), cancellationToken);
+            return await CompleteLoginAsync(phoneNumber, ToInstallation(request.Device), issueAppTokens, cancellationToken);
         }
 
         private async Task<VerifyOtpResponse> CompleteRegistrationAsync(
             string phoneNumber,
             OtpChallenge challenge,
             RegisterDeviceRequest? installation,
+            bool issueAppTokens,
             CancellationToken cancellationToken)
         {
             var anonymousName = string.IsNullOrWhiteSpace(challenge.AnonymousName)
@@ -401,12 +419,13 @@ namespace Yakku.Application.Auth.Services
             // The OTP was consumed when it was verified; deleting the key here could remove a newer OTP.
             await _anonymousNames.ReleaseAsync(anonymousName, CancellationToken.None);
 
-            return await ToResponseAsync(user, OtpPurpose.Registration, installation, cancellationToken);
+            return await ToResponseAsync(user, OtpPurpose.Registration, installation, issueAppTokens, cancellationToken);
         }
 
         private async Task<VerifyOtpResponse> CompleteLoginAsync(
             string phoneNumber,
             RegisterDeviceRequest? installation,
+            bool issueAppTokens,
             CancellationToken cancellationToken)
         {
             var user = await _userRepository.GetByPhoneNumberAsync(phoneNumber, cancellationToken);
@@ -436,25 +455,26 @@ namespace Yakku.Application.Auth.Services
                     CancellationToken.None);
             }
 
-            var response = await ToResponseAsync(user, OtpPurpose.Login, installation, cancellationToken);
-            response.AccountRestored = restored;
-            return response;
+            return await ToResponseAsync(user, OtpPurpose.Login, installation, issueAppTokens, cancellationToken);
         }
 
         private async Task<VerifyOtpResponse> ToResponseAsync(
             User user,
             OtpPurpose purpose,
             RegisterDeviceRequest? installation,
+            bool issueAppTokens,
             CancellationToken cancellationToken)
         {
-            var tokens = await _sessionService.CreateAsync(user.Id, installation, cancellationToken);
+            // The website login issues its own short-lived token after the guest claim, so no app session
+            // (and no refresh token) is created for it here.
+            var tokens = issueAppTokens
+                ? await _sessionService.CreateAsync(user.Id, installation, cancellationToken)
+                : new TokenResponse();
 
             return new VerifyOtpResponse
             {
                 UserId = user.Id,
-                Purpose = purpose.ToString(),
-                AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
-                CurrentPlanCode = user.Plan?.Code ?? Plan.FreeCode,
+                IsNewUser = purpose == OtpPurpose.Registration,
                 Auth = tokens
             };
         }

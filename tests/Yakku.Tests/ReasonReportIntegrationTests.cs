@@ -190,7 +190,7 @@ public sealed class ReasonReportIntegrationTests
         Assert.Equal("poll", row.ContentType);
         Assert.Equal(scene.ReportedText, row.ReasonText);
         Assert.Equal("Rude to someone", row.ReporterReason);
-        Assert.Equal(scene.Owner.Profile.AnonymousName, row.ReporterAnonymousName);
+        Assert.Equal(scene.Owner.AnonymousName, row.ReporterAnonymousName);
         Assert.DoesNotContain(
             (await admin.ListAsync("approved", 1, 50)).Items, item => item.VoteId == scene.Reported.Id);
         Assert.Equal(400, (await Assert.ThrowsAsync<AppException>(() => admin.ListAsync("later", 1, 50))).StatusCode);

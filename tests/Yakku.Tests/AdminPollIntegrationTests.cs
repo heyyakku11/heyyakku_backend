@@ -42,7 +42,7 @@ public class AdminPollIntegrationTests
         Assert.Equal("Active one?", row.Question);
         Assert.Equal("question", row.PollType);
         Assert.Equal("active", row.Status);
-        Assert.Equal(creator.Profile.AnonymousName, row.CreatorAnonymousName);
+        Assert.Equal(creator.AnonymousName, row.CreatorAnonymousName);
         Assert.Equal(2, row.VoteCount);
         Assert.Equal(1, row.ReasonCount);
         Assert.NotNull(row.ExpiresAt);

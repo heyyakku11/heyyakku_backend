@@ -12,18 +12,14 @@ namespace Yakku.Application.Users.Mapper
             {
                 Profile = new UserProfileDetails
                 {
-                    AnonymousName = user.Profile?.AnonymousName ?? string.Empty,
-                    AvatarUrl = null
+                    AnonymousName = user.AnonymousName
                 },
                 Settings = new UserSettingsResponse
                 {
-                    AllowAskBack = user.Profile?.AllowAskBack ?? true
+                    AllowAskBack = user.Permissions?.AllowAskBack ?? true
                 },
                 Account = new UserAccountDetails
                 {
-                    Status = user.Status.ToString(),
-                    PhoneNumber = user.PhoneNumber,
-                    LoginAt = user.LoginAt,
                     CurrentPlan = new UserPlanResponse
                     {
                         Id = user.PlanId,

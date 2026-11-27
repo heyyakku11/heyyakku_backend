@@ -3205,6 +3205,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AnonymousName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("AnonymousNameKey")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasColumnName("AnonymousNameKey")
+                        .HasComputedColumnSql("lower(\"AnonymousName\")", true);
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3238,6 +3249,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AnonymousNameKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Users_AnonymousName");
 
                     b.HasIndex("PhoneNumber")
                         .IsUnique()
@@ -3469,6 +3484,49 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.ToTable("user_deletion_requests", (string)null);
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserPermission", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("AllowAskBack")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("allow_ask_back");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("PushNotification")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("push_notification");
+
+                    b.Property<bool>("Sms")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("sms");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<bool>("WhatsApp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("whatsapp");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("user_permissions", (string)null);
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserPlanEntitlement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3543,50 +3601,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Yakku.Domain.Entities.UserProfile", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AllowAskBack")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("AnonymousName")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("AnonymousNameKey")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("text")
-                        .HasColumnName("AnonymousNameKey")
-                        .HasComputedColumnSql("lower(\"AnonymousName\")", true);
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AnonymousNameKey")
-                        .IsUnique()
-                        .HasDatabaseName("IX_UserProfiles_AnonymousName");
-
-                    b.HasIndex("UserId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_UserProfiles_UserId");
-
-                    b.ToTable("user_profiles", (string)null);
-                });
-
             modelBuilder.Entity("Yakku.Domain.Entities.UserSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3601,6 +3615,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsWeb")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTime?>("LastActiveAt")
                         .HasColumnType("timestamp with time zone");
@@ -4514,6 +4533,17 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.UserPermission", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithOne("Permissions")
+                        .HasForeignKey("Yakku.Domain.Entities.UserPermission", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.UserPlanEntitlement", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.PaymentOrder", null)
@@ -4532,17 +4562,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("Yakku.Domain.Entities.UserProfile", b =>
-                {
-                    b.HasOne("Yakku.Domain.Entities.User", "User")
-                        .WithOne("Profile")
-                        .HasForeignKey("Yakku.Domain.Entities.UserProfile", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserSession", b =>
@@ -4658,13 +4677,13 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Notifications");
 
+                    b.Navigation("Permissions")
+                        .IsRequired();
+
                     b.Navigation("PersonalityCard")
                         .IsRequired();
 
                     b.Navigation("Polls");
-
-                    b.Navigation("Profile")
-                        .IsRequired();
 
                     b.Navigation("SavedCards");
 

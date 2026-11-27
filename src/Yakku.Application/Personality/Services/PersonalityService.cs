@@ -189,7 +189,7 @@ namespace Yakku.Application.Personality.Services
             {
                 CardId = card.Id,
                 ShareCode = card.ShareCode,
-                OwnerAnonymousName = card.User.Profile.AnonymousName,
+                OwnerAnonymousName = card.User.AnonymousName,
                 Status = card.Status.ToString(),
                 IsOwner = isOwner,
                 HasVoted = hasVoted,

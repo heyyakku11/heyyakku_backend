@@ -44,7 +44,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     report.ReviewedAt,
                     ReporterAnonymousName = _context.Users
                         .Where(user => user.Id == report.ReporterId)
-                        .Select(user => user.Profile.AnonymousName)
+                        .Select(user => user.AnonymousName)
                         .FirstOrDefault()
                 })
                 .ToListAsync(cancellationToken);

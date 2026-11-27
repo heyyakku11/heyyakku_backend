@@ -35,6 +35,25 @@ Content-Type: application/json
   "refreshToken": "{{refreshToken}}"
 }
 
+### Website: send OTP (website only; the app uses /api/v1/auth/send)
+POST {{Yakku.API_HostAddress}}/api/v1/web/auth/send
+Content-Type: application/json
+
+{
+  "phoneNumber": "+919999999999"
+}
+
+### Website: verify OTP. Returns one 15-minute access token, no refresh token.
+### Send the browser's guest token so its votes move to the account.
+POST {{Yakku.API_HostAddress}}/api/v1/web/auth/verify
+Content-Type: application/json
+X-Guest-Token: {{guestToken}}
+
+{
+  "phoneNumber": "+919999999999",
+  "otp": "123456"
+}
+
 ### Get my profile
 GET {{Yakku.API_HostAddress}}/api/users/me
 Authorization: Bearer {{accessToken}}

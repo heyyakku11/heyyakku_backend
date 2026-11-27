@@ -100,7 +100,7 @@ public sealed class OtpSignupFlowTests
 
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(otp));
 
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
         Assert.Single(h.Users.Snapshot);
         Assert.Equal(Phone, h.Users.Snapshot[0].PhoneNumber);
         await AssertFailsAsync(h.NewAuth().VerifyOtpAsync(Verify(otp)), 404, ApiErrorCodes.OtpNotFound);
@@ -116,7 +116,7 @@ public sealed class OtpSignupFlowTests
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(h.Sms.Last.Otp));
 
         Assert.Equal("Login", response.Purpose);
-        Assert.Equal("Login", verified.Purpose);
+        Assert.False(verified.IsNewUser);
         Assert.Single(h.Users.Snapshot);
     }
 
@@ -216,7 +216,7 @@ public sealed class OtpSignupFlowTests
         Assert.Equal("Registration", response.Purpose);
         Assert.Equal(2, h.Sms.Sent.Count);
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(h.Sms.Last.Otp));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
     }
 
     [SkippableFact]
@@ -270,7 +270,7 @@ public sealed class OtpSignupFlowTests
         await h.NewAuth().RequestOtpAsync(Request());
 
         var verified = await h.NewAuth().VerifyOtpAsync(Verify("654321"));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
     }
 
     [Fact]
@@ -329,7 +329,7 @@ public sealed class OtpSignupFlowTests
         var otp = match.Groups[1].Value;
 
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(otp));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
         Assert.Contains("stored in plaintext", h.Log.AllText, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -347,7 +347,7 @@ public sealed class OtpSignupFlowTests
 
         Assert.Single(h.Sms.Sent);
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(first));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
     }
 
     [SkippableFact]
@@ -368,7 +368,7 @@ public sealed class OtpSignupFlowTests
         }
 
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(second));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
     }
 
     [SkippableFact]
@@ -405,7 +405,7 @@ public sealed class OtpSignupFlowTests
         Assert.Equal("1", (string?)await _redis.Database.StringGetAsync(SendCountKey));
         // The one SMS carries the one OTP that is stored.
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(sms.Otp));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
     }
 
     [SkippableFact]
@@ -437,7 +437,7 @@ public sealed class OtpSignupFlowTests
         Assert.Equal(1, stored.GetProperty("attemptCount").GetInt32());
         Assert.Empty(h.Users.Snapshot);
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(otp));
-        Assert.Equal("Registration", verified.Purpose);
+        Assert.True(verified.IsNewUser);
     }
 
     [SkippableFact]
@@ -549,7 +549,7 @@ public sealed class OtpSignupFlowTests
 
         Assert.True(await _redis.Database.KeyExistsAsync(ChallengeKey));
         var verified = await h.NewAuth().VerifyOtpAsync(Verify(h.Sms.Last.Otp));
-        Assert.Equal("Login", verified.Purpose);
+        Assert.False(verified.IsNewUser);
     }
 
     // ---- test doubles ---------------------------------------------------------------------------------------

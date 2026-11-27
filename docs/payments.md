@@ -115,7 +115,6 @@ Paid plan periods live in `user_plan_entitlements` (one `ACTIVE` per user). `use
 | API | Purpose |
 |---|---|
 | `GET /api/v1/payments/history` | Caller payment orders (paginated) |
-| `GET /api/v1/payments/orders/{orderId}` | Owner-scoped order + attempts |
 | `POST /api/v1/yakku/payments/attempts/{id}/refunds` | Admin Razorpay refund (access not revoked) |
 
 Background `payment-reconciliation` worker (every 5 min): expires stale unpaid orders, fulfills gateway-captured pending orders, logs missing fulfillments and exhausted webhooks.

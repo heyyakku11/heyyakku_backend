@@ -32,38 +32,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return (orders, total);
         }
 
-        public Task<PaymentOrder?> FindOwnedOrderAsync(
-            Guid userId,
-            Guid orderId,
-            CancellationToken cancellationToken = default)
-        {
-            return _context.PaymentOrders.AsNoTracking()
-                .FirstOrDefaultAsync(order => order.Id == orderId && order.UserId == userId, cancellationToken);
-        }
-
-        public async Task<IReadOnlyList<PaymentAttempt>> ListAttemptsForOrderAsync(
-            Guid orderId,
-            CancellationToken cancellationToken = default)
-        {
-            return await _context.PaymentAttempts.AsNoTracking()
-                .Where(attempt => attempt.PaymentOrderId == orderId)
-                .OrderByDescending(attempt => attempt.CreatedAt)
-                .ToListAsync(cancellationToken);
-        }
-
-        public Task<string?> ResolvePlanCodeAsync(Guid? planId, CancellationToken cancellationToken = default)
-        {
-            if (planId is null)
-            {
-                return Task.FromResult<string?>(null);
-            }
-
-            return _context.Plans.AsNoTracking()
-                .Where(plan => plan.Id == planId)
-                .Select(plan => plan.Code)
-                .FirstOrDefaultAsync(cancellationToken)!;
-        }
-
         public Task<string?> ResolvePlanNameAsync(Guid? planId, CancellationToken cancellationToken = default)
         {
             if (planId is null)

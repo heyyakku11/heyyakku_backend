@@ -32,7 +32,7 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .Select(user => new
                 {
                     user.Id,
-                    user.Profile.AnonymousName,
+                    user.AnonymousName,
                     user.PhoneNumber,
                     PlanCode = user.Plan.Code,
                     PlanName = user.Plan.Name,
