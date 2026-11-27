@@ -78,5 +78,14 @@ namespace Yakku.Application.AskBack.Interfaces
 
         /// <summary>Whether the user may join the conversation's real-time group. Used by the hub.</summary>
         Task<bool> CanJoinAsync(Guid userId, Guid conversationId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// The recipient's client received a message over SignalR. <paramref name="userId"/> comes from the caller's
+        /// token; only the message's recipient matches. Idempotent. Used by the hub.
+        /// </summary>
+        Task<AskBackAckOutcome> AcknowledgeDeliveryAsync(
+            Guid userId,
+            Guid messageId,
+            CancellationToken cancellationToken = default);
     }
 }

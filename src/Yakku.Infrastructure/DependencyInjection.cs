@@ -266,6 +266,17 @@ namespace Yakku.Infrastructure
             services.AddScoped<AskBackPushDispatcher>();
             services.AddHostedService<AskBackPushWorker>();
 
+            // Ask Back delivery acknowledgment timeout, from the "AskBackDelivery" section or AskBackDelivery__*.
+            services.AddSingleton<IValidateOptions<Yakku.Application.AskBack.AskBackDeliveryOptions>, Jobs.AskBackDeliveryOptionsValidator>();
+            services.AddOptions<Yakku.Application.AskBack.AskBackDeliveryOptions>()
+                .Configure<IConfiguration>((options, config) =>
+                {
+                    config.GetSection(Yakku.Application.AskBack.AskBackDeliveryOptions.SectionName).Bind(options);
+                })
+                .ValidateOnStart();
+            services.AddScoped<Jobs.AskBackDeliveryTimeoutSweeper>();
+            services.AddHostedService<Jobs.AskBackDeliveryTimeoutWorker>();
+
             return services;
         }
 

@@ -250,6 +250,7 @@ Client to server:
 | `JoinConversation(conversationId)` | Fails with `HubException("Conversation not found.")` unless you are a participant. The server builds the group name `conversation:{id}`. |
 | `LeaveConversation(conversationId)` | |
 | `TypingStarted(conversationId)` / `TypingStopped(conversationId)` | Only after joining. |
+| `AcknowledgeMessage(messageId)` | The recipient confirms a `ReceiveMessage` arrived. Idempotent. Fails with `HubException("Message not found.")` unless the caller is the message's recipient. See Delivery tracking. |
 
 Server to client (target is the user, so every device of that user gets it, joined or not, unless noted):
 
@@ -263,6 +264,69 @@ Server to client (target is the user, so every device of that user gets it, join
 
 Delivery is best effort and happens after the message is committed. The in-memory presence used to skip pushes and
 the SignalR user targeting are per server instance; see Limitations.
+
+### Delivery tracking
+
+Each message gets one `ask_back_message_delivery_tracking` row for its recipient (the sender's own echo is not
+tracked). Statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `PENDING` | Saved in the same transaction as the message, before any send. |
+| `SENT` | The recipient had an acknowledging connection; `sent_at` is set just before `SendAsync`. |
+| `DELIVERED` | The recipient acknowledged; `delivered_at` is set. Final. |
+| `FAILED` | `SendAsync` threw, or the row stayed `PENDING` past the timeout (the send was never attempted). |
+| `TIMEDOUT` | `SENT` but no acknowledgment within `AckTimeoutSeconds`. The message may still have arrived; a late acknowledgment moves it to `DELIVERED`. |
+| `NOACKCONNECTION` | No connection of the recipient sent `deliveryAck=1` (offline, or an app version without acknowledgments). The message is still sent; it reaches them by push and history. |
+
+A client that acknowledges connects with `?deliveryAck=1` on the hub URL and calls `AcknowledgeMessage(messageId)`
+for each `ReceiveMessage` where `isMine` is false. The recipient is taken from the JWT, never from the client. Every
+transition is one conditional update, so duplicate, concurrent or late acknowledgments change the row at most once,
+and an acknowledgment always wins over the timeout sweep. A tracking write that fails is logged and never blocks
+or retries the delivery. Messages are never re-sent by the server; a client that missed one still catches up through
+`messages?direction=newer`.
+
+`AskBackDeliveryTimeoutWorker` runs every `SweepIntervalSeconds` and settles rows older than `AckTimeoutSeconds`:
+
+```json
+"AskBackDelivery": { "AckTimeoutSeconds": 30, "SweepIntervalSeconds": 15, "SweepBatchSize": 100 }
+```
+
+Log lines carry `MessageId`, `ConversationId`, `RecipientUserId`, `DeliveryStatus` and `Timestamp` (plus `LatencyMs`
+on delivery), never message text.
+
+Metrics (success rate leaves out `PENDING` and `NOACKCONNECTION`, which are not measurable deliveries):
+
+```sql
+-- Totals, latency and success rate for a period.
+SELECT
+  count(*)                                                       AS total,
+  count(*) FILTER (WHERE status = 'DELIVERED')                   AS delivered,
+  avg(extract(epoch FROM delivered_at - sent_at) * 1000)
+    FILTER (WHERE status = 'DELIVERED')                          AS avg_latency_ms,
+  percentile_cont(0.95) WITHIN GROUP
+    (ORDER BY extract(epoch FROM delivered_at - sent_at) * 1000)
+    FILTER (WHERE status = 'DELIVERED')                          AS p95_latency_ms,
+  round(100.0 * count(*) FILTER (WHERE status = 'DELIVERED')
+        / nullif(count(*) FILTER (WHERE status IN ('SENT', 'DELIVERED', 'FAILED', 'TIMEDOUT')), 0), 2)
+                                                                 AS success_rate_pct
+FROM ask_back_message_delivery_tracking
+WHERE sent_at >= now() - interval '1 day';
+
+-- Count per status (TIMEDOUT and FAILED stay separate).
+SELECT status, count(*)
+FROM ask_back_message_delivery_tracking
+WHERE created_at >= now() - interval '1 day'
+GROUP BY status
+ORDER BY status;
+
+-- Still waiting for an acknowledgment, oldest first.
+SELECT message_id, recipient_user_id, status, created_at, sent_at
+FROM ask_back_message_delivery_tracking
+WHERE status IN ('PENDING', 'SENT')
+ORDER BY created_at
+LIMIT 100;
+```
 
 ## Push and inbox
 
@@ -301,12 +365,22 @@ Migration `AskBackPlansUnlocksAndTurns`:
 - `user_blocks`: one row per blocker and blocked person (unique pair).
 - Drops `ask_back_participants.is_muted` (mute was removed).
 
+Migration `AskBackMessageDeliveryTracking` adds only `ask_back_message_delivery_tracking` (no change to
+`ask_back_messages`): `message_id` (cascade delete with the message), `recipient_user_id` (set null when the user is
+purged), `status`, `sent_at`, `delivered_at`, `created_at`, `updated_at`, all UTC. Unique
+`(message_id, recipient_user_id)`; a status check; `delivered_at` set exactly when the status is `DELIVERED`; a
+partial index on `(status, sent_at)` for `PENDING`/`SENT` rows (the sweep) and an index on `sent_at` (metrics).
+
 ## Limitations and open points
 
 - SignalR delivery and presence are in-memory per instance. With more than one API instance, add a backplane
   (Redis) before scaling out; the push skip would otherwise miss a user joined on another instance, costing one
   redundant push. REST remains correct either way.
 - Rows in `ask_back_outbox` are not purged yet (the vote notification outbox has a retention worker).
+- Delivery tracking relies on the same per-instance presence: with several instances, a recipient connected only to
+  another instance is recorded as `NOACKCONNECTION`. Tracking rows are not purged yet.
+- The app keeps unsent acknowledgments in memory only; an acknowledgment pending when the app is killed is lost and
+  the row ends as `TIMEDOUT`.
 - Ending a conversation because a reported reason removed it does not push a real-time event; it shows on the next
   fetch.
 - Message edit and delete columns exist (`edited_at`, `deleted_at`) but there are no endpoints for them.

@@ -8,13 +8,13 @@ namespace Yakku.Application.AskBack.Interfaces
     /// </summary>
     public interface IAskBackRealtime
     {
-        /// <summary>The same message for both sides; <c>isMine</c> differs.</summary>
-        Task MessageCreatedAsync(
-            Guid conversationId,
-            Guid senderUserId,
-            Guid? recipientUserId,
-            AskBackMessageResponse forSender,
-            AskBackMessageResponse forRecipient,
+        /// <summary>
+        /// <c>ReceiveMessage</c> to every connection of one user. Completing means the send was handed to SignalR,
+        /// not that a client received it; only the client's acknowledgment says that.
+        /// </summary>
+        Task SendMessageToUserAsync(
+            Guid userId,
+            AskBackMessageResponse message,
             CancellationToken cancellationToken = default);
 
         Task MessageReadAsync(
@@ -32,16 +32,19 @@ namespace Yakku.Application.AskBack.Interfaces
             CancellationToken cancellationToken = default);
     }
 
-    /// <summary>Whether a user currently has a live connection joined to a conversation.</summary>
+    /// <summary>Which users have live connections, and which conversations those connections joined.</summary>
     public interface IAskBackPresence
     {
         bool IsViewing(Guid conversationId, Guid userId);
+
+        /// <summary>Whether the user has a live connection from an app that acknowledges received messages.</summary>
+        bool HasAckCapableConnection(Guid userId);
     }
 
     /// <summary>Used where no hub is hosted (tests, workers without the API).</summary>
     public sealed class NullAskBackRealtime : IAskBackRealtime
     {
-        public Task MessageCreatedAsync(Guid conversationId, Guid senderUserId, Guid? recipientUserId, AskBackMessageResponse forSender, AskBackMessageResponse forRecipient, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SendMessageToUserAsync(Guid userId, AskBackMessageResponse message, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task MessageReadAsync(Guid conversationId, Guid? otherUserId, Guid lastReadMessageId, DateTime readAt, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
@@ -51,5 +54,7 @@ namespace Yakku.Application.AskBack.Interfaces
     public sealed class NullAskBackPresence : IAskBackPresence
     {
         public bool IsViewing(Guid conversationId, Guid userId) => false;
+
+        public bool HasAckCapableConnection(Guid userId) => false;
     }
 }

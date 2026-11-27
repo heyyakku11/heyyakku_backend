@@ -399,11 +399,13 @@ public sealed class AskBackIntegrationTests
         Assert.Equal(["Hi", "Hello"], history.Select(m => m.Content));
         Assert.Equal([false, true], history.Select(m => m.IsMine));
 
-        // The real-time events carry isMine per side and were published after the save.
-        Assert.Equal(2, realtime.Messages.Count);
-        Assert.True(realtime.Messages[0].ForSender.IsMine);
-        Assert.False(realtime.Messages[0].ForRecipient.IsMine);
-        Assert.Equal(scene.Voter.Id, realtime.Messages[0].Recipient);
+        // The real-time events carry isMine per side and were published after the save: the recipient first,
+        // then the sender's other devices.
+        Assert.Equal(4, realtime.Messages.Count);
+        Assert.Equal(scene.Voter.Id, realtime.Messages[0].UserId);
+        Assert.False(realtime.Messages[0].Message.IsMine);
+        Assert.Equal(scene.Asker.Id, realtime.Messages[1].UserId);
+        Assert.True(realtime.Messages[1].Message.IsMine);
     }
 
     [SkippableFact]
@@ -1002,7 +1004,11 @@ public sealed class AskBackIntegrationTests
             new EntitlementRepository(context), new AskBackRepository(context), TimeProvider.System);
     }
 
-    internal static AskBackService ServiceFor(YakkuDbContext context, IAskBackRealtime? realtime = null)
+    internal static AskBackService ServiceFor(
+        YakkuDbContext context,
+        IAskBackRealtime? realtime = null,
+        IAskBackPresence? presence = null,
+        Microsoft.Extensions.Logging.ILogger<AskBackService>? logger = null)
     {
         return new AskBackService(
             new AskBackRepository(context),
@@ -1014,7 +1020,8 @@ public sealed class AskBackIntegrationTests
             new BlockAskBackRequestValidator(),
             EntitlementsFor(context),
             TimeProvider.System,
-            NullLogger<AskBackService>.Instance);
+            logger ?? NullLogger<AskBackService>.Instance,
+            presence: presence);
     }
 
     /// <summary>Simulates a paid plan ending: both the user projection and any ACTIVE entitlement row.</summary>
@@ -1097,21 +1104,24 @@ public sealed class AskBackIntegrationTests
         return poll;
     }
 
-    private sealed class RecordingRealtime : IAskBackRealtime
+    internal sealed class RecordingRealtime : IAskBackRealtime
     {
         public bool Throw { get; init; }
-        public List<(Guid Recipient, AskBackMessageResponse ForSender, AskBackMessageResponse ForRecipient)> Messages { get; } = new();
+
+        /// <summary>Throws only for these users' sends.</summary>
+        public Func<Guid, bool>? ThrowFor { get; init; }
+        public List<(Guid UserId, AskBackMessageResponse Message)> Messages { get; } = new();
         public List<(Guid? Other, Guid MessageId)> Reads { get; } = new();
         public List<(Guid ConversationId, string Status)> Statuses { get; } = new();
 
-        public Task MessageCreatedAsync(Guid conversationId, Guid senderUserId, Guid? recipientUserId, AskBackMessageResponse forSender, AskBackMessageResponse forRecipient, CancellationToken cancellationToken = default)
+        public Task SendMessageToUserAsync(Guid userId, AskBackMessageResponse message, CancellationToken cancellationToken = default)
         {
-            if (Throw)
+            if (Throw || ThrowFor?.Invoke(userId) == true)
             {
                 throw new InvalidOperationException("hub down");
             }
 
-            Messages.Add((recipientUserId!.Value, forSender, forRecipient));
+            Messages.Add((userId, message));
             return Task.CompletedTask;
         }
 
@@ -1131,6 +1141,8 @@ public sealed class AskBackIntegrationTests
     private sealed class FixedPresence(Guid conversationId, Guid userId) : IAskBackPresence
     {
         public bool IsViewing(Guid conversation, Guid user) => conversation == conversationId && user == userId;
+
+        public bool HasAckCapableConnection(Guid user) => user == userId;
     }
 
     private sealed class RecordingPush : IPushNotificationService

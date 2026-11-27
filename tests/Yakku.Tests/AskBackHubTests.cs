@@ -247,6 +247,153 @@ public sealed class AskBackHubTests
         Assert.Equal(live.Id, (await Next(secondEvents)).Id);
     }
 
+    // ---- delivery acknowledgments ----
+
+    [SkippableFact]
+    public async Task ReceivedMessage_AcknowledgedOverTheHub_IsDelivered()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var host = await HostAsync();
+        var (asker, voter, conversationId) = await host.StartConversationAsync();
+        await using var voterConnection = host.Connect(voter, deliveryAck: true);
+        var voterEvents = Listen<AskBackMessageResponse>(voterConnection, "ReceiveMessage");
+        await voterConnection.StartAsync();
+        await host.WaitForAckCapableAsync(voter);
+
+        var sent = await host.SendAsync(asker, conversationId, "ack me");
+        Assert.Equal(AskBackDeliveryStatus.Sent, await DeliveryStatusAsync(sent.Id));
+        var received = await Next(voterEvents);
+        await voterConnection.InvokeAsync("AcknowledgeMessage", received.Id);
+
+        var row = await DeliveryAsync(sent.Id);
+        Assert.Equal(AskBackDeliveryStatus.Delivered, row.Status);
+        Assert.True(row.DeliveredAt >= row.SentAt);
+    }
+
+    [SkippableFact]
+    public async Task Acknowledgment_FromAnyoneButTheRecipient_IsRefused()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var host = await HostAsync();
+        var (asker, voter, conversationId) = await host.StartConversationAsync();
+        var outsider = await host.AddUserAsync();
+        await using var voterConnection = host.Connect(voter, deliveryAck: true);
+        await using var askerConnection = host.Connect(asker, deliveryAck: true);
+        await using var outsiderConnection = host.Connect(outsider, deliveryAck: true);
+        await voterConnection.StartAsync();
+        await askerConnection.StartAsync();
+        await outsiderConnection.StartAsync();
+        await host.WaitForAckCapableAsync(voter);
+
+        var sent = await host.SendAsync(asker, conversationId, "not yours to ack");
+
+        // The sender, a stranger and a made-up id all get the same answer.
+        var bySender = await Assert.ThrowsAsync<HubException>(() => askerConnection.InvokeAsync("AcknowledgeMessage", sent.Id));
+        var byStranger = await Assert.ThrowsAsync<HubException>(() => outsiderConnection.InvokeAsync("AcknowledgeMessage", sent.Id));
+        var unknown = await Assert.ThrowsAsync<HubException>(() => voterConnection.InvokeAsync("AcknowledgeMessage", Guid.NewGuid()));
+        Assert.All(new[] { bySender, byStranger, unknown }, e => Assert.Contains("Message not found", e.Message));
+        Assert.Equal(AskBackDeliveryStatus.Sent, await DeliveryStatusAsync(sent.Id));
+    }
+
+    [SkippableFact]
+    public async Task Acknowledgment_FromALoggedOutSession_IsRefused()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var host = await HostAsync();
+        var (asker, voter, conversationId) = await host.StartConversationAsync();
+        await using var voterConnection = host.Connect(voter, deliveryAck: true);
+        var voterEvents = Listen<AskBackMessageResponse>(voterConnection, "ReceiveMessage");
+        await voterConnection.StartAsync();
+        await host.WaitForAckCapableAsync(voter);
+        var sent = await host.SendAsync(asker, conversationId, "then logged out");
+        await Next(voterEvents);
+
+        host.Sessions.Revoke(voter.SessionId);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => voterConnection.InvokeAsync("AcknowledgeMessage", sent.Id));
+        Assert.Equal(AskBackDeliveryStatus.Sent, await DeliveryStatusAsync(sent.Id));
+    }
+
+    [SkippableFact]
+    public async Task ReconnectedClient_CanAcknowledgeAMessageReceivedBeforeTheDrop()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var host = await HostAsync();
+        var (asker, voter, conversationId) = await host.StartConversationAsync();
+        await using var first = host.Connect(voter, deliveryAck: true);
+        var firstEvents = Listen<AskBackMessageResponse>(first, "ReceiveMessage");
+        await first.StartAsync();
+        await host.WaitForAckCapableAsync(voter);
+        var sent = await host.SendAsync(asker, conversationId, "received, ack lost");
+        Assert.Equal(sent.Id, (await Next(firstEvents)).Id);
+
+        // The connection drops before the acknowledgment goes out.
+        await first.StopAsync();
+        await using var second = host.Connect(voter, deliveryAck: true);
+        await second.StartAsync();
+        await second.InvokeAsync("AcknowledgeMessage", sent.Id);
+
+        Assert.Equal(AskBackDeliveryStatus.Delivered, await DeliveryStatusAsync(sent.Id));
+    }
+
+    [SkippableFact]
+    public async Task DuplicateDeliveryToTwoDevices_IsAcknowledgedOnce_AndBothAcknowledgmentsSucceed()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var host = await HostAsync();
+        var (asker, voter, conversationId) = await host.StartConversationAsync();
+        await using var phone = host.Connect(voter, deliveryAck: true);
+        await using var tablet = host.Connect(voter, deliveryAck: true);
+        var phoneEvents = Listen<AskBackMessageResponse>(phone, "ReceiveMessage");
+        var tabletEvents = Listen<AskBackMessageResponse>(tablet, "ReceiveMessage");
+        await phone.StartAsync();
+        await tablet.StartAsync();
+        await host.WaitForAckCapableAsync(voter);
+
+        var sent = await host.SendAsync(asker, conversationId, "twice");
+        Assert.Equal(sent.Id, (await Next(phoneEvents)).Id);
+        Assert.Equal(sent.Id, (await Next(tabletEvents)).Id);
+        await Task.WhenAll(
+            phone.InvokeAsync("AcknowledgeMessage", sent.Id),
+            tablet.InvokeAsync("AcknowledgeMessage", sent.Id));
+        var deliveredAt = (await DeliveryAsync(sent.Id)).DeliveredAt;
+        await phone.InvokeAsync("AcknowledgeMessage", sent.Id);
+
+        var row = await DeliveryAsync(sent.Id);
+        Assert.Equal(AskBackDeliveryStatus.Delivered, row.Status);
+        Assert.Equal(deliveredAt, row.DeliveredAt);
+    }
+
+    [SkippableFact]
+    public async Task ConnectionWithoutTheAckFlag_IsTrackedAsNoAckConnection()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var host = await HostAsync();
+        var (asker, voter, conversationId) = await host.StartConversationAsync();
+        // An app version from before acknowledgments: same event, no flag.
+        await using var oldApp = host.Connect(voter);
+        var events = Listen<AskBackMessageResponse>(oldApp, "ReceiveMessage");
+        await oldApp.StartAsync();
+        await oldApp.InvokeAsync("JoinConversation", conversationId);
+
+        var sent = await host.SendAsync(asker, conversationId, "old client");
+
+        Assert.Equal(sent.Id, (await Next(events)).Id);
+        Assert.False(host.Presence.HasAckCapableConnection(voter.UserId));
+        Assert.Equal(AskBackDeliveryStatus.NoAckConnection, await DeliveryStatusAsync(sent.Id));
+    }
+
+    private async Task<AskBackMessageDeliveryTracking> DeliveryAsync(Guid messageId)
+    {
+        await using var context = _fixture.CreateContext();
+        return await context.AskBackDeliveries.AsNoTracking().SingleAsync(d => d.MessageId == messageId);
+    }
+
+    private async Task<AskBackDeliveryStatus> DeliveryStatusAsync(Guid messageId)
+    {
+        return (await DeliveryAsync(messageId)).Status;
+    }
+
     // ---- test host ----
 
     private sealed record TypingEvent(Guid ConversationId);
@@ -301,6 +448,7 @@ public sealed class AskBackHubTests
             builder.Services.AddDbContext<YakkuDbContext>(options => options.UseNpgsql(_fixture.ConnectionString));
             builder.Services.AddApplication();
             builder.Services.AddScoped<IAskBackRepository, AskBackRepository>();
+            builder.Services.AddScoped<Yakku.Application.Notifications.Interfaces.INotificationRepository, NotificationRepository>();
             builder.Services.AddScoped<Yakku.Application.Entitlements.IEntitlementRepository, EntitlementRepository>();
             builder.Services.AddSingleton<IUserSessionRepository>(Sessions);
             builder.Services.AddSingleton(TimeProvider.System);
@@ -344,15 +492,16 @@ public sealed class AskBackHubTests
             Presence = _app.Services.GetRequiredService<AskBackPresence>();
         }
 
-        public HubConnection Connect(TestUser user)
+        public HubConnection Connect(TestUser user, bool deliveryAck = false)
         {
-            return Connect(Token(user));
+            return Connect(Token(user), deliveryAck);
         }
 
-        public HubConnection Connect(string? token)
+        public HubConnection Connect(string? token, bool deliveryAck = false)
         {
+            var query = deliveryAck ? $"?{AskBackHub.DeliveryAckQueryKey}=1" : string.Empty;
             return new HubConnectionBuilder()
-                .WithUrl($"{Url}/hubs/ask-back", options =>
+                .WithUrl($"{Url}/hubs/ask-back{query}", options =>
                 {
                     options.Transports = HttpTransportType.WebSockets;
                     options.SkipNegotiation = true;
@@ -362,6 +511,17 @@ public sealed class AskBackHubTests
                     }
                 })
                 .Build();
+        }
+
+        /// <summary>The handshake completes before the server's OnConnectedAsync registers the connection.</summary>
+        public async Task WaitForAckCapableAsync(TestUser user)
+        {
+            for (var i = 0; i < 50 && !Presence.HasAckCapableConnection(user.UserId); i++)
+            {
+                await Task.Delay(20);
+            }
+
+            Assert.True(Presence.HasAckCapableConnection(user.UserId));
         }
 
         public async Task<TestUser> AddUserAsync()

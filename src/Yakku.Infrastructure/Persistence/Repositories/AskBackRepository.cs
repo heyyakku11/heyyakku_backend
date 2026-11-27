@@ -595,9 +595,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             AskBackMessage message,
             Notification? notification,
             AskBackOutboxEvent? outbox,
+            AskBackMessageDeliveryTracking? delivery,
             CancellationToken cancellationToken = default)
         {
-            // Message, inbox row, outbox and the conversation's last-message time are one SaveChanges.
+            // Message, inbox row, outbox, delivery tracking and the conversation's last-message time are one
+            // SaveChanges, so the tracking row exists before any delivery is attempted.
             _context.AskBackMessages.Add(message);
             if (notification is not null)
             {
@@ -607,6 +609,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             if (outbox is not null)
             {
                 _context.AskBackOutbox.Add(outbox);
+            }
+
+            if (delivery is not null)
+            {
+                _context.AskBackDeliveries.Add(delivery);
             }
 
             try
@@ -651,6 +658,85 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     ApiErrorCodes.AskBackNotYourTurn,
                     "It is not your turn to send a message.");
             }
+        }
+
+        public async Task<bool> MarkDeliveryAttemptAsync(
+            Guid messageId,
+            Guid recipientUserId,
+            AskBackDeliveryStatus status,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var updated = await _context.AskBackDeliveries
+                .Where(delivery => delivery.MessageId == messageId
+                                   && delivery.RecipientUserId == recipientUserId
+                                   && delivery.Status == AskBackDeliveryStatus.Pending)
+                .ExecuteUpdateAsync(
+                    set => set
+                        .SetProperty(delivery => delivery.Status, status)
+                        .SetProperty(delivery => delivery.SentAt, (DateTime?)utcNow)
+                        .SetProperty(delivery => delivery.UpdatedAt, utcNow),
+                    cancellationToken);
+            return updated > 0;
+        }
+
+        public async Task<bool> MarkDeliveryFailedAsync(
+            Guid messageId,
+            Guid recipientUserId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var updated = await _context.AskBackDeliveries
+                .Where(delivery => delivery.MessageId == messageId
+                                   && delivery.RecipientUserId == recipientUserId
+                                   && (delivery.Status == AskBackDeliveryStatus.Pending
+                                       || delivery.Status == AskBackDeliveryStatus.Sent))
+                .ExecuteUpdateAsync(
+                    set => set
+                        .SetProperty(delivery => delivery.Status, AskBackDeliveryStatus.Failed)
+                        .SetProperty(delivery => delivery.UpdatedAt, utcNow),
+                    cancellationToken);
+            return updated > 0;
+        }
+
+        public async Task<AskBackAckResult> AcknowledgeDeliveryAsync(
+            Guid messageId,
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            // Any state but Delivered can still be acknowledged: a timed-out or failed send may have arrived anyway.
+            // Of two concurrent updates, PostgreSQL re-checks the second against the first's result, so it matches
+            // nothing.
+            var updated = await _context.AskBackDeliveries
+                .Where(delivery => delivery.MessageId == messageId
+                                   && delivery.RecipientUserId == userId
+                                   && delivery.Status != AskBackDeliveryStatus.Delivered)
+                .ExecuteUpdateAsync(
+                    set => set
+                        .SetProperty(delivery => delivery.Status, AskBackDeliveryStatus.Delivered)
+                        .SetProperty(delivery => delivery.DeliveredAt, (DateTime?)utcNow)
+                        .SetProperty(delivery => delivery.UpdatedAt, utcNow),
+                    cancellationToken);
+
+            var row = await _context.AskBackDeliveries
+                .AsNoTracking()
+                .Where(delivery => delivery.MessageId == messageId && delivery.RecipientUserId == userId)
+                .Select(delivery => new
+                {
+                    delivery.Status,
+                    delivery.SentAt,
+                    delivery.DeliveredAt,
+                    delivery.Message.ConversationId
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (row is null)
+            {
+                return new AskBackAckResult(AskBackAckOutcome.NotFound, null, null, null);
+            }
+
+            var outcome = updated > 0 ? AskBackAckOutcome.Delivered : AskBackAckOutcome.AlreadyDelivered;
+            return new AskBackAckResult(outcome, row.ConversationId, row.SentAt, row.DeliveredAt);
         }
 
         public async Task<int> CountUnreadAsync(

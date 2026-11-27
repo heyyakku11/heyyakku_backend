@@ -409,6 +409,66 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackMessageDeliveryTracking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("delivered_at");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<Guid?>("RecipientUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_user_id");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipientUserId");
+
+                    b.HasIndex("SentAt")
+                        .HasDatabaseName("IX_ask_back_delivery_sent_at");
+
+                    b.HasIndex("MessageId", "RecipientUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ask_back_delivery_message_recipient");
+
+                    b.HasIndex("Status", "SentAt")
+                        .HasDatabaseName("IX_ask_back_delivery_waiting")
+                        .HasFilter("\"status\" IN ('PENDING', 'SENT')");
+
+                    b.ToTable("ask_back_message_delivery_tracking", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ask_back_message_delivery_tracking_delivered_at", "(\"status\" = 'DELIVERED') = (\"delivered_at\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ask_back_message_delivery_tracking_status", "\"status\" IN ('PENDING', 'SENT', 'DELIVERED', 'FAILED', 'TIMEDOUT', 'NOACKCONNECTION')");
+                        });
+                });
+
             modelBuilder.Entity("Yakku.Domain.Entities.AskBackOutboxEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2843,7 +2903,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_poll_votes_custom_answer_not_blank", "\"custom_answer\" IS NULL OR char_length(btrim(\"custom_answer\")) > 0");
 
-                            t.HasCheckConstraint("CK_poll_votes_one_choice", "(\"poll_option_id\" IS NOT NULL AND \"custom_answer\" IS NULL)\nOR\n(\"poll_option_id\" IS NULL AND \"custom_answer\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_poll_votes_one_choice", "(\"poll_option_id\" IS NOT NULL AND \"custom_answer\" IS NULL)\r\nOR\r\n(\"poll_option_id\" IS NULL AND \"custom_answer\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_poll_votes_reason_not_blank", "\"reason\" IS NULL OR char_length(btrim(\"reason\")) > 0");
                         });
@@ -3373,7 +3433,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_user_check_votes_custom_answer_not_blank", "\"custom_answer\" IS NULL OR char_length(btrim(\"custom_answer\")) > 0");
 
-                            t.HasCheckConstraint("CK_user_check_votes_one_choice", "(\"check_option_id\" IS NOT NULL AND \"custom_answer\" IS NULL)\nOR\n(\"check_option_id\" IS NULL AND \"custom_answer\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_user_check_votes_one_choice", "(\"check_option_id\" IS NOT NULL AND \"custom_answer\" IS NULL)\r\nOR\r\n(\"check_option_id\" IS NULL AND \"custom_answer\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_user_check_votes_reason_not_blank", "\"reason\" IS NULL OR char_length(btrim(\"reason\")) > 0");
                         });
@@ -3988,6 +4048,22 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Conversation");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackMessageDeliveryTracking", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.AskBackMessage", "Message")
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Message");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.AskBackParticipant", b =>

@@ -187,6 +187,56 @@ namespace Yakku.Infrastructure.Persistence.Configurations
         }
     }
 
+    internal class AskBackMessageDeliveryTrackingConfiguration : IEntityTypeConfiguration<AskBackMessageDeliveryTracking>
+    {
+        public void Configure(EntityTypeBuilder<AskBackMessageDeliveryTracking> builder)
+        {
+            builder.ToTable("ask_back_message_delivery_tracking", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_ask_back_message_delivery_tracking_status",
+                    "\"status\" IN ('PENDING', 'SENT', 'DELIVERED', 'FAILED', 'TIMEDOUT', 'NOACKCONNECTION')");
+                table.HasCheckConstraint(
+                    "CK_ask_back_message_delivery_tracking_delivered_at",
+                    "(\"status\" = 'DELIVERED') = (\"delivered_at\" IS NOT NULL)");
+            });
+            builder.HasKey(x => x.Id);
+
+            builder.Property(x => x.Id).HasColumnName("id");
+            builder.Property(x => x.MessageId).HasColumnName("message_id").IsRequired();
+            builder.Property(x => x.RecipientUserId).HasColumnName("recipient_user_id");
+            builder.Property(x => x.Status)
+                .HasColumnName("status")
+                .HasUppercaseEnumConversion()
+                .HasMaxLength(20);
+            builder.Property(x => x.SentAt).HasColumnName("sent_at");
+            builder.Property(x => x.DeliveredAt).HasColumnName("delivered_at");
+            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+
+            builder.HasOne(x => x.Message)
+                .WithMany()
+                .HasForeignKey(x => x.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // A deleted recipient keeps the row (as null) so delivery metrics do not change after the fact.
+            builder.HasOne<User>().WithMany().HasForeignKey(x => x.RecipientUserId).OnDelete(DeleteBehavior.SetNull);
+
+            // One row per message and recipient: a retried send or a duplicate write cannot add a second.
+            builder.HasIndex(x => new { x.MessageId, x.RecipientUserId })
+                .IsUnique()
+                .HasDatabaseName("IX_ask_back_delivery_message_recipient");
+
+            // The timeout sweeper only looks at rows still waiting.
+            builder.HasIndex(x => new { x.Status, x.SentAt })
+                .HasFilter("\"status\" IN ('PENDING', 'SENT')")
+                .HasDatabaseName("IX_ask_back_delivery_waiting");
+
+            // Reporting periods are chosen by attempt time.
+            builder.HasIndex(x => x.SentAt)
+                .HasDatabaseName("IX_ask_back_delivery_sent_at");
+        }
+    }
+
     internal class AskBackReportConfiguration : IEntityTypeConfiguration<AskBackReport>
     {
         public void Configure(EntityTypeBuilder<AskBackReport> builder)

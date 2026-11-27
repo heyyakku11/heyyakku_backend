@@ -19,22 +19,14 @@ namespace Yakku.API.AskBack
             _hub = hub;
         }
 
-        public async Task MessageCreatedAsync(
-            Guid conversationId,
-            Guid senderUserId,
-            Guid? recipientUserId,
-            AskBackMessageResponse forSender,
-            AskBackMessageResponse forRecipient,
+        public Task SendMessageToUserAsync(
+            Guid userId,
+            AskBackMessageResponse message,
             CancellationToken cancellationToken = default)
         {
-            // Persisted before this is called. The sender's other devices get the copy with isMine = true.
-            await _hub.Clients.User(senderUserId.ToString())
-                .SendAsync("ReceiveMessage", forSender, cancellationToken);
-            if (recipientUserId is { } recipient)
-            {
-                await _hub.Clients.User(recipient.ToString())
-                    .SendAsync("ReceiveMessage", forRecipient, cancellationToken);
-            }
+            // Persisted before this is called. With no live connection SignalR completes without sending anything.
+            return _hub.Clients.User(userId.ToString())
+                .SendAsync("ReceiveMessage", message, cancellationToken);
         }
 
         public async Task MessageReadAsync(

@@ -28,6 +28,26 @@ namespace Yakku.Application.AskBack.Interfaces
         AlreadyExists = 2
     }
 
+    /// <summary>Result of a recipient acknowledging a message.</summary>
+    public enum AskBackAckOutcome
+    {
+        /// <summary>This acknowledgment moved the delivery to Delivered.</summary>
+        Delivered = 0,
+
+        /// <summary>It was already Delivered (a duplicate or concurrent acknowledgment); nothing changed.</summary>
+        AlreadyDelivered = 1,
+
+        /// <summary>No delivery of that message to this user: unknown message, or not its recipient.</summary>
+        NotFound = 2
+    }
+
+    /// <summary>The outcome, and the stored row's times for logging (null when not found).</summary>
+    public sealed record AskBackAckResult(
+        AskBackAckOutcome Outcome,
+        Guid? ConversationId,
+        DateTime? SentAt,
+        DateTime? DeliveredAt);
+
     public interface IAskBackRepository
     {
         Task<AskBackVoteContext?> FindVoteContextAsync(Guid voteId, CancellationToken cancellationToken = default);
@@ -112,15 +132,45 @@ namespace Yakku.Application.AskBack.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Saves the message, the conversation's last-message time and the push row in one transaction. A retry
-        /// that races with the first send (the idempotency index) returns the stored message with
-        /// <c>Created = false</c>.
+        /// Saves the message, the conversation's last-message time, the push row and the delivery tracking row in
+        /// one transaction. A retry that races with the first send (the idempotency index) returns the stored
+        /// message with <c>Created = false</c> and adds nothing.
         /// </summary>
         Task<(Guid MessageId, bool Created)> AddMessageAsync(
             AskBackConversation conversation,
             AskBackMessage message,
             Notification? notification,
             AskBackOutboxEvent? outbox,
+            AskBackMessageDeliveryTracking? delivery,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Records the SignalR send attempt (<see cref="AskBackDeliveryStatus.Sent"/> or
+        /// <see cref="AskBackDeliveryStatus.NoAckConnection"/>) with its time. Only a Pending row moves; false otherwise.
+        /// </summary>
+        Task<bool> MarkDeliveryAttemptAsync(
+            Guid messageId,
+            Guid recipientUserId,
+            AskBackDeliveryStatus status,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>The send threw. Only a Pending or Sent row moves to Failed; false otherwise.</summary>
+        Task<bool> MarkDeliveryFailedAsync(
+            Guid messageId,
+            Guid recipientUserId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Moves the delivery of <paramref name="messageId"/> to <paramref name="userId"/> to Delivered, in one
+        /// conditional update: only the recipient's own row matches, and a row already Delivered is left alone, so
+        /// duplicate and concurrent acknowledgments change it once.
+        /// </summary>
+        Task<AskBackAckResult> AcknowledgeDeliveryAsync(
+            Guid messageId,
+            Guid userId,
+            DateTime utcNow,
             CancellationToken cancellationToken = default);
 
         Task<int> CountUnreadAsync(

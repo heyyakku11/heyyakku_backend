@@ -9,12 +9,15 @@ namespace Yakku.API.AskBack
     /// <summary>
     /// Real-time Ask Back events at /hubs/ask-back. Messages are sent through the REST API, never here; the hub only
     /// delivers (ReceiveMessage, MessageRead, ConversationClosed, ConversationReopened, UserTyping,
-    /// UserStoppedTyping). A connection can join a conversation's group only if it is a participant, and group names
-    /// are built on the server, so guessing a conversation id gets nothing.
+    /// UserStoppedTyping) and takes delivery acknowledgments. A connection can join a conversation's group only if it
+    /// is a participant, and group names are built on the server, so guessing a conversation id gets nothing.
     /// </summary>
     [Authorize]
     public sealed class AskBackHub : Hub
     {
+        /// <summary>Query flag on the hub URL from app versions that call <see cref="AcknowledgeMessage"/>.</summary>
+        public const string DeliveryAckQueryKey = "deliveryAck";
+
         private readonly IAskBackService _askBack;
         private readonly IUserSessionRepository _sessions;
         private readonly AskBackPresence _presence;
@@ -31,8 +34,34 @@ namespace Yakku.API.AskBack
         public override async Task OnConnectedAsync()
         {
             // The token was valid at connect time; a logged-out session must not get a connection.
-            await RequireLiveSessionAsync();
+            var userId = await RequireLiveSessionAsync();
+            var supportsAck = Context.GetHttpContext()?.Request.Query[DeliveryAckQueryKey].ToString() == "1";
+            _presence.Connect(Context.ConnectionId, userId, supportsAck);
             await base.OnConnectedAsync();
+        }
+
+        /// <summary>
+        /// The client received <paramref name="messageId"/>. Who acknowledges comes from the token only; anyone but
+        /// the recipient, and an unknown id, get the same error. Acknowledging again is harmless.
+        /// </summary>
+        public async Task AcknowledgeMessage(Guid messageId)
+        {
+            var userId = await RequireLiveSessionAsync();
+            AskBackAckOutcome outcome;
+            try
+            {
+                outcome = await _askBack.AcknowledgeDeliveryAsync(userId, messageId, Context.ConnectionAborted);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // The service logged it. The client keeps the acknowledgment queued and sends it again.
+                throw new HubException("Acknowledgment failed.");
+            }
+
+            if (outcome == AskBackAckOutcome.NotFound)
+            {
+                throw new HubException("Message not found.");
+            }
         }
 
         public async Task JoinConversation(Guid conversationId)

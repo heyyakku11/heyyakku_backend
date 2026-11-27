@@ -36,6 +36,7 @@ namespace Yakku.Application.AskBack.Services
         private readonly ResponseCacheOptions _cacheOptions;
         private readonly TimeProvider _time;
         private readonly ILogger<AskBackService> _logger;
+        private readonly IAskBackPresence _presence;
 
         public AskBackService(
             IAskBackRepository repository,
@@ -49,11 +50,13 @@ namespace Yakku.Application.AskBack.Services
             TimeProvider time,
             ILogger<AskBackService> logger,
             IResponseCache? cache = null,
-            IOptions<ResponseCacheOptions>? cacheOptions = null)
+            IOptions<ResponseCacheOptions>? cacheOptions = null,
+            IAskBackPresence? presence = null)
         {
             _entitlements = entitlements;
             _repository = repository;
             _realtime = realtime;
+            _presence = presence ?? new NullAskBackPresence();
             _notifications = notifications;
             _cache = cache ?? new NullResponseCache();
             _cacheOptions = cacheOptions?.Value ?? new ResponseCacheOptions();
@@ -451,13 +454,24 @@ namespace Yakku.Application.AskBack.Services
                     AskBackOptions.PushDelay);
             }
 
+            var delivery = recipientId is { } deliveryRecipient
+                ? AskBackMessageDeliveryTracking.Create(message.Id, deliveryRecipient, now)
+                : null;
+
             var (messageId, created) = await _repository.AddMessageAsync(
-                conversation, message, notification, outbox, cancellationToken);
+                conversation, message, notification, outbox, delivery, cancellationToken);
             if (!created)
             {
                 return await _repository.FindByClientMessageIdAsync(
                         conversationId, userId, request.ClientMessageId, cancellationToken)
                     ?? throw NotFound("Message not found.");
+            }
+
+            if (delivery is not null)
+            {
+                _logger.LogInformation(
+                    "Ask Back delivery tracking created for message {MessageId} in conversation {ConversationId} to recipient {RecipientUserId} with status {DeliveryStatus} at {Timestamp}.",
+                    message.Id, conversationId, delivery.RecipientUserId, delivery.Status, now);
             }
 
             var senderName = await _repository.GetAnonymousNameAsync(userId, cancellationToken)
@@ -466,9 +480,15 @@ namespace Yakku.Application.AskBack.Services
             var forRecipient = ToResponse(message, senderName, isMine: false);
 
             // The message is saved; delivery is best effort. A client that misses this reads it from the history.
+            // The recipient goes first so a failure of the untracked echo cannot be mistaken for theirs.
+            if (recipientId is { } target)
+            {
+                await DeliverToRecipientAsync(conversationId, message.Id, target, forRecipient, cancellationToken);
+            }
+
+            // The sender's other devices get the copy with isMine = true.
             await TryPublishAsync(
-                () => _realtime.MessageCreatedAsync(
-                    conversationId, userId, recipientId, forSender, forRecipient, cancellationToken),
+                () => _realtime.SendMessageToUserAsync(userId, forSender, cancellationToken),
                 "message");
 
             await _cache.RemoveManyAsync(ResponseCacheKeys.AfterAskBackListChange(userId), cancellationToken);
@@ -700,6 +720,130 @@ namespace Yakku.Application.AskBack.Services
 
             var usable = await _repository.GetUsableUserIdsAsync([userId], cancellationToken);
             return usable.Contains(userId);
+        }
+
+        public async Task<AskBackAckOutcome> AcknowledgeDeliveryAsync(
+            Guid userId,
+            Guid messageId,
+            CancellationToken cancellationToken = default)
+        {
+            var now = _time.GetUtcNow().UtcDateTime;
+            if (userId == Guid.Empty || messageId == Guid.Empty)
+            {
+                _logger.LogWarning(
+                    "Ask Back invalid acknowledgment rejected for message {MessageId} from user {UserId} at {Timestamp}.",
+                    messageId, userId, now);
+                return AskBackAckOutcome.NotFound;
+            }
+
+            _logger.LogInformation(
+                "Ask Back acknowledgment received for message {MessageId} from recipient {RecipientUserId} at {Timestamp}.",
+                messageId, userId, now);
+
+            AskBackAckResult result;
+            try
+            {
+                result = await _repository.AcknowledgeDeliveryAsync(messageId, userId, now, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Nothing changed; the client keeps the acknowledgment and sends it again.
+                _logger.LogError(
+                    exception,
+                    "Ask Back acknowledgment could not be saved for message {MessageId} from recipient {RecipientUserId} at {Timestamp}.",
+                    messageId, userId, now);
+                throw;
+            }
+
+            switch (result.Outcome)
+            {
+                case AskBackAckOutcome.Delivered:
+                    _logger.LogInformation(
+                        "Ask Back message {MessageId} in conversation {ConversationId} marked {DeliveryStatus} for recipient {RecipientUserId} at {Timestamp} after {LatencyMs} ms.",
+                        messageId,
+                        result.ConversationId,
+                        AskBackDeliveryStatus.Delivered,
+                        userId,
+                        result.DeliveredAt,
+                        result.SentAt is { } sentAt && result.DeliveredAt is { } deliveredAt
+                            ? (deliveredAt - sentAt).TotalMilliseconds
+                            : null);
+                    break;
+                case AskBackAckOutcome.AlreadyDelivered:
+                    _logger.LogInformation(
+                        "Ask Back duplicate acknowledgment ignored for message {MessageId} in conversation {ConversationId} from recipient {RecipientUserId}; status stays {DeliveryStatus} since {DeliveredAt}.",
+                        messageId, result.ConversationId, userId, AskBackDeliveryStatus.Delivered, result.DeliveredAt);
+                    break;
+                default:
+                    _logger.LogWarning(
+                        "Ask Back invalid acknowledgment rejected for message {MessageId} from user {UserId} at {Timestamp}.",
+                        messageId, userId, now);
+                    break;
+            }
+
+            return result.Outcome;
+        }
+
+        /// <summary>
+        /// Records the attempt, then sends to the recipient's connections. Tracking writes never stop the send: a
+        /// failed write is logged and the message still goes out; the sweeper settles rows left behind.
+        /// </summary>
+        private async Task DeliverToRecipientAsync(
+            Guid conversationId,
+            Guid messageId,
+            Guid recipientId,
+            AskBackMessageResponse payload,
+            CancellationToken cancellationToken)
+        {
+            // Without a connection that acknowledges, a send cannot be confirmed, so it is not counted as an attempt.
+            var status = _presence.HasAckCapableConnection(recipientId)
+                ? AskBackDeliveryStatus.Sent
+                : AskBackDeliveryStatus.NoAckConnection;
+            var attemptAt = _time.GetUtcNow().UtcDateTime;
+            try
+            {
+                await _repository.MarkDeliveryAttemptAsync(messageId, recipientId, status, attemptAt, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _logger.LogError(
+                    exception,
+                    "Ask Back delivery tracking could not be set to {DeliveryStatus} for message {MessageId} in conversation {ConversationId} to recipient {RecipientUserId} at {Timestamp}.",
+                    status, messageId, conversationId, recipientId, attemptAt);
+            }
+
+            _logger.LogInformation(
+                "Ask Back delivery attempt started for message {MessageId} in conversation {ConversationId} to recipient {RecipientUserId} with status {DeliveryStatus} at {Timestamp}.",
+                messageId, conversationId, recipientId, status, attemptAt);
+            try
+            {
+                await _realtime.SendMessageToUserAsync(recipientId, payload, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                var failedAt = _time.GetUtcNow().UtcDateTime;
+                _logger.LogWarning(
+                    exception,
+                    "Ask Back delivery attempt failed for message {MessageId} in conversation {ConversationId} to recipient {RecipientUserId} with status {DeliveryStatus} at {Timestamp}.",
+                    messageId, conversationId, recipientId, AskBackDeliveryStatus.Failed, failedAt);
+                try
+                {
+                    await _repository.MarkDeliveryFailedAsync(messageId, recipientId, failedAt, cancellationToken);
+                }
+                catch (Exception trackingException) when (trackingException is not OperationCanceledException)
+                {
+                    _logger.LogError(
+                        trackingException,
+                        "Ask Back delivery tracking could not be set to {DeliveryStatus} for message {MessageId} in conversation {ConversationId} to recipient {RecipientUserId} at {Timestamp}.",
+                        AskBackDeliveryStatus.Failed, messageId, conversationId, recipientId, failedAt);
+                }
+
+                return;
+            }
+
+            _logger.LogInformation(
+                "Ask Back delivery attempt completed for message {MessageId} in conversation {ConversationId} to recipient {RecipientUserId} with status {DeliveryStatus} at {Timestamp}.",
+                messageId, conversationId, recipientId, status, _time.GetUtcNow().UtcDateTime);
         }
 
         /// <summary>

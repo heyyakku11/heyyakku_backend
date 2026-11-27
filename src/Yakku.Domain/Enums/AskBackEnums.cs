@@ -52,4 +52,32 @@ namespace Yakku.Domain.Enums
         Skipped = 3,
         Failed = 4
     }
+
+    /// <summary>Real-time (SignalR) delivery state of one Ask Back message to its recipient.</summary>
+    public enum AskBackDeliveryStatus
+    {
+        /// <summary>Stored with the message; no send attempted yet.</summary>
+        Pending = 0,
+
+        /// <summary>The SignalR send was attempted. Not proof of receipt: only an acknowledgment is.</summary>
+        Sent = 1,
+
+        /// <summary>The recipient's client acknowledged the message.</summary>
+        Delivered = 2,
+
+        /// <summary>The send threw, or it was never attempted (the row stayed Pending past the timeout).</summary>
+        Failed = 3,
+
+        /// <summary>
+        /// Sent, but no acknowledgment within the timeout. The message may still have arrived (the acknowledgment
+        /// can be lost), so a late acknowledgment still moves it to Delivered.
+        /// </summary>
+        TimedOut = 4,
+
+        /// <summary>
+        /// The recipient had no connection able to acknowledge (offline, or only app versions without
+        /// acknowledgments). The send still happens; these rows are not counted as attempts.
+        /// </summary>
+        NoAckConnection = 5
+    }
 }
