@@ -39,9 +39,9 @@ namespace Yakku.Application.Entitlements
     /// <param name="Paused">Unlocked through a plan that has expired: read-only for both people.</param>
     /// <param name="MessageLimit">
     /// Questions the asker may send per reason in a conversation on this card now; null means no limit. A card with no
-    /// unlock gets the free limit (only a free top-reason ask back can exist there).
+    /// unlock gets the free limit (0): nothing can be asked back on it.
     /// </param>
-    /// <param name="PurchaseMessageLimit">What a card unlocked on its own gets: the free plan's limit.</param>
+    /// <param name="PurchaseMessageLimit">What a card unlocked on its own gets: the this_card plan's limit.</param>
     /// <param name="TicketsLeft">Tickets left on the active plan; null means unlimited (or no active plan).</param>
     /// <param name="CanUnlockWithPlan">An active plan can unlock this card now (a ticket is left, or it is unlimited).</param>
     /// <param name="CanAutoUnlock">The active plan has no ticket limit, so asking back unlocks the card by itself.</param>

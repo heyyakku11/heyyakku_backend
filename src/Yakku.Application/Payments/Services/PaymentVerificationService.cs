@@ -259,6 +259,8 @@ namespace Yakku.Application.Payments.Services
                     _ => null
                 },
                 ContentId = result.ContentId,
+                ConversationId = result.ConversationId,
+                TopUpCredits = result.TopUpCredits,
                 RazorpayPaymentId = razorpayPaymentId
             };
         }

@@ -1,17 +1,22 @@
 namespace Yakku.Application.Payments.DTOs
 {
     /// <summary>
-    /// Creates a checkout order. For <c>yakku_lite</c> / <c>yakku_love</c> send <see cref="PlanId"/> only.
+    /// Creates a checkout order. For <c>yakku_lite</c> / <c>yakku_love</c> send <see cref="PlanCode"/> only.
     /// For <c>this_card</c> also send <see cref="ContentType"/> and <see cref="ContentId"/>.
+    /// For <c>top_up_19</c> / <c>top_up_29</c> send <see cref="ConversationId"/> (the asker's conversation).
     /// </summary>
     public class CreatePaymentOrderRequest
     {
-        public Guid PlanId { get; set; }
+        /// <summary>Plan code (<c>yakku_lite</c>, <c>yakku_love</c>, <c>this_card</c>, <c>top_up_19</c> or <c>top_up_29</c>).</summary>
+        public string PlanCode { get; set; } = string.Empty;
 
         /// <summary><c>poll</c> or <c>check</c> when buying permanent access to one card.</summary>
         public string? ContentType { get; set; }
 
         public Guid? ContentId { get; set; }
+
+        /// <summary>The ask back conversation a top-up adds questions to. Required for top-ups only.</summary>
+        public Guid? ConversationId { get; set; }
 
         /// <summary>Client-generated unique key; retries with the same key reuse the same order.</summary>
         public string? IdempotencyKey { get; set; }
@@ -32,5 +37,6 @@ namespace Yakku.Application.Payments.DTOs
         public DateTime ExpiresAt { get; set; }
         public string? ContentType { get; set; }
         public Guid? ContentId { get; set; }
+        public Guid? ConversationId { get; set; }
     }
 }

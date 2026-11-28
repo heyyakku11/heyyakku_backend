@@ -7,7 +7,10 @@ namespace Yakku.Domain.Enums
         UserPlan = 0,
 
         /// <summary>Permanent Ask Back unlock for one poll or check (<c>this_card</c>).</summary>
-        CardUnlock = 1
+        CardUnlock = 1,
+
+        /// <summary>Extra Ask Back questions for one conversation (<c>top_up_19</c> or <c>top_up_29</c>).</summary>
+        ConversationTopUp = 2
     }
 
     /// <summary>Lifecycle of an internal payment order. A failed attempt does not necessarily fail the order.</summary>

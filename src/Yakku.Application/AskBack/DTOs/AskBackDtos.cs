@@ -108,6 +108,30 @@ namespace Yakku.Application.AskBack.DTOs
         /// Reasons still waiting on this card (for the "free ask back is used" unlock CTA). Null when not needed.
         /// </summary>
         public int? WaitingReplies { get; set; }
+
+        /// <summary>The caller can buy a top-up for this conversation now (asker, budget used up, card unlocked).</summary>
+        public bool CanTopUp { get; set; }
+
+        /// <summary>
+        /// The caller can continue this conversation by buying Yakku Lite or Yakku Love (budget used up or card paused,
+        /// and the chat is not blocked).
+        /// </summary>
+        public bool CanUpgrade { get; set; }
+
+        /// <summary>The top-up options the app can offer for this conversation (empty when none apply to the caller).</summary>
+        public IReadOnlyList<AskBackTopUpOptionResponse> TopUpPlans { get; set; } = Array.Empty<AskBackTopUpOptionResponse>();
+    }
+
+    /// <summary>One conversation top-up the caller can buy.</summary>
+    public sealed class AskBackTopUpOptionResponse
+    {
+        public string PlanCode { get; set; } = string.Empty;
+        public string PlanName { get; set; } = string.Empty;
+        public int PriceMinor { get; set; }
+        public string Currency { get; set; } = "INR";
+
+        /// <summary>Questions this top-up adds to the conversation.</summary>
+        public int MessageCount { get; set; }
     }
 
     public class AskBackConversationListItemResponse
@@ -137,6 +161,12 @@ namespace Yakku.Application.AskBack.DTOs
 
         /// <summary>True when status is blocked and the caller is who blocked (can lift it).</summary>
         public bool CanUnblock { get; set; }
+
+        /// <summary>The caller can buy a top-up for this conversation now.</summary>
+        public bool CanTopUp { get; set; }
+
+        /// <summary>The caller can continue this conversation by buying Yakku Lite or Yakku Love.</summary>
+        public bool CanUpgrade { get; set; }
     }
 
     public class AskBackMessageResponse

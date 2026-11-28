@@ -68,7 +68,6 @@ namespace Yakku.Application.Plans.Services
         {
             return new PlanResponse
             {
-                Id = plan.Id,
                 Code = plan.Code,
                 Name = plan.Name,
                 PriceMinor = plan.PriceMinor,

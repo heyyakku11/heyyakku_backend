@@ -45,6 +45,7 @@ namespace Yakku.Application.Entitlements
             var now = _time.GetUtcNow().UtcDateTime;
             var plan = await ResolvePlanAsync(ownerId, now, cancellationToken);
             var purchaseLimit = await GetPurchaseMessageLimitAsync(cancellationToken);
+            var freeLimit = await GetFreeMessageLimitAsync(cancellationToken);
 
             int? ticketsLeft = null;
             var canUnlockWithPlan = false;
@@ -82,7 +83,8 @@ namespace Yakku.Application.Entitlements
                 var paused = false;
                 if (unlock is null)
                 {
-                    limit = purchaseLimit;
+                    // Locked: nothing can be asked back on it (the free plan has no questions).
+                    limit = freeLimit;
                 }
                 else if (unlock.Source == CardUnlockSource.Plan)
                 {
@@ -232,6 +234,15 @@ namespace Yakku.Application.Entitlements
                     "planCode");
             }
 
+            if (Plan.IsConversationTopUpCode(code))
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "A conversation top-up is bought for one conversation, not activated as a plan.",
+                    "planCode");
+            }
+
             var plan = await _repository.GetPlanByCodeAsync(code, cancellationToken)
                 ?? throw new AppException(404, ApiErrorCodes.NotFound, "Plan not found");
             var state = await _repository.ActivatePlanAsync(
@@ -282,7 +293,15 @@ namespace Yakku.Application.Entitlements
             };
         }
 
+        /// <summary>The this_card row: what a card unlocked on its own gets.</summary>
         public async Task<int?> GetPurchaseMessageLimitAsync(CancellationToken cancellationToken = default)
+        {
+            var thisCard = await _repository.GetPlanByIdAsync(Plan.ThisCardId, cancellationToken);
+            return thisCard is null ? AskBackOptions.FallbackPurchaseMessageLimit : thisCard.AskBackMessageLimit;
+        }
+
+        /// <summary>The free row: what a card with no unlock gets (0).</summary>
+        public async Task<int?> GetFreeMessageLimitAsync(CancellationToken cancellationToken = default)
         {
             var free = await _repository.GetPlanByIdAsync(Plan.FreeId, cancellationToken);
             return free is null ? AskBackOptions.FallbackMessageLimit : free.AskBackMessageLimit;

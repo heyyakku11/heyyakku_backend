@@ -22,7 +22,7 @@ namespace Yakku.Application.AskBack.Services
     /// A user who is not a participant of a conversation gets a 404, the same as for one that does not exist, so
     /// conversation ids reveal nothing.
     /// </summary>
-    public class AskBackService : IAskBackService
+    public class AskBackService : IAskBackService, IConversationTopUpGate
     {
         private readonly IAskBackRepository _repository;
         private readonly IAskBackRealtime _realtime;
@@ -138,25 +138,18 @@ namespace Yakku.Application.AskBack.Services
             }
 
             // Who may ask back: a card unlocked by a plan ticket (or automatically by an unlimited plan) or on its
-            // own, or, once per card, the top reason of any option for free.
+            // own. A locked card cannot start a conversation: the free plan has no questions.
             var access = await _entitlements.GetCardAccessAsync(
                 userId, vote.ContentType, vote.ContentId, cancellationToken);
-            var useFreeAskBack = false;
             if (!access.Unlocked)
             {
-                if (access.CanAutoUnlock)
+                if (!access.CanAutoUnlock)
                 {
-                    if (!await _entitlements.TryAutoUnlockAsync(
-                            userId, vote.ContentType, vote.ContentId, cancellationToken))
-                    {
-                        throw Locked();
-                    }
+                    throw Locked();
                 }
-                else if (await _repository.IsTopAskableReasonAsync(vote, cancellationToken))
-                {
-                    useFreeAskBack = true;
-                }
-                else
+
+                if (!await _entitlements.TryAutoUnlockAsync(
+                        userId, vote.ContentType, vote.ContentId, cancellationToken))
                 {
                     throw Locked();
                 }
@@ -177,23 +170,7 @@ namespace Yakku.Application.AskBack.Services
                 vote.VoterId,
                 _time.GetUtcNow().UtcDateTime);
 
-            Guid conversationId;
-            bool created;
-            if (useFreeAskBack)
-            {
-                var (outcome, freeId) = await _repository.AddFreeAskConversationAsync(conversation, cancellationToken);
-                if (outcome == FreeAskOutcome.CardAlreadyUsed)
-                {
-                    throw Locked();
-                }
-
-                conversationId = freeId!.Value;
-                created = outcome == FreeAskOutcome.Created;
-            }
-            else
-            {
-                (conversationId, created) = await _repository.AddOrGetAsync(conversation, cancellationToken);
-            }
+            var (conversationId, created) = await _repository.AddOrGetAsync(conversation, cancellationToken);
 
             if (created)
             {
@@ -253,9 +230,8 @@ namespace Yakku.Application.AskBack.Services
                 userId,
                 cancellationToken);
             var byId = conversations.ToDictionary(conversation => conversation.Id);
-            var purchaseLimit = await _entitlements.GetPurchaseMessageLimitAsync(cancellationToken);
-            var accessByConversation = new Dictionary<Guid, (int? MessageLimit, bool Paused)>();
-            var aligned = false;
+            var freeLimit = await _entitlements.GetFreeMessageLimitAsync(cancellationToken);
+            var accessByConversation = new Dictionary<Guid, (int? MessageLimit, bool Paused, bool Unlocked)>();
 
             foreach (var group in conversations.GroupBy(c => c.CreatorUserId))
             {
@@ -263,7 +239,7 @@ namespace Yakku.Application.AskBack.Services
                 {
                     foreach (var conversation in group)
                     {
-                        accessByConversation[conversation.Id] = (purchaseLimit, false);
+                        accessByConversation[conversation.Id] = (freeLimit, false, false);
                     }
 
                     continue;
@@ -276,21 +252,12 @@ namespace Yakku.Application.AskBack.Services
                 var batch = await _entitlements.GetCardAccessBatchAsync(askerId, cards, cancellationToken);
                 foreach (var conversation in group)
                 {
+                    // A card with no row here is treated as locked: the asker gets the free limit.
                     var access = batch.GetValueOrDefault((conversation.ContentType, conversation.ContentId));
-                    var messageLimit = access?.MessageLimit ?? purchaseLimit;
-                    var paused = access?.Paused ?? false;
-                    if (conversation.TryAlignAskerQuota(messageLimit))
-                    {
-                        aligned = true;
-                    }
-
-                    accessByConversation[conversation.Id] = (messageLimit, paused);
+                    accessByConversation[conversation.Id] = access is null
+                        ? (freeLimit, false, false)
+                        : (access.MessageLimit, access.Paused, access.Unlocked);
                 }
-            }
-
-            if (aligned)
-            {
-                await _repository.SaveAsync(cancellationToken);
             }
 
             foreach (var item in page.Items)
@@ -300,14 +267,16 @@ namespace Yakku.Application.AskBack.Services
                     continue;
                 }
 
-                var (messageLimit, paused) = accessByConversation.GetValueOrDefault(
+                var (messageLimit, paused, unlocked) = accessByConversation.GetValueOrDefault(
                     item.Id,
-                    (purchaseLimit, false));
+                    (freeLimit, false, false));
                 var turn = conversation.TurnFor(userId, messageLimit);
                 item.Turn = turn.ToString().ToLowerInvariant();
                 item.MessagesLeft = conversation.MessagesLeft(userId, messageLimit);
                 item.IsPaused = paused;
                 item.CanSend = conversation.CanSend && !paused && turn == AskBackTurn.Me;
+                item.CanTopUp = conversation.TopUpBlockReason(userId, messageLimit, unlocked, paused) is null;
+                item.CanUpgrade = conversation.CanContinueWithPlan(userId, messageLimit, unlocked, paused);
             }
 
             return page;
@@ -380,7 +349,7 @@ namespace Yakku.Application.AskBack.Services
             }
 
             // A conversation unlocked through a plan stops for both people when that plan has expired.
-            var access = await ResolveAccessAndAlignAsync(conversation, cancellationToken);
+            var access = await ResolveAccessAsync(conversation, cancellationToken);
             if (access.Paused)
             {
                 throw new AppException(
@@ -847,39 +816,39 @@ namespace Yakku.Application.AskBack.Services
         }
 
         /// <summary>
-        /// The message limit that applies to this conversation and whether it is paused. It is read live, so a plan
-        /// change shows up on conversations that already exist.
+        /// The asker's live card access: the message limit that applies to this conversation, whether the card is
+        /// unlocked and whether the asker's plan is paused. It is read live, so a plan change shows up on existing
+        /// conversations. Nothing is written here: a budget only changes on a purchase reset or a sent message.
         /// </summary>
-        private async Task<(int? MessageLimit, bool Paused)> ResolveAccessAsync(
+        private async Task<(int? MessageLimit, bool Paused, bool Unlocked)> ResolveAccessAsync(
             AskBackConversation conversation,
             CancellationToken cancellationToken)
         {
             if (conversation.CreatorUserId is not { } askerId)
             {
                 // The asker's account is gone; nobody can send anyway.
-                return (await _entitlements.GetPurchaseMessageLimitAsync(cancellationToken), false);
+                return (await _entitlements.GetFreeMessageLimitAsync(cancellationToken), false, false);
             }
 
             var access = await _entitlements.GetCardAccessAsync(
                 askerId, conversation.ContentType, conversation.ContentId, cancellationToken);
-            return (access.MessageLimit, access.Paused);
+            return (access.MessageLimit, access.Paused, access.Unlocked);
         }
 
-        /// <summary>
-        /// Resolves the live asker limit and, when that limit has risen, grandfathers prior asker sends so the new
-        /// budget is full. The conversation must be tracked so the alignment can be saved.
-        /// </summary>
-        private async Task<(int? MessageLimit, bool Paused)> ResolveAccessAndAlignAsync(
-            AskBackConversation conversation,
-            CancellationToken cancellationToken)
+        /// <inheritdoc />
+        public async Task EnsureCanTopUpAsync(
+            Guid userId,
+            Guid conversationId,
+            CancellationToken cancellationToken = default)
         {
+            var conversation = await _repository.FindForParticipantAsync(conversationId, userId, cancellationToken)
+                ?? throw NotFound("Conversation not found.");
             var access = await ResolveAccessAsync(conversation, cancellationToken);
-            if (conversation.TryAlignAskerQuota(access.MessageLimit))
+            var reason = conversation.TopUpBlockReason(userId, access.MessageLimit, access.Unlocked, access.Paused);
+            if (reason is not null)
             {
-                await _repository.SaveAsync(cancellationToken);
+                throw new AppException(409, ApiErrorCodes.AskBackTopUpNotAvailable, reason);
             }
-
-            return access;
         }
 
         /// <summary>The conversation as the caller sees it, with whose turn it is and how many messages are left.</summary>
@@ -890,18 +859,25 @@ namespace Yakku.Application.AskBack.Services
         {
             var response = await _repository.GetDetailsAsync(conversationId, userId, cancellationToken)
                 ?? throw NotFound("Conversation not found.");
-            // Tracked: raising the plan limit must persist AskerQuotaOffset before turn/left are computed.
             var conversation = await _repository.FindForParticipantAsync(
                 conversationId, userId, cancellationToken)
                 ?? throw NotFound("Conversation not found.");
 
-            var (limit, paused) = await ResolveAccessAndAlignAsync(conversation, cancellationToken);
-            var turn = conversation.TurnFor(userId, limit);
+            var access = await ResolveAccessAsync(conversation, cancellationToken);
+            var turn = conversation.TurnFor(userId, access.MessageLimit);
             response.Turn = turn.ToString().ToLowerInvariant();
             // Asker-only budget; voters reply on turn and get null.
-            response.MessagesLeft = conversation.MessagesLeft(userId, limit);
-            response.IsPaused = paused;
-            response.CanSend = response.CanSend && !paused && turn == AskBackTurn.Me;
+            response.MessagesLeft = conversation.MessagesLeft(userId, access.MessageLimit);
+            response.IsPaused = access.Paused;
+            response.CanSend = response.CanSend && !access.Paused && turn == AskBackTurn.Me;
+            response.CanTopUp = conversation.TopUpBlockReason(
+                userId, access.MessageLimit, access.Unlocked, access.Paused) is null;
+            response.CanUpgrade = conversation.CanContinueWithPlan(
+                userId, access.MessageLimit, access.Unlocked, access.Paused);
+            if (response.CanTopUp)
+            {
+                response.TopUpPlans = await _repository.ListTopUpOptionsAsync(cancellationToken);
+            }
             if (turn == AskBackTurn.Done && response.MyRole == "asker")
             {
                 response.WaitingReplies = await _repository.CountReasonsOnCardAsync(
@@ -916,7 +892,7 @@ namespace Yakku.Application.AskBack.Services
             return new AppException(
                 403,
                 ApiErrorCodes.AskBackLocked,
-                "Unlock this card to ask back on this reason. Every card has one free ask back, on the top reason of an option.");
+                "Unlock this card to ask back on this reason.");
         }
 
         private Task PublishStatusAsync(AskBackConversation conversation, CancellationToken cancellationToken)

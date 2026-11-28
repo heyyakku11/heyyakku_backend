@@ -316,6 +316,18 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<int>("TopUpGranted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("top_up_granted");
+
+                    b.Property<int>("TopUpUsed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("top_up_used");
+
                     b.Property<Guid>("VoteId")
                         .HasColumnType("uuid")
                         .HasColumnName("vote_id");
@@ -352,6 +364,46 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_ask_back_conversations_message_counts", "\"asker_message_count\" >= 0 AND \"voter_message_count\" >= 0 AND \"asker_quota_offset\" >= 0");
 
                             t.HasCheckConstraint("CK_ask_back_conversations_status", "\"status\" IN ('ACTIVE', 'CLOSED', 'BLOCKED')");
+
+                            t.HasCheckConstraint("CK_ask_back_conversations_top_up_counts", "\"top_up_granted\" >= 0 AND \"top_up_used\" >= 0 AND \"top_up_used\" <= \"top_up_granted\"");
+                        });
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackConversationTopUp", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("Credits")
+                        .HasColumnType("integer")
+                        .HasColumnName("credits");
+
+                    b.Property<Guid>("PaymentOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_order_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId")
+                        .HasDatabaseName("IX_ask_back_conversation_top_ups_conversation_id");
+
+                    b.HasIndex("PaymentOrderId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ask_back_conversation_top_ups_payment_order_id");
+
+                    b.ToTable("ask_back_conversation_top_ups", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ask_back_conversation_top_ups_credits_positive", "\"credits\" > 0");
                         });
                 });
 
@@ -2039,6 +2091,10 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("content_type");
 
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
                     b.Property<string>("CorrelationId")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
@@ -2127,7 +2183,11 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_payment_orders_card_unlock_shape", "(\"purchase_type\" <> 'CARDUNLOCK') OR (\"plan_id\" IS NOT NULL AND \"content_type\" IN ('POLL', 'CHECK') AND \"content_id\" IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_payment_orders_purchase_type", "\"purchase_type\" IN ('USERPLAN', 'CARDUNLOCK')");
+                            t.HasCheckConstraint("CK_payment_orders_conversation_id_only_for_top_up", "\"conversation_id\" IS NULL OR \"purchase_type\" = 'CONVERSATIONTOPUP'");
+
+                            t.HasCheckConstraint("CK_payment_orders_conversation_top_up_shape", "(\"purchase_type\" <> 'CONVERSATIONTOPUP') OR (\"plan_id\" IS NOT NULL AND \"content_type\" IS NULL AND \"content_id\" IS NULL AND \"conversation_id\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_payment_orders_purchase_type", "\"purchase_type\" IN ('USERPLAN', 'CARDUNLOCK', 'CONVERSATIONTOPUP')");
 
                             t.HasCheckConstraint("CK_payment_orders_status", "\"status\" IN ('CREATED', 'PENDING', 'PAID', 'FAILED', 'CANCELLED', 'EXPIRED')");
 
@@ -2508,7 +2568,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.ToTable("plans", null, t =>
                         {
-                            t.HasCheckConstraint("CK_plans_ask_back_message_limit", "\"ask_back_message_limit\" IS NULL OR \"ask_back_message_limit\" >= 1");
+                            t.HasCheckConstraint("CK_plans_ask_back_message_limit", "\"ask_back_message_limit\" IS NULL OR \"ask_back_message_limit\" >= 0");
 
                             t.HasCheckConstraint("CK_plans_duration_days", "\"duration_days\" IS NULL OR \"duration_days\" >= 1");
 
@@ -4051,6 +4111,21 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("VoterUserId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.AskBackConversationTopUp", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.AskBackConversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.PaymentOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.AskBackMessage", b =>

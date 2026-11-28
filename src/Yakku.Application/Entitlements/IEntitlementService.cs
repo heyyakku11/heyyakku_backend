@@ -73,7 +73,10 @@ namespace Yakku.Application.Entitlements
             Guid contentId,
             CancellationToken cancellationToken = default);
 
-        /// <summary>The questions per reason a card unlocked on its own gets (the free plan's value).</summary>
+        /// <summary>The questions per reason a card unlocked on its own gets (the this_card plan's value).</summary>
         Task<int?> GetPurchaseMessageLimitAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>The questions per reason a card with no unlock gets (the free plan's value: none).</summary>
+        Task<int?> GetFreeMessageLimitAsync(CancellationToken cancellationToken = default);
     }
 }

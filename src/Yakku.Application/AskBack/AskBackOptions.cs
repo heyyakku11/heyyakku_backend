@@ -30,6 +30,12 @@ namespace Yakku.Application.AskBack
         /// Questions per reason used only if the free plan's row cannot be read. The real values live on the plans
         /// (<c>plans.ask_back_message_limit</c>) and are edited there.
         /// </summary>
-        public const int FallbackMessageLimit = 1;
+        public const int FallbackMessageLimit = 0;
+
+        /// <summary>
+        /// Questions per reason a card unlocked on its own gets, used only if the this_card row cannot be read. The real
+        /// value lives on that plan row (<c>plans.ask_back_message_limit</c>).
+        /// </summary>
+        public const int FallbackPurchaseMessageLimit = 1;
     }
 }

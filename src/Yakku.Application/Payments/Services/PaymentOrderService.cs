@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using Yakku.Application.AskBack.Interfaces;
 using Yakku.Application.Common.Exceptions;
 using Yakku.Application.Common.Responses;
 using Yakku.Application.Configuration;
@@ -20,6 +21,7 @@ namespace Yakku.Application.Payments.Services
         private readonly IValidator<CreatePaymentOrderRequest> _validator;
         private readonly TimeProvider _time;
         private readonly ILogger<PaymentOrderService> _logger;
+        private readonly IConversationTopUpGate _topUpGate;
 
         public PaymentOrderService(
             IPaymentOrderRepository repository,
@@ -29,7 +31,8 @@ namespace Yakku.Application.Payments.Services
             PaymentOptions paymentOptions,
             IValidator<CreatePaymentOrderRequest> validator,
             TimeProvider time,
-            ILogger<PaymentOrderService> logger)
+            ILogger<PaymentOrderService> logger,
+            IConversationTopUpGate topUpGate)
         {
             _repository = repository;
             _razorpay = razorpay;
@@ -39,6 +42,7 @@ namespace Yakku.Application.Payments.Services
             _validator = validator;
             _time = time;
             _logger = logger;
+            _topUpGate = topUpGate;
         }
 
         public async Task<CreatePaymentOrderResponse> CreateOrderAsync(
@@ -75,7 +79,7 @@ namespace Yakku.Application.Payments.Services
                     CorrelationId: correlationId,
                     Metadata: new Dictionary<string, string?>
                     {
-                        ["planId"] = request.PlanId.ToString(),
+                        ["planCode"] = request.PlanCode,
                         ["idempotencyKey"] = idempotencyKey
                     }),
                 cancellationToken);
@@ -86,8 +90,8 @@ namespace Yakku.Application.Payments.Services
                 return await ReuseOrRefreshAsync(existing, correlationId, now, cancellationToken);
             }
 
-            var plan = await _repository.GetActivePurchasablePlanAsync(request.PlanId, cancellationToken)
-                ?? throw new AppException(404, ApiErrorCodes.NotFound, "Plan not found or inactive.", "planId");
+            var plan = await _repository.GetActivePurchasablePlanByCodeAsync(request.PlanCode, cancellationToken)
+                ?? throw new AppException(404, ApiErrorCodes.NotFound, "Plan not found or inactive.", "planCode");
 
             if (plan.PriceMinor <= 0)
             {
@@ -95,7 +99,7 @@ namespace Yakku.Application.Payments.Services
                     400,
                     ApiErrorCodes.ValidationError,
                     "This plan cannot be purchased.",
-                    "planId");
+                    "planCode");
             }
 
             var currency = string.IsNullOrWhiteSpace(plan.Currency)
@@ -108,7 +112,7 @@ namespace Yakku.Application.Payments.Services
                     400,
                     ApiErrorCodes.ValidationError,
                     $"Only {_paymentOptions.Currency} payments are supported.",
-                    "planId");
+                    "planCode");
             }
 
             PaymentOrder order;
@@ -117,9 +121,14 @@ namespace Yakku.Application.Payments.Services
                 order = await CreateCardUnlockOrderAsync(
                     userId, plan, request, currency, idempotencyKey, correlationId, now, cancellationToken);
             }
-            else if (plan.Code is Plan.YakkuLiteCode or Plan.YakkuLoveCode)
+            else if (Plan.IsUserPlanCode(plan.Code))
             {
                 order = await CreateUserPlanOrderAsync(
+                    userId, plan, request, currency, idempotencyKey, correlationId, now, cancellationToken);
+            }
+            else if (Plan.IsConversationTopUpCode(plan.Code))
+            {
+                order = await CreateConversationTopUpOrderAsync(
                     userId, plan, request, currency, idempotencyKey, correlationId, now, cancellationToken);
             }
             else
@@ -128,7 +137,7 @@ namespace Yakku.Application.Payments.Services
                     400,
                     ApiErrorCodes.ValidationError,
                     "This plan cannot be purchased.",
-                    "planId");
+                    "planCode");
             }
 
             var saved = await _repository.TryAddAsync(order, cancellationToken);
@@ -180,13 +189,58 @@ namespace Yakku.Application.Payments.Services
                 var code = current?.Code == Plan.YakkuLoveCode && plan.Code == Plan.YakkuLiteCode
                     ? ApiErrorCodes.PlanDowngradeNotAllowed
                     : ApiErrorCodes.PlanAlreadyActive;
-                throw new AppException(409, code, rejection, "planId");
+                throw new AppException(409, code, rejection, "planCode");
             }
 
             var snapshot = PlanPurchaseSnapshot.FromPlan(plan).ToJson();
             return PaymentOrder.CreateUserPlan(
                 userId,
                 plan.Id,
+                plan.PriceMinor,
+                currency,
+                snapshot,
+                idempotencyKey,
+                now,
+                _paymentOptions.OrderLifetime,
+                correlationId);
+        }
+
+        private async Task<PaymentOrder> CreateConversationTopUpOrderAsync(
+            Guid userId,
+            Plan plan,
+            CreatePaymentOrderRequest request,
+            string currency,
+            string idempotencyKey,
+            string? correlationId,
+            DateTime now,
+            CancellationToken cancellationToken)
+        {
+            if (request.ContentType is not null || request.ContentId is not null)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "contentType and contentId are not used for a conversation top-up.");
+            }
+
+            if (request.ConversationId is not Guid conversationId || conversationId == Guid.Empty)
+            {
+                throw new AppException(
+                    400,
+                    ApiErrorCodes.ValidationError,
+                    "conversationId is required to top up a conversation.",
+                    "conversationId");
+            }
+
+            // Eligibility is checked here and again at fulfillment, so a chat that changed in between is not granted
+            // silently.
+            await _topUpGate.EnsureCanTopUpAsync(userId, conversationId, cancellationToken);
+
+            var snapshot = PlanPurchaseSnapshot.FromPlan(plan).ToJson();
+            return PaymentOrder.CreateConversationTopUp(
+                userId,
+                plan.Id,
+                conversationId,
                 plan.PriceMinor,
                 currency,
                 snapshot,
@@ -269,7 +323,7 @@ namespace Yakku.Application.Payments.Services
             }
 
             var plan = await _repository.GetActivePurchasablePlanAsync(existing.PlanId ?? Guid.Empty, cancellationToken)
-                ?? throw new AppException(404, ApiErrorCodes.NotFound, "Plan not found or inactive.", "planId");
+                ?? throw new AppException(404, ApiErrorCodes.NotFound, "Plan not found or inactive.", "planCode");
 
             var stillOpen = existing.Status is PaymentOrderStatus.Created or PaymentOrderStatus.Pending
                             or PaymentOrderStatus.Failed;
@@ -405,7 +459,8 @@ namespace Yakku.Application.Payments.Services
                     ShareContentType.Check => "check",
                     _ => null
                 },
-                ContentId = order.ContentId
+                ContentId = order.ContentId,
+                ConversationId = order.ConversationId
             };
         }
 

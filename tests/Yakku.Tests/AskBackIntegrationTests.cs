@@ -39,6 +39,7 @@ public sealed class AskBackIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var scene = await SceneAsync(context);
+        await ActivatePlanAsync(context, scene.Asker.Id, Plan.YakkuLoveCode);
 
         var (conversation, created) = await ServiceFor(context)
             .CreateConversationAsync(scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = scene.Vote.Id });
@@ -69,6 +70,7 @@ public sealed class AskBackIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var scene = await SceneAsync(context);
+        await ActivatePlanAsync(context, scene.Asker.Id, Plan.YakkuLoveCode);
         var service = ServiceFor(context);
         var (conversation, _) = await service.CreateConversationAsync(
             scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = scene.Vote.Id });
@@ -185,6 +187,7 @@ public sealed class AskBackIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var scene = await SceneAsync(context);
+        await ActivatePlanAsync(context, scene.Asker.Id, Plan.YakkuLoveCode);
         var service = ServiceFor(context);
         var request = new CreateAskBackConversationRequest { VoteId = scene.Vote.Id };
 
@@ -203,6 +206,7 @@ public sealed class AskBackIntegrationTests
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var setup = _fixture.CreateContext();
         var scene = await SceneAsync(setup);
+        await ActivatePlanAsync(setup, scene.Asker.Id, Plan.YakkuLoveCode);
 
         var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(async _ =>
         {
@@ -238,6 +242,7 @@ public sealed class AskBackIntegrationTests
         }
 
         await context.SaveChangesAsync();
+        await ActivatePlanAsync(context, owner.Id, Plan.YakkuLoveCode);
 
         var (conversation, created) = await ServiceFor(context)
             .CreateConversationAsync(owner.Id, new CreateAskBackConversationRequest { VoteId = vote.Id });

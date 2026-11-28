@@ -22,6 +22,9 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 table.HasCheckConstraint(
                     "CK_ask_back_conversations_message_counts",
                     "\"asker_message_count\" >= 0 AND \"voter_message_count\" >= 0 AND \"asker_quota_offset\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_ask_back_conversations_top_up_counts",
+                    "\"top_up_granted\" >= 0 AND \"top_up_used\" >= 0 AND \"top_up_used\" <= \"top_up_granted\"");
             });
             builder.HasKey(x => x.Id);
 
@@ -61,6 +64,14 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasDefaultValue(0);
             builder.Property(x => x.AppliedMessageLimit)
                 .HasColumnName("applied_message_limit");
+            builder.Property(x => x.TopUpGranted)
+                .HasColumnName("top_up_granted")
+                .IsRequired()
+                .HasDefaultValue(0);
+            builder.Property(x => x.TopUpUsed)
+                .HasColumnName("top_up_used")
+                .IsRequired()
+                .HasDefaultValue(0);
 
             // Accounts that are permanently deleted leave the conversation behind for the other person.
             builder.HasOne<User>().WithMany().HasForeignKey(x => x.CreatorUserId).OnDelete(DeleteBehavior.SetNull);
@@ -254,6 +265,42 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             // No foreign keys: a report is a moderation record and outlives the conversation and both accounts.
             builder.HasIndex(x => x.ConversationId)
                 .HasDatabaseName("IX_ask_back_reports_conversation_id");
+        }
+    }
+
+    internal class AskBackConversationTopUpConfiguration : IEntityTypeConfiguration<AskBackConversationTopUp>
+    {
+        public void Configure(EntityTypeBuilder<AskBackConversationTopUp> builder)
+        {
+            builder.ToTable("ask_back_conversation_top_ups", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_ask_back_conversation_top_ups_credits_positive",
+                    "\"credits\" > 0");
+            });
+            builder.HasKey(x => x.Id);
+
+            builder.Property(x => x.Id).HasColumnName("id");
+            builder.Property(x => x.ConversationId).HasColumnName("conversation_id").IsRequired();
+            builder.Property(x => x.PaymentOrderId).HasColumnName("payment_order_id").IsRequired();
+            builder.Property(x => x.Credits).HasColumnName("credits").IsRequired();
+            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+
+            // A paid order grants once: the unique index on the order is the guard against a retried fulfillment.
+            builder.HasOne<AskBackConversation>()
+                .WithMany()
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne<PaymentOrder>()
+                .WithMany()
+                .HasForeignKey(x => x.PaymentOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(x => x.PaymentOrderId)
+                .IsUnique()
+                .HasDatabaseName("IX_ask_back_conversation_top_ups_payment_order_id");
+            builder.HasIndex(x => x.ConversationId)
+                .HasDatabaseName("IX_ask_back_conversation_top_ups_conversation_id");
         }
     }
 }

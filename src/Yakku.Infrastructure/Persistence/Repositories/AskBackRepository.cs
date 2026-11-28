@@ -768,83 +768,6 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             return await query.CountAsync(cancellationToken);
         }
 
-        public async Task<bool> IsTopAskableReasonAsync(
-            AskBackVoteContext vote,
-            CancellationToken cancellationToken = default)
-        {
-            if (vote.ContentType == ShareContentType.Poll)
-            {
-                var own = await _context.PollVotes
-                    .AsNoTracking()
-                    .Where(item => item.Id == vote.VoteId)
-                    .Select(item => new { item.PollOptionId })
-                    .FirstOrDefaultAsync(cancellationToken);
-                if (own is null)
-                {
-                    return false;
-                }
-
-                // A custom answer is its own option, so its reason is always the top one.
-                if (own.PollOptionId is null)
-                {
-                    return true;
-                }
-
-                var topId = await _context.PollVotes
-                    .AsNoTracking()
-                    .Where(item => item.PollId == vote.ContentId
-                                   && item.VoterId != vote.OwnerId
-                                   && item.PollOptionId == own.PollOptionId
-                                   && item.Reason != null
-                                   && item.VoterRole == VoterRole.User)
-                    .OrderByDescending(item => item.CreatedAt)
-                    .ThenByDescending(item => item.Id)
-                    .Select(item => (Guid?)item.Id)
-                    .FirstOrDefaultAsync(cancellationToken);
-                return topId == vote.VoteId;
-            }
-
-            var checkVote = await _context.UserCheckVotes
-                .AsNoTracking()
-                .Where(item => item.Id == vote.VoteId)
-                .Select(item => new { item.CheckOptionId })
-                .FirstOrDefaultAsync(cancellationToken);
-            if (checkVote is null)
-            {
-                return false;
-            }
-
-            if (checkVote.CheckOptionId is null)
-            {
-                return true;
-            }
-
-            var topCheckId = await _context.UserCheckVotes
-                .AsNoTracking()
-                .Where(item => item.UserCheckId == vote.ContentId
-                               && item.VoterId != vote.OwnerId
-                               && item.CheckOptionId == checkVote.CheckOptionId
-                               && item.Reason != null
-                               && item.VoterRole == VoterRole.User)
-                .OrderByDescending(item => item.CreatedAt)
-                .ThenByDescending(item => item.Id)
-                .Select(item => (Guid?)item.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-            return topCheckId == vote.VoteId;
-        }
-
-        public Task<bool> HasConversationOnCardAsync(
-            ShareContentType contentType,
-            Guid contentId,
-            CancellationToken cancellationToken = default)
-        {
-            return _context.AskBackConversations
-                .AsNoTracking()
-                .AnyAsync(
-                    conversation => conversation.ContentType == contentType && conversation.ContentId == contentId,
-                    cancellationToken);
-        }
-
         public async Task<int> CountReasonsOnCardAsync(
             ShareContentType contentType,
             Guid contentId,
@@ -886,33 +809,23 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
-        public async Task<(FreeAskOutcome Outcome, Guid? ConversationId)> AddFreeAskConversationAsync(
-            AskBackConversation conversation,
+        public async Task<IReadOnlyList<AskBackTopUpOptionResponse>> ListTopUpOptionsAsync(
             CancellationToken cancellationToken = default)
         {
-            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-
-            // One lock per card, held until the transaction ends: the check below and the insert are then one step.
-            var lockKey = $"ask-back-free:{(int)conversation.ContentType}:{conversation.ContentId}";
-            await _context.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))",
-                cancellationToken);
-
-            var existingForVote = await FindConversationIdByVoteAsync(conversation.VoteId, cancellationToken);
-            if (existingForVote is { } found)
-            {
-                return (FreeAskOutcome.AlreadyExists, found);
-            }
-
-            if (await HasConversationOnCardAsync(conversation.ContentType, conversation.ContentId, cancellationToken))
-            {
-                return (FreeAskOutcome.CardAlreadyUsed, null);
-            }
-
-            _context.AskBackConversations.Add(conversation);
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return (FreeAskOutcome.Created, conversation.Id);
+            var codes = new[] { Plan.TopUp19Code, Plan.TopUp29Code };
+            return await _context.Plans
+                .AsNoTracking()
+                .Where(plan => plan.IsActive && codes.Contains(plan.Code))
+                .OrderBy(plan => plan.SortOrder)
+                .Select(plan => new AskBackTopUpOptionResponse
+                {
+                    PlanCode = plan.Code,
+                    PlanName = plan.Name,
+                    PriceMinor = plan.PriceMinor,
+                    Currency = plan.Currency,
+                    MessageCount = plan.AskBackMessageLimit ?? 0
+                })
+                .ToListAsync(cancellationToken);
         }
 
         public Task<bool> IsBlockedEitherWayAsync(Guid userA, Guid userB, CancellationToken cancellationToken = default)

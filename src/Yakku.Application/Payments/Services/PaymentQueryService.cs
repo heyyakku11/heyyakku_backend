@@ -51,6 +51,7 @@ namespace Yakku.Application.Payments.Services
                 RazorpayOrderId = order.RazorpayOrderId,
                 ContentType = order.ContentType?.ToString().ToLowerInvariant(),
                 ContentId = order.ContentId,
+                ConversationId = order.ConversationId,
                 CreatedAt = order.CreatedAt
             };
         }

@@ -12,7 +12,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             {
                 table.HasCheckConstraint(
                     "CK_payment_orders_purchase_type",
-                    "\"purchase_type\" IN ('USERPLAN', 'CARDUNLOCK')");
+                    "\"purchase_type\" IN ('USERPLAN', 'CARDUNLOCK', 'CONVERSATIONTOPUP')");
                 table.HasCheckConstraint(
                     "CK_payment_orders_status",
                     "\"status\" IN ('CREATED', 'PENDING', 'PAID', 'FAILED', 'CANCELLED', 'EXPIRED')");
@@ -25,6 +25,12 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 table.HasCheckConstraint(
                     "CK_payment_orders_card_unlock_shape",
                     "(\"purchase_type\" <> 'CARDUNLOCK') OR (\"plan_id\" IS NOT NULL AND \"content_type\" IN ('POLL', 'CHECK') AND \"content_id\" IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_payment_orders_conversation_top_up_shape",
+                    "(\"purchase_type\" <> 'CONVERSATIONTOPUP') OR (\"plan_id\" IS NOT NULL AND \"content_type\" IS NULL AND \"content_id\" IS NULL AND \"conversation_id\" IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_payment_orders_conversation_id_only_for_top_up",
+                    "\"conversation_id\" IS NULL OR \"purchase_type\" = 'CONVERSATIONTOPUP'");
             });
             builder.HasKey(x => x.Id);
 
@@ -36,6 +42,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasUppercaseEnumConversion()
                 .HasMaxLength(20);
             builder.Property(x => x.ContentId).HasColumnName("content_id");
+            builder.Property(x => x.ConversationId).HasColumnName("conversation_id");
             builder.Property(x => x.PurchaseType)
                 .HasColumnName("purchase_type")
                 .HasUppercaseEnumConversion()

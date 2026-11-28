@@ -14,10 +14,24 @@ namespace Yakku.Domain.Entities
         /// <summary>Catalog SKU for a one-card unlock purchase (not an activatable subscription).</summary>
         public static readonly Guid ThisCardId = new("a1f3c0de-0000-4000-8000-000000000004");
 
+        /// <summary>Conversation top-up: adds questions to one ask back conversation. Never a user plan.</summary>
+        public static readonly Guid TopUp19Id = new("a1f3c0de-0000-4000-8000-000000000005");
+
+        /// <summary>Conversation top-up with the larger allowance. Never a user plan.</summary>
+        public static readonly Guid TopUp29Id = new("a1f3c0de-0000-4000-8000-000000000006");
+
         public const string FreeCode = "free";
         public const string YakkuLiteCode = "yakku_lite";
         public const string YakkuLoveCode = "yakku_love";
         public const string ThisCardCode = "this_card";
+        public const string TopUp19Code = "top_up_19";
+        public const string TopUp29Code = "top_up_29";
+
+        /// <summary>True for a plan code that is bought for one conversation (never activated on a user).</summary>
+        public static bool IsConversationTopUpCode(string? code) => code is TopUp19Code or TopUp29Code;
+
+        /// <summary>True for a plan code that is a user-level subscription (yakku_lite or yakku_love).</summary>
+        public static bool IsUserPlanCode(string? code) => code is YakkuLiteCode or YakkuLoveCode;
 
         /// <summary>Sent in an update for <see cref="UnlockTickets"/> or <see cref="AskBackMessageLimit"/> to remove the limit.</summary>
         public const int Unlimited = -1;

@@ -16,6 +16,9 @@ namespace Yakku.Domain.Entities
         public ShareContentType? ContentType { get; private set; }
 
         public Guid? ContentId { get; private set; }
+
+        /// <summary>The ask back conversation a top-up adds questions to; set only for a conversation top-up.</summary>
+        public Guid? ConversationId { get; private set; }
         public PaymentPurchaseType PurchaseType { get; private set; }
         public int AmountInPaise { get; private set; }
         public string Currency { get; private set; } = "INR";
@@ -97,6 +100,40 @@ namespace Yakku.Domain.Entities
                 utcNow,
                 lifetime,
                 correlationId);
+        }
+
+        public static PaymentOrder CreateConversationTopUp(
+            Guid userId,
+            Guid planId,
+            Guid conversationId,
+            int amountInPaise,
+            string currency,
+            string planSnapshotJson,
+            string idempotencyKey,
+            DateTime utcNow,
+            TimeSpan lifetime,
+            string? correlationId = null)
+        {
+            if (conversationId == Guid.Empty)
+            {
+                throw new ArgumentException("Conversation id is required.", nameof(conversationId));
+            }
+
+            var order = CreateCore(
+                userId,
+                planId,
+                contentType: null,
+                contentId: null,
+                PaymentPurchaseType.ConversationTopUp,
+                amountInPaise,
+                currency,
+                planSnapshotJson,
+                idempotencyKey,
+                utcNow,
+                lifetime,
+                correlationId);
+            order.ConversationId = conversationId;
+            return order;
         }
 
         public void AttachRazorpayOrder(string razorpayOrderId, DateTime utcNow, TimeSpan? renewLifetime = null)

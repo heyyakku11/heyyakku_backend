@@ -10,6 +10,7 @@ namespace Yakku.Application.Payments.DTOs
         public string? RazorpayOrderId { get; set; }
         public string? ContentType { get; set; }
         public Guid? ContentId { get; set; }
+        public Guid? ConversationId { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 

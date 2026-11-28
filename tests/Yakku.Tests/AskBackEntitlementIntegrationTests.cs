@@ -18,7 +18,7 @@ using Yakku.Infrastructure.Persistence.Repositories;
 namespace Yakku.Tests;
 
 /// <summary>
-/// Real-PostgreSQL checks for who may ask back (free ask back, single-card unlock, plans, expiry), the turn rule and
+/// Real-PostgreSQL checks for who may ask back (locked free plan, single-card unlock, plans, expiry), the turn rule and
 /// the per-plan message limits, and the user-level block.
 /// </summary>
 [Collection(PostgresCollection.Name)]
@@ -31,62 +31,37 @@ public sealed class AskBackEntitlementIntegrationTests
         _fixture = fixture;
     }
 
-    // ---- the free ask back ----
+    // ---- a card bought on its own, or locked ----
 
     [SkippableFact]
-    public async Task Free_AllowsOneAskBack_PerCard_OnTheTopReasonOfAnyOption()
+    public async Task Free_CannotStartAConversation_OnAnyLockedCard_EvenItsTopReason()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
         var scene = await AskBackIntegrationTests.SceneAsync(context);
-        var optionA = scene.Poll.Options.First().Id;
-        var optionB = scene.Poll.Options.Last().Id;
-
-        // A newer reason on option A takes over as its top; option B gets a top reason of its own.
-        var newerOnA = await AddVoteAsync(context, scene.Poll, optionA, "A newer reason");
-        var topOnB = await AddVoteAsync(context, scene.Poll, optionB, "A reason for B");
         var service = AskBackIntegrationTests.ServiceFor(context);
 
-        // An older reason is not the top of its option, so it needs an unlock.
-        var notTop = await Assert.ThrowsAsync<AppException>(() => service.CreateConversationAsync(
+        // The free plan has no questions: the reason is locked even though it is the top reason of its option.
+        var locked = await Assert.ThrowsAsync<AppException>(() => service.CreateConversationAsync(
             scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = scene.Vote.Id }));
-        Assert.Equal(403, notTop.StatusCode);
-        Assert.Equal(ApiErrorCodes.AskBackLocked, notTop.ErrorCode);
-
-        var reasonsBefore = await new ReasonRepository(context)
-            .GetPollOptionReasonsAsync(scene.Poll.Id, scene.Asker.Id, optionA);
-        Assert.False(reasonsBefore!.Items.Single(item => item.Id == newerOnA.Vote.Id).AskBackLocked);
-        Assert.True(reasonsBefore.Items.Single(item => item.Id == scene.Vote.Id).AskBackLocked);
-
-        // The top reason of an option works, once.
-        var (conversation, created) = await service.CreateConversationAsync(
-            scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = newerOnA.Vote.Id });
-        Assert.True(created);
-        Assert.Equal("me", conversation.Turn);
-        Assert.Equal(1, conversation.MessagesLeft);
-
-        // That was the card's free ask back: the other option's top reason is locked now, and so is the list entry.
-        var used = await Assert.ThrowsAsync<AppException>(() => service.CreateConversationAsync(
-            scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = topOnB.Vote.Id }));
-        Assert.Equal(ApiErrorCodes.AskBackLocked, used.ErrorCode);
-        var reasonsOnB = await new ReasonRepository(context)
-            .GetPollOptionReasonsAsync(scene.Poll.Id, scene.Asker.Id, optionB);
-        Assert.True(reasonsOnB!.Items.Single(item => item.Id == topOnB.Vote.Id).AskBackLocked);
-
-        // Asking again on the reason that has the conversation just opens it.
-        var (again, createdAgain) = await service.CreateConversationAsync(
-            scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = newerOnA.Vote.Id });
-        Assert.False(createdAgain);
-        Assert.Equal(conversation.Id, again.Id);
+        Assert.Equal(403, locked.StatusCode);
+        Assert.Equal(ApiErrorCodes.AskBackLocked, locked.ErrorCode);
+        Assert.Equal(0, await context.AskBackConversations.CountAsync(c => c.VoteId == scene.Vote.Id));
     }
 
     [SkippableFact]
-    public async Task Free_AskBack_AllowsOneQuestionAndOneReply_ThenTheChatIsDone()
+    public async Task ThisCard_AllowsOneAskBack_OneReply_ThenTheChatIsDone()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
-        var (scene, conversationId) = await AskBackIntegrationTests.StartedAsync(context, askerPlan: null);
+        var scene = await AskBackIntegrationTests.SceneAsync(context);
         var service = AskBackIntegrationTests.ServiceFor(context);
+
+        // A card bought on its own (this_card) gives one question per reason.
+        await AskBackIntegrationTests.EntitlementsFor(context).GrantCardUnlockAsync(scene.Asker.Id, "poll", scene.Poll.Id);
+        var (conversation, _) = await service.CreateConversationAsync(
+            scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = scene.Vote.Id });
+        var conversationId = conversation.Id;
 
         var asAsker = await service.GetConversationAsync(scene.Asker.Id, conversationId);
         var asVoter = await service.GetConversationAsync(scene.Voter.Id, conversationId);
@@ -133,22 +108,27 @@ public sealed class AskBackEntitlementIntegrationTests
     }
 
     [SkippableFact]
-    public async Task FreeAskUsed_ThenLiteUnlock_GivesFullNewAskerBudget()
+    public async Task ThisCardUsed_ThenLite_ContinuesTheChat_WithAFreshLiteBudget_AndNoSecondUnlock()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var context = _fixture.CreateContext();
-        var (scene, conversationId) = await AskBackIntegrationTests.StartedAsync(context, askerPlan: null);
+        var scene = await AskBackIntegrationTests.SceneAsync(context);
         var service = AskBackIntegrationTests.ServiceFor(context);
         var entitlements = AskBackIntegrationTests.EntitlementsFor(context);
+
+        // The card was bought on its own (this_card): one question per reason.
+        await entitlements.GrantCardUnlockAsync(scene.Asker.Id, "poll", scene.Poll.Id);
+        var (conversation, _) = await service.CreateConversationAsync(
+            scene.Asker.Id, new CreateAskBackConversationRequest { VoteId = scene.Vote.Id });
+        var conversationId = conversation.Id;
 
         await service.SendMessageAsync(scene.Asker.Id, conversationId, AskBackIntegrationTests.Send("Free Q"));
         await service.SendMessageAsync(scene.Voter.Id, conversationId, AskBackIntegrationTests.Send("Free A"));
         Assert.Equal("done", (await service.GetConversationAsync(scene.Asker.Id, conversationId)).Turn);
 
+        // Buying Lite continues the same chat with a fresh Lite budget (3 per reason); the card is not unlocked again.
         await AskBackIntegrationTests.ActivatePlanAsync(context, scene.Asker.Id, Plan.YakkuLiteCode);
-        await entitlements.UnlockAsync(scene.Asker.Id, scene.Vote.Id);
 
-        // Prior free-ask send is grandfathered; Lite grants a full 3 new questions.
         var after = await service.GetConversationAsync(scene.Asker.Id, conversationId);
         Assert.Equal("me", after.Turn);
         Assert.Equal(3, after.MessagesLeft);
@@ -161,7 +141,7 @@ public sealed class AskBackEntitlementIntegrationTests
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
         await using var setup = _fixture.CreateContext();
-        var (scene, conversationId) = await AskBackIntegrationTests.StartedAsync(setup, askerPlan: null);
+        var (scene, conversationId) = await AskBackIntegrationTests.StartedAsync(setup);
 
         var outcomes = await Task.WhenAll(Enumerable.Range(0, 6).Select(async _ =>
         {
@@ -290,10 +270,10 @@ public sealed class AskBackEntitlementIntegrationTests
             asker.Id, conversation.Id, AskBackIntegrationTests.Send("Question 4")));
         Assert.Equal(ApiErrorCodes.AskBackLimitReached, extra.ErrorCode);
 
-        // A card without a ticket still has the free ask back on its top reason (one question).
-        var (free, _) = await service.CreateConversationAsync(
-            asker.Id, new CreateAskBackConversationRequest { VoteId = cards[3].Vote.Id });
-        Assert.Equal(1, free.MessagesLeft);
+        // A card without a ticket stays locked: a plan gives questions only on the cards it unlocked.
+        var locked = await Assert.ThrowsAsync<AppException>(() => service.CreateConversationAsync(
+            asker.Id, new CreateAskBackConversationRequest { VoteId = cards[3].Vote.Id }));
+        Assert.Equal(ApiErrorCodes.AskBackLocked, locked.ErrorCode);
     }
 
     [SkippableFact]
@@ -537,17 +517,18 @@ public sealed class AskBackEntitlementIntegrationTests
 
         var planCard = await CardWithReasonAsync(context, asker.Id);
         var boughtCard = await CardWithReasonAsync(context, asker.Id);
-        var freeCard = await CardWithReasonAsync(context, asker.Id);
+        var otherBoughtCard = await CardWithReasonAsync(context, asker.Id);
         var laterCard = await CardWithReasonAsync(context, asker.Id);
 
         await entitlements.UnlockAsync(asker.Id, planCard.Vote.Id);
         await entitlements.GrantCardUnlockAsync(asker.Id, "poll", boughtCard.Poll.Id);
+        await entitlements.GrantCardUnlockAsync(asker.Id, "poll", otherBoughtCard.Poll.Id);
         var (plan, _) = await service.CreateConversationAsync(
             asker.Id, new CreateAskBackConversationRequest { VoteId = planCard.Vote.Id });
         var (bought, _) = await service.CreateConversationAsync(
             asker.Id, new CreateAskBackConversationRequest { VoteId = boughtCard.Vote.Id });
-        var (free, _) = await service.CreateConversationAsync(
-            asker.Id, new CreateAskBackConversationRequest { VoteId = freeCard.Vote.Id });
+        var (other, _) = await service.CreateConversationAsync(
+            asker.Id, new CreateAskBackConversationRequest { VoteId = otherBoughtCard.Vote.Id });
         Assert.Equal(3, plan.MessagesLeft);
 
         // The plan runs out.
@@ -572,13 +553,13 @@ public sealed class AskBackEntitlementIntegrationTests
         Assert.True(access.PlanExpired);
         Assert.True(access.Paused);
 
-        // Single-card unlocks and the free ask back keep working.
+        // Single-card unlocks keep working.
         var stillBought = await service.GetConversationAsync(asker.Id, bought.Id);
         Assert.False(stillBought.IsPaused);
         await service.SendMessageAsync(asker.Id, bought.Id, AskBackIntegrationTests.Send("Still here"));
-        var stillFree = await service.GetConversationAsync(asker.Id, free.Id);
-        Assert.False(stillFree.IsPaused);
-        await service.SendMessageAsync(asker.Id, free.Id, AskBackIntegrationTests.Send("Me too"));
+        var stillOther = await service.GetConversationAsync(asker.Id, other.Id);
+        Assert.False(stillOther.IsPaused);
+        await service.SendMessageAsync(asker.Id, other.Id, AskBackIntegrationTests.Send("Me too"));
 
         // An expired plan has no tickets left to spend, and the plan card cannot start another chat.
         var noTicket = await Assert.ThrowsAsync<AppException>(

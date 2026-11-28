@@ -17,6 +17,12 @@ namespace Yakku.Application.Payments.DTOs
         public DateTime? PlanExpiresAt { get; set; }
         public string? ContentType { get; set; }
         public Guid? ContentId { get; set; }
+
+        /// <summary>The conversation a top-up was granted to (null for other purchases).</summary>
+        public Guid? ConversationId { get; set; }
+
+        /// <summary>Questions a top-up added to the conversation (null when none was added).</summary>
+        public int? TopUpCredits { get; set; }
         public string? RazorpayPaymentId { get; set; }
     }
 }

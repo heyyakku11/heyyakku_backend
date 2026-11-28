@@ -2,7 +2,6 @@ namespace Yakku.Application.Plans.DTOs
 {
     public class PlanResponse
     {
-        public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
 
@@ -33,7 +32,7 @@ namespace Yakku.Application.Plans.DTOs
         /// <summary>Unlock tickets per activation: 0 or more, or -1 for unlimited.</summary>
         public int? UnlockTickets { get; set; }
 
-        /// <summary>Questions per reason: 1 or more, or -1 for unlimited.</summary>
+        /// <summary>Questions per reason: 0 or more, or -1 for unlimited.</summary>
         public int? AskBackMessageLimit { get; set; }
     }
 }

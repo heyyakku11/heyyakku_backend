@@ -40,7 +40,7 @@ public sealed class PaymentOrderServiceTests
             user.Id,
             new CreatePaymentOrderRequest
             {
-                PlanId = Plan.YakkuLiteId,
+                PlanCode = Plan.YakkuLiteCode,
                 IdempotencyKey = $"lite-{Guid.NewGuid():N}"
             },
             correlationId: "test-1");
@@ -71,9 +71,9 @@ public sealed class PaymentOrderServiceTests
         var key = $"idem-{Guid.NewGuid():N}";
 
         var first = await service.CreateOrderAsync(
-            user.Id, new CreatePaymentOrderRequest { PlanId = Plan.YakkuLoveId, IdempotencyKey = key }, "c1");
+            user.Id, new CreatePaymentOrderRequest { PlanCode = Plan.YakkuLoveCode, IdempotencyKey = key }, "c1");
         var second = await service.CreateOrderAsync(
-            user.Id, new CreatePaymentOrderRequest { PlanId = Plan.YakkuLoveId, IdempotencyKey = key }, "c2");
+            user.Id, new CreatePaymentOrderRequest { PlanCode = Plan.YakkuLoveCode, IdempotencyKey = key }, "c2");
 
         Assert.Equal(first.OrderId, second.OrderId);
         Assert.Equal(first.RazorpayOrderId, second.RazorpayOrderId);
@@ -96,7 +96,7 @@ public sealed class PaymentOrderServiceTests
             user.Id,
             new CreatePaymentOrderRequest
             {
-                PlanId = Plan.YakkuLiteId,
+                PlanCode = Plan.YakkuLiteCode,
                 IdempotencyKey = $"dup-lite-{Guid.NewGuid():N}"
             },
             "c"));
@@ -119,7 +119,7 @@ public sealed class PaymentOrderServiceTests
             user.Id,
             new CreatePaymentOrderRequest
             {
-                PlanId = Plan.YakkuLiteId,
+                PlanCode = Plan.YakkuLiteCode,
                 IdempotencyKey = $"down-{Guid.NewGuid():N}"
             },
             "c"));
@@ -144,7 +144,7 @@ public sealed class PaymentOrderServiceTests
             user.Id,
             new CreatePaymentOrderRequest
             {
-                PlanId = Plan.ThisCardId,
+                PlanCode = Plan.ThisCardCode,
                 ContentType = "poll",
                 ContentId = poll.Id,
                 IdempotencyKey = $"card-{Guid.NewGuid():N}"
@@ -167,7 +167,7 @@ public sealed class PaymentOrderServiceTests
             user.Id,
             new CreatePaymentOrderRequest
             {
-                PlanId = Plan.YakkuLiteId,
+                PlanCode = Plan.YakkuLiteCode,
                 IdempotencyKey = $"off-{Guid.NewGuid():N}"
             },
             "c"));
@@ -179,7 +179,8 @@ public sealed class PaymentOrderServiceTests
     private static PaymentOrderService ServiceFor(
         YakkuDbContext context,
         IRazorpayClient razorpay,
-        bool razorpayEnabled = true)
+        bool razorpayEnabled = true,
+        Yakku.Application.AskBack.Interfaces.IConversationTopUpGate? topUpGate = null)
     {
         var razorpayOptions = RazorpayOptions.FromConfiguration(
             new ConfigurationBuilder()
@@ -200,7 +201,75 @@ public sealed class PaymentOrderServiceTests
             new PaymentOptions(),
             new CreatePaymentOrderValidator(),
             TimeProvider.System,
-            NullLogger<PaymentOrderService>.Instance);
+            NullLogger<PaymentOrderService>.Instance,
+            topUpGate ?? new AllowingTopUpGate());
+    }
+
+    [SkippableFact]
+    public async Task CreateOrder_TopUp_ReturnsCheckout_ForTheConversation_WithoutChangingThePlan()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await SeedUserAsync(context);
+        var conversationId = Guid.NewGuid();
+        var topUp = await context.Plans.AsNoTracking().SingleAsync(p => p.Id == Plan.TopUp19Id);
+        var service = ServiceFor(context, new FakeRazorpayClient());
+
+        var result = await service.CreateOrderAsync(
+            user.Id,
+            new CreatePaymentOrderRequest
+            {
+                PlanCode = Plan.TopUp19Code,
+                ConversationId = conversationId,
+                IdempotencyKey = $"topup-{Guid.NewGuid():N}"
+            },
+            correlationId: "test-topup");
+
+        Assert.Equal(conversationId, result.ConversationId);
+        Assert.Equal(topUp.PriceMinor, result.AmountInPaise);
+        Assert.Equal(Plan.TopUp19Code, result.PlanCode);
+
+        // A top-up never changes the user's plan.
+        await context.Entry(user).ReloadAsync();
+        Assert.Equal(Plan.FreeId, user.PlanId);
+    }
+
+    [SkippableFact]
+    public async Task CreateOrder_TopUp_IsRejected_WhenTheConversationCannotBeToppedUp()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var user = await SeedUserAsync(context);
+        var service = ServiceFor(context, new FakeRazorpayClient(), topUpGate: new RefusingTopUpGate());
+
+        var error = await Assert.ThrowsAsync<AppException>(() => service.CreateOrderAsync(
+            user.Id,
+            new CreatePaymentOrderRequest
+            {
+                PlanCode = Plan.TopUp29Code,
+                ConversationId = Guid.NewGuid(),
+                IdempotencyKey = $"topup-{Guid.NewGuid():N}"
+            },
+            "c"));
+
+        Assert.Equal(ApiErrorCodes.AskBackTopUpNotAvailable, error.ErrorCode);
+        Assert.Equal(0, await context.PaymentOrders.CountAsync(o => o.UserId == user.Id));
+    }
+
+    private sealed class RefusingTopUpGate : Yakku.Application.AskBack.Interfaces.IConversationTopUpGate
+    {
+        public Task EnsureCanTopUpAsync(Guid userId, Guid conversationId, CancellationToken cancellationToken = default)
+        {
+            throw new AppException(409, ApiErrorCodes.AskBackTopUpNotAvailable, "This conversation cannot be topped up.");
+        }
+    }
+
+    private sealed class AllowingTopUpGate : Yakku.Application.AskBack.Interfaces.IConversationTopUpGate
+    {
+        public Task EnsureCanTopUpAsync(Guid userId, Guid conversationId, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private static async Task<User> SeedUserAsync(YakkuDbContext context)

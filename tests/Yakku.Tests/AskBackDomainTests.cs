@@ -194,21 +194,114 @@ public class AskBackDomainTests
     }
 
     [Fact]
-    public void RaisingTheLimit_ReopensAFinishedChat_WithAFullNewBudget()
+    public void PlanPurchase_ResetsTheBudget_WithAFullNewBudget()
     {
         var asker = Guid.NewGuid();
         var voter = Guid.NewGuid();
         var conversation = NewConversation(asker, voter);
-        Assert.True(conversation.TryAlignAskerQuota(1));
         conversation.TryRecordMessage(asker, 1, Now);
         conversation.TryRecordMessage(voter, 1, Now);
         Assert.Equal(AskBackTurn.Done, conversation.TurnFor(asker, 1));
 
-        // A higher entitlement grandfathers prior sends so the asker gets the full new limit.
-        Assert.True(conversation.TryAlignAskerQuota(3));
+        // Buying a plan grandfathers every send made so far: the asker gets the full new limit.
+        conversation.ResetAskerBudget(3);
         Assert.Equal(AskBackTurn.Me, conversation.TurnFor(asker, 3));
         Assert.Equal(3, conversation.MessagesLeft(asker, 3));
         Assert.Null(conversation.MessagesLeft(voter, 3));
+    }
+
+    [Fact]
+    public void LosingThePlan_DoesNotHandOutQuestionsBack()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+        for (var round = 0; round < 3; round++)
+        {
+            Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(asker, 3, Now));
+            Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(voter, 3, Now));
+        }
+
+        // A lower limit (plan expired or downgraded) does not reopen the chat or refill the budget.
+        Assert.Equal(AskBackTurn.Done, conversation.TurnFor(asker, 1));
+        Assert.Equal(0, conversation.MessagesLeft(asker, 1));
+    }
+
+    [Fact]
+    public void TopUpCredits_LetTheAskerSendPastTheLimit_AndSpendOneEach()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(asker, 1, Now));
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(voter, 1, Now));
+        Assert.Equal(AskBackTurn.Done, conversation.TurnFor(asker, 1));
+
+        conversation.AddTopUpCredits(2);
+
+        Assert.Equal(AskBackTurn.Me, conversation.TurnFor(asker, 1));
+        Assert.Equal(2, conversation.MessagesLeft(asker, 1));
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(asker, 1, Now));
+        Assert.Equal(1, conversation.TopUpCreditsLeft);
+        Assert.Equal(1, conversation.MessagesLeft(asker, 1));
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(voter, 1, Now));
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(asker, 1, Now));
+        Assert.Equal(0, conversation.MessagesLeft(asker, 1));
+        Assert.Equal(AskBackSendResult.Ok, conversation.TryRecordMessage(voter, 1, Now));
+        Assert.Equal(AskBackTurn.Done, conversation.TurnFor(asker, 1));
+        Assert.Equal(AskBackSendResult.LimitReached, conversation.TryRecordMessage(asker, 1, Now));
+    }
+
+    [Fact]
+    public void TopUpCredits_SurviveAPlanBudgetReset()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+        conversation.TryRecordMessage(asker, 1, Now);
+        conversation.TryRecordMessage(voter, 1, Now);
+        conversation.AddTopUpCredits(2);
+
+        conversation.ResetAskerBudget(3);
+
+        Assert.Equal(2, conversation.TopUpCreditsLeft);
+        Assert.Equal(5, conversation.MessagesLeft(asker, 3));
+    }
+
+    [Fact]
+    public void TopUpBlockReason_AllowsOnlyTheAskerOnceTheBudgetIsUsedUp()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+        Assert.NotNull(conversation.TopUpBlockReason(asker, 1, true, false));
+
+        // The last question still waiting for a reply already counts as used.
+        conversation.TryRecordMessage(asker, 1, Now);
+        Assert.Null(conversation.TopUpBlockReason(asker, 1, true, false));
+
+        Assert.NotNull(conversation.TopUpBlockReason(voter, 1, true, false));
+        Assert.NotNull(conversation.TopUpBlockReason(asker, 1, false, false));
+        Assert.NotNull(conversation.TopUpBlockReason(asker, 1, true, true));
+        Assert.NotNull(conversation.TopUpBlockReason(asker, null, true, false));
+    }
+
+    [Fact]
+    public void TopUpBlockReason_RefusesBlockedAndClosedChats_UntilReopened()
+    {
+        var asker = Guid.NewGuid();
+        var voter = Guid.NewGuid();
+        var conversation = NewConversation(asker, voter);
+        conversation.TryRecordMessage(asker, 1, Now);
+
+        Assert.True(conversation.TryBlock(voter, Now));
+        Assert.NotNull(conversation.TopUpBlockReason(asker, 1, true, false));
+        Assert.True(conversation.TryUnblock(voter));
+
+        Assert.True(conversation.TryClose(Now));
+        Assert.NotNull(conversation.TopUpBlockReason(asker, 1, true, false));
+        Assert.True(conversation.TryReopen(asker));
+        Assert.Null(conversation.TopUpBlockReason(asker, 1, true, false));
     }
 
     [Fact]

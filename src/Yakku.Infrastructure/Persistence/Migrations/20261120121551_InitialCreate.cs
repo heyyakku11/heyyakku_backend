@@ -344,7 +344,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_plans", x => x.id);
-                    table.CheckConstraint("CK_plans_ask_back_message_limit", "\"ask_back_message_limit\" IS NULL OR \"ask_back_message_limit\" >= 1");
+                    table.CheckConstraint("CK_plans_ask_back_message_limit", "\"ask_back_message_limit\" IS NULL OR \"ask_back_message_limit\" >= 0");
                     table.CheckConstraint("CK_plans_duration_days", "\"duration_days\" IS NULL OR \"duration_days\" >= 1");
                     table.CheckConstraint("CK_plans_price_not_negative", "\"price_minor\" >= 0");
                     table.CheckConstraint("CK_plans_unlock_tickets", "\"unlock_tickets\" IS NULL OR \"unlock_tickets\" >= 0");
@@ -2571,7 +2571,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     id, code, name, sort_order, price_minor, currency, is_active,
                     duration_days, unlock_tickets, ask_back_message_limit, created_at, updated_at
                 ) VALUES
-                    ('a1f3c0de-0000-4000-8000-000000000001', 'free',      'Free',      1,     0, 'INR', true, NULL, 0,    1,    now(), now()),
+                    ('a1f3c0de-0000-4000-8000-000000000001', 'free',      'Free',      1,     0, 'INR', true, NULL, 0,    0,    now(), now()),
                     ('a1f3c0de-0000-4000-8000-000000000004', 'this_card', 'This card', 2,  4900, 'INR', true, NULL, 1,    1,    now(), now()),
                     ('a1f3c0de-0000-4000-8000-000000000002', 'yakku_lite','Yakku Lite',3,  9900, 'INR', true, 7,    3,    3,    now(), now()),
                     ('a1f3c0de-0000-4000-8000-000000000003', 'yakku_love','Yakku Love',4, 29900, 'INR', true, 30,   NULL, NULL, now(), now())

@@ -21,7 +21,7 @@ namespace Yakku.API.Controllers
 
         [HttpGet]
         [EndpointSummary("List Plans")]
-        [EndpointDescription("Lists all Yakku plans in plan order (id, code, name, price, currency).")]
+        [EndpointDescription("Lists all Yakku plans in plan order (code, name, price, currency).")]
         [ProducesResponseType(typeof(ApiResponse<List<PlanResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> List(CancellationToken cancellationToken)
         {

@@ -84,7 +84,12 @@ namespace Yakku.Application
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IPushNotificationService, PushNotificationService>();
             services.AddScoped<Yakku.Application.Entitlements.IEntitlementService, Yakku.Application.Entitlements.EntitlementService>();
-            services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackService, Yakku.Application.AskBack.Services.AskBackService>();
+            // One scoped AskBackService serves both the ask-back API and the top-up gate used by payment orders.
+            services.AddScoped<Yakku.Application.AskBack.Services.AskBackService>();
+            services.AddScoped<Yakku.Application.AskBack.Interfaces.IAskBackService>(
+                sp => sp.GetRequiredService<Yakku.Application.AskBack.Services.AskBackService>());
+            services.AddScoped<Yakku.Application.AskBack.Interfaces.IConversationTopUpGate>(
+                sp => sp.GetRequiredService<Yakku.Application.AskBack.Services.AskBackService>());
             services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentOrderService, Yakku.Application.Payments.Services.PaymentOrderService>();
             services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentVerificationService, Yakku.Application.Payments.Services.PaymentVerificationService>();
             services.AddScoped<Yakku.Application.Payments.Interfaces.IPaymentFulfillmentService, Yakku.Application.Payments.Services.PaymentFulfillmentService>();

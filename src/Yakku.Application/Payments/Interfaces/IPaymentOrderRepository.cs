@@ -7,6 +7,8 @@ namespace Yakku.Application.Payments.Interfaces
     {
         Task<Plan?> GetActivePurchasablePlanAsync(Guid planId, CancellationToken cancellationToken = default);
 
+        Task<Plan?> GetActivePurchasablePlanByCodeAsync(string planCode, CancellationToken cancellationToken = default);
+
         Task<PaymentOrder?> FindByIdempotencyKeyAsync(
             Guid userId,
             string idempotencyKey,

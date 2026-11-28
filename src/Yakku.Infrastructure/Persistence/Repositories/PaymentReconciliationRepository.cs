@@ -80,6 +80,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                         missing.Add(order);
                     }
                 }
+                else if (order.PurchaseType == PaymentPurchaseType.ConversationTopUp)
+                {
+                    var hasGrant = await _context.AskBackConversationTopUps.AsNoTracking()
+                        .AnyAsync(item => item.PaymentOrderId == order.Id, cancellationToken);
+                    if (!hasGrant)
+                    {
+                        missing.Add(order);
+                    }
+                }
                 else if (order.ContentType is { } contentType && order.ContentId is { } contentId)
                 {
                     var hasUnlock = await _context.CardUnlocks.AsNoTracking()

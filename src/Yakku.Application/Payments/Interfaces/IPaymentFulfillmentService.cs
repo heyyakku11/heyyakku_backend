@@ -23,6 +23,10 @@ namespace Yakku.Application.Payments.Interfaces
         DateTime CapturedAtUtc,
         string? CorrelationId);
 
+    /// <summary>
+    /// What fulfillment did. <see cref="TopUpCredits"/> is set only when a conversation top-up was granted in this call
+    /// (or was granted before, on a retry); null means it was not applied, and the order is then for review.
+    /// </summary>
     public sealed record PaymentFulfillmentResult(
         bool AlreadyFulfilled,
         Guid PaymentOrderId,
@@ -31,5 +35,9 @@ namespace Yakku.Application.Payments.Interfaces
         string? PlanCode,
         DateTime? PlanExpiresAt,
         ShareContentType? ContentType,
-        Guid? ContentId);
+        Guid? ContentId,
+        Guid UserId = default,
+        Guid? ConversationId = null,
+        int? TopUpCredits = null,
+        string? ConversationStatus = null);
 }

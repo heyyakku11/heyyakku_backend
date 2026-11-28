@@ -47,6 +47,15 @@ namespace Yakku.Domain.Entities
         /// </summary>
         public int? AppliedMessageLimit { get; private set; }
 
+        /// <summary>Extra asker questions bought with conversation top-ups (sum of the granted credits).</summary>
+        public int TopUpGranted { get; private set; }
+
+        /// <summary>Top-up credits already spent: asker sends made after the plan limit was used up.</summary>
+        public int TopUpUsed { get; private set; }
+
+        /// <summary>Top-up credits still available.</summary>
+        public int TopUpCreditsLeft => Math.Max(0, TopUpGranted - TopUpUsed);
+
         public ICollection<AskBackParticipant> Participants { get; private set; } = new List<AskBackParticipant>();
         public ICollection<AskBackMessage> Messages { get; private set; } = new List<AskBackMessage>();
 
@@ -114,31 +123,25 @@ namespace Yakku.Domain.Entities
         public int EffectiveAskerSent => Math.Max(0, AskerMessageCount - AskerQuotaOffset);
 
         /// <summary>
-        /// When the asker's effective message limit increases, grandfather prior sends so the new budget is full.
-        /// Returns true when the conversation was updated and should be saved.
+        /// Gives the asker a full new budget under <paramref name="limit"/>: every send made so far is grandfathered.
+        /// Used only when the asker buys a user plan (Lite or Love), never by reading a conversation, so a plan that
+        /// expires or a limit that drops does not hand out questions. Top-up credits are kept.
         /// </summary>
-        public bool TryAlignAskerQuota(int? currentLimit)
+        public void ResetAskerBudget(int? limit)
         {
-            if (currentLimit is null)
-            {
-                // Unlimited: no finish-by-count. Leave offset; clear applied so a later finite limit realigns.
-                if (AppliedMessageLimit is null)
-                {
-                    return false;
-                }
-
-                AppliedMessageLimit = null;
-                return true;
-            }
-
-            if (AppliedMessageLimit is { } applied && currentLimit.Value <= applied)
-            {
-                return false;
-            }
-
             AskerQuotaOffset = AskerMessageCount;
-            AppliedMessageLimit = currentLimit;
-            return true;
+            AppliedMessageLimit = limit;
+        }
+
+        /// <summary>Adds top-up credits in memory (the database grant does the same with an atomic update).</summary>
+        public void AddTopUpCredits(int credits)
+        {
+            if (credits <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(credits));
+            }
+
+            TopUpGranted += credits;
         }
 
         /// <summary>
@@ -159,8 +162,8 @@ namespace Yakku.Domain.Entities
         }
 
         /// <summary>
-        /// Asker questions still allowed under <paramref name="limit"/>. Always null for the voter (no personal quota)
-        /// and when there is no limit.
+        /// Asker questions still allowed: what is left under <paramref name="limit"/> plus unused top-up credits.
+        /// Always null for the voter (no personal quota) and when there is no limit.
         /// </summary>
         public int? MessagesLeft(Guid userId, int? limit)
         {
@@ -169,7 +172,7 @@ namespace Yakku.Domain.Entities
                 return null;
             }
 
-            return Math.Max(0, max - EffectiveAskerSent);
+            return Math.Max(0, max - EffectiveAskerSent) + TopUpCreditsLeft;
         }
 
         /// <summary>
@@ -192,6 +195,19 @@ namespace Yakku.Domain.Entities
 
             if (isAsker)
             {
+                // Past the plan limit, a question spends one top-up credit. The offset moves with it, so the plan
+                // part of the budget stays exhausted and the credit is the only thing that grows the allowance.
+                if (limit is { } max && EffectiveAskerSent >= max)
+                {
+                    if (TopUpCreditsLeft == 0)
+                    {
+                        return AskBackSendResult.LimitReached;
+                    }
+
+                    TopUpUsed++;
+                    AskerQuotaOffset++;
+                }
+
                 AskerMessageCount++;
             }
             else
@@ -207,7 +223,74 @@ namespace Yakku.Domain.Entities
         {
             return limit is { } max
                    && EffectiveAskerSent >= max
+                   && TopUpCreditsLeft == 0
                    && VoterMessageCount >= AskerMessageCount;
+        }
+
+        /// <summary>
+        /// Why the asker cannot top this conversation up right now, or null when they can. Only the asker can top up an
+        /// active conversation with both people still here, on a card that is unlocked and not paused, with a finite
+        /// limit whose budget (plan part and credits) is used up. A pending voter reply does not block a top-up.
+        /// </summary>
+        public string? TopUpBlockReason(Guid userId, int? limit, bool unlocked, bool paused)
+        {
+            if (CreatorUserId != userId)
+            {
+                return "Only the person who asked can add messages to this conversation.";
+            }
+
+            if (Status == AskBackStatus.Blocked)
+            {
+                return "This conversation is blocked, so it cannot be topped up.";
+            }
+
+            if (Status == AskBackStatus.Closed)
+            {
+                return "Reopen this conversation before adding more messages.";
+            }
+
+            if (!HasBothParticipants)
+            {
+                return "The other person is no longer on Yakku.";
+            }
+
+            if (!unlocked)
+            {
+                return "Unlock this card to continue this conversation.";
+            }
+
+            if (paused)
+            {
+                return "Your plan has expired. Buy Yakku Lite or Yakku Love to continue.";
+            }
+
+            if (limit is null)
+            {
+                return "This conversation has no message limit to top up.";
+            }
+
+            return MessagesLeft(userId, limit) > 0
+                ? "You still have messages left in this conversation."
+                : null;
+        }
+
+        /// <summary>
+        /// The asker can continue this conversation by buying Lite or Love: the card is unlocked, the chat is not blocked,
+        /// and either the budget is used up or the card is paused. Blocked chats are never continued this way.
+        /// </summary>
+        public bool CanContinueWithPlan(Guid userId, int? limit, bool unlocked, bool paused)
+        {
+            if (CreatorUserId != userId || Status == AskBackStatus.Blocked || !unlocked)
+            {
+                return false;
+            }
+
+            if (paused)
+            {
+                return true;
+            }
+
+            return limit is { } && MessagesLeft(userId, limit) == 0;
         }
 
         /// <summary>Either participant can close an active conversation. False when it is not active.</summary>

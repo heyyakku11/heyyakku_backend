@@ -47,6 +47,12 @@ namespace Yakku.Application.Common.Responses
         /// <summary>The conversation was unlocked through a plan that has expired, so nobody can send.</summary>
         public const string AskBackPlanExpired = "ASK_BACK_PLAN_EXPIRED";
 
+        /// <summary>
+        /// A conversation top-up cannot be bought here: not the asker, the chat is blocked or closed, the card is not
+        /// unlocked or paused, or the chat still has questions left.
+        /// </summary>
+        public const string AskBackTopUpNotAvailable = "ASK_BACK_TOP_UP_NOT_AVAILABLE";
+
         /// <summary>The caller already has this paid plan active.</summary>
         public const string PlanAlreadyActive = "PLAN_ALREADY_ACTIVE";
 

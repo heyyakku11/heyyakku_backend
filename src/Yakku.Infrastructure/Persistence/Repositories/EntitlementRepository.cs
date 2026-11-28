@@ -305,6 +305,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 await _context.SaveChangesAsync(cancellationToken);
             }
 
+            if (plan.Id != Plan.FreeId)
+            {
+                // Buying a paid plan gives the asker a fresh question budget, as the payment path does.
+                await AskBackBudgetReset.ForPlanPurchaseAsync(_context, userId, plan.AskBackMessageLimit, cancellationToken);
+            }
+
             user.ActivatePlan(plan, utcNow);
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);

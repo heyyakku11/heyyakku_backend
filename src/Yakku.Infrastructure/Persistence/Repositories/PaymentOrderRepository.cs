@@ -26,6 +26,17 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     cancellationToken);
         }
 
+        public Task<Plan?> GetActivePurchasablePlanByCodeAsync(
+            string planCode,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.Plans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    plan => plan.Code == planCode && plan.IsActive && plan.Code != Plan.FreeCode,
+                    cancellationToken);
+        }
+
         public Task<PaymentOrder?> FindByIdempotencyKeyAsync(
             Guid userId,
             string idempotencyKey,

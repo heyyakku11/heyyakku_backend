@@ -25,8 +25,8 @@ namespace Yakku.Application.Plans.Validators
                 .WithMessage("UnlockTickets must be 0 or more, or -1 for unlimited.")
                 .When(x => x.UnlockTickets is not null);
             RuleFor(x => x.AskBackMessageLimit)
-                .Must(value => value is >= 1 || value == Plan.Unlimited)
-                .WithMessage("AskBackMessageLimit must be 1 or more, or -1 for unlimited.")
+                .Must(value => value is >= 0 || value == Plan.Unlimited)
+                .WithMessage("AskBackMessageLimit must be 0 or more, or -1 for unlimited.")
                 .When(x => x.AskBackMessageLimit is not null);
         }
     }

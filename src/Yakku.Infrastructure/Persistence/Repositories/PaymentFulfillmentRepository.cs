@@ -5,6 +5,7 @@ using Yakku.Application.Common.Responses;
 using Yakku.Application.Payments.Interfaces;
 using Yakku.Domain.Entities;
 using Yakku.Domain.Enums;
+using Yakku.Infrastructure.Persistence;
 
 namespace Yakku.Infrastructure.Persistence.Repositories
 {
@@ -147,6 +148,12 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 return;
             }
 
+            if (order.PurchaseType == PaymentPurchaseType.ConversationTopUp)
+            {
+                await ApplyConversationTopUpAsync(order, capturedAt, cancellationToken);
+                return;
+            }
+
             await ActivateCardUnlockAsync(order, capturedAt, cancellationToken);
         }
 
@@ -207,7 +214,73 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 // Another worker created it; user projection may still need updating below.
             }
 
+            // Buying Lite or Love gives the asker a fresh question budget on every conversation they started, without
+            // touching their unlocked cards. Blocked chats stay as they are; top-up credits are kept.
+            await AskBackBudgetReset.ForPlanPurchaseAsync(
+                _context, order.UserId, plan.AskBackMessageLimit, cancellationToken);
+
             user.ActivatePlan(plan, capturedAt);
+        }
+
+        /// <summary>
+        /// Adds the top-up's questions to its conversation, once per payment order. The grant row and the counter
+        /// update run in the fulfillment transaction, so a retry cannot grant twice.
+        /// </summary>
+        private async Task ApplyConversationTopUpAsync(
+            PaymentOrder order,
+            DateTime capturedAt,
+            CancellationToken cancellationToken)
+        {
+            if (order.ConversationId is not { } conversationId)
+            {
+                throw new AppException(
+                    500,
+                    ApiErrorCodes.InternalServerError,
+                    "Top-up payment order is missing its conversation.");
+            }
+
+            var alreadyGranted = await _context.AskBackConversationTopUps.AnyAsync(
+                item => item.PaymentOrderId == order.Id,
+                cancellationToken);
+            if (alreadyGranted)
+            {
+                return;
+            }
+
+            var planId = order.PlanId
+                ?? throw new AppException(500, ApiErrorCodes.InternalServerError, "Payment order is missing a plan.");
+            var credits = await _context.Plans.AsNoTracking()
+                .Where(plan => plan.Id == planId)
+                .Select(plan => plan.AskBackMessageLimit)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (credits is not { } count || count < 1)
+            {
+                throw new AppException(
+                    500,
+                    ApiErrorCodes.InternalServerError,
+                    "Top-up plan is missing its question count.");
+            }
+
+            var conversationExists = await _context.AskBackConversations.AnyAsync(
+                conversation => conversation.Id == conversationId,
+                cancellationToken);
+            if (!conversationExists)
+            {
+                // Nothing to grant to: the fulfillment result reports no credits and the service logs it.
+                return;
+            }
+
+            _context.AskBackConversationTopUps.Add(
+                AskBackConversationTopUp.Create(conversationId, order.Id, count, capturedAt));
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await _context.AskBackConversations
+                .Where(conversation => conversation.Id == conversationId)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(
+                        conversation => conversation.TopUpGranted,
+                        conversation => conversation.TopUpGranted + count),
+                    cancellationToken);
         }
 
         private async Task ActivateCardUnlockAsync(
@@ -336,6 +409,23 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 }
             }
 
+            Guid? conversationId = null;
+            int? topUpCredits = null;
+            string? conversationStatus = null;
+            if (order.PurchaseType == PaymentPurchaseType.ConversationTopUp && order.ConversationId is { } orderConversationId)
+            {
+                conversationId = orderConversationId;
+                topUpCredits = await _context.AskBackConversationTopUps.AsNoTracking()
+                    .Where(item => item.PaymentOrderId == order.Id)
+                    .Select(item => (int?)item.Credits)
+                    .FirstOrDefaultAsync(cancellationToken);
+                var status = await _context.AskBackConversations.AsNoTracking()
+                    .Where(conversation => conversation.Id == orderConversationId)
+                    .Select(conversation => (AskBackStatus?)conversation.Status)
+                    .FirstOrDefaultAsync(cancellationToken);
+                conversationStatus = status?.ToString().ToUpperInvariant();
+            }
+
             return new PaymentFulfillmentResult(
                 alreadyFulfilled,
                 order.Id,
@@ -344,7 +434,11 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 planCode,
                 expiresAt,
                 order.ContentType,
-                order.ContentId);
+                order.ContentId,
+                order.UserId,
+                conversationId,
+                topUpCredits,
+                conversationStatus);
         }
 
         private static bool IsUniqueViolation(DbUpdateException exception, string constraintName)

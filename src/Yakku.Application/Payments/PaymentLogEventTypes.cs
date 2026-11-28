@@ -21,6 +21,9 @@ namespace Yakku.Application.Payments
         public const string EntitlementCreated = "EntitlementCreated";
         public const string EntitlementSuperseded = "EntitlementSuperseded";
         public const string CardUnlockCreated = "CardUnlockCreated";
+        public const string ConversationTopUpGranted = "ConversationTopUpGranted";
+        public const string ConversationTopUpNotApplied = "ConversationTopUpNotApplied";
+        public const string AskBackBudgetReset = "AskBackBudgetReset";
         public const string RefundRequested = "RefundRequested";
         public const string RefundProcessed = "RefundProcessed";
         public const string PaymentReconciliationMismatch = "PaymentReconciliationMismatch";

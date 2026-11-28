@@ -19,7 +19,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                     "\"unlock_tickets\" IS NULL OR \"unlock_tickets\" >= 0");
                 table.HasCheckConstraint(
                     "CK_plans_ask_back_message_limit",
-                    "\"ask_back_message_limit\" IS NULL OR \"ask_back_message_limit\" >= 1");
+                    "\"ask_back_message_limit\" IS NULL OR \"ask_back_message_limit\" >= 0");
             });
             builder.HasKey(x => x.Id);
 
