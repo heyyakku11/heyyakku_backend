@@ -110,7 +110,7 @@ public sealed class RazorpayWebhookProcessorTests
         await processor.ProcessAsync(stored.Id);
 
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.YakkuLiteId, user.PlanId);
+        Assert.Equal(Plan.YakkuLiteCode, user.UserPlan.PlanCode);
         Assert.Equal(1, await context.UserPlanEntitlements.CountAsync(e => e.UserId == user.Id));
         Assert.Equal(
             WebhookProcessingStatus.Processed,
@@ -162,7 +162,7 @@ public sealed class RazorpayWebhookProcessorTests
         await ProcessorFor(context).ProcessAsync(stored.Id);
 
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.YakkuLiteId, user.PlanId);
+        Assert.Equal(Plan.YakkuLiteCode, user.UserPlan.PlanCode);
         Assert.Equal(
             PaymentAttemptStatus.Captured,
             await context.PaymentAttempts.Where(a => a.RazorpayPaymentId == paymentId).Select(a => a.Status).SingleAsync());
@@ -203,7 +203,7 @@ public sealed class RazorpayWebhookProcessorTests
             PaymentAttemptStatus.Failed,
             await context.PaymentAttempts.Where(a => a.RazorpayPaymentId == paymentId).Select(a => a.Status).SingleAsync());
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.FreeId, user.PlanId);
+        Assert.Equal(Plan.FreeCode, user.UserPlan.PlanCode);
     }
 
     private static (RazorpayWebhookReceiver Receiver, RazorpayWebhookSignal Signal) BuildStack(YakkuDbContext context)

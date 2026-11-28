@@ -28,15 +28,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .Where(item => item.Id == userId)
                 .Select(item => new
                 {
-                    item.PlanActivatedAt,
-                    item.PlanExpiresAt,
+                    item.UserPlan.PlanActivatedAt,
+                    item.UserPlan.PlanExpiresAt,
                     Plan = new PlanPerks(
-                        item.Plan.Id,
-                        item.Plan.Code,
-                        item.Plan.Name,
-                        item.Plan.DurationDays,
-                        item.Plan.UnlockTickets,
-                        item.Plan.AskBackMessageLimit)
+                        item.UserPlan.Plan.Id,
+                        item.UserPlan.Plan.Code,
+                        item.UserPlan.Plan.Name,
+                        item.UserPlan.Plan.DurationDays,
+                        item.UserPlan.Plan.UnlockTickets,
+                        item.UserPlan.Plan.AskBackMessageLimit)
                 })
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -63,9 +63,9 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     {
                         entitlement.MarkExpired(utcNow);
                         // Keep the user projection's expiry aligned so reason-visibility checks match Ask Back access.
-                        await _context.Users
-                            .Where(item => item.Id == userId
-                                           && item.PlanId == entitlement.PlanId
+                        await _context.UserPlans
+                            .Where(item => item.UserId == userId
+                                           && item.PlanCode == plan.Code
                                            && (item.PlanExpiresAt == null || item.PlanExpiresAt > entitlement.ExpiresAt))
                             .ExecuteUpdateAsync(
                                 setters => setters.SetProperty(item => item.PlanExpiresAt, entitlement.ExpiresAt),
@@ -257,7 +257,9 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))",
                 cancellationToken);
 
-            var user = await _context.Users.FirstOrDefaultAsync(item => item.Id == userId, cancellationToken);
+            var user = await _context.Users
+                .Include(item => item.UserPlan)
+                .FirstOrDefaultAsync(item => item.Id == userId, cancellationToken);
             var plan = await _context.Plans.FirstOrDefaultAsync(item => item.Id == planId, cancellationToken);
             if (user is null || plan is null)
             {

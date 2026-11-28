@@ -36,12 +36,14 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired().HasDefaultValueSql("now()");
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired().HasDefaultValueSql("now()");
 
-            builder.HasIndex(x => x.Code).IsUnique().HasDatabaseName("IX_plans_code");
+            // The code is unique, and user_plans.plan_code points at it.
+            builder.HasAlternateKey(x => x.Code).HasName("AK_plans_code");
             builder.HasIndex(x => x.SortOrder).IsUnique().HasDatabaseName("IX_plans_sort_order");
 
-            builder.HasMany(x => x.Users)
+            builder.HasMany(x => x.UserPlans)
                 .WithOne(x => x.Plan)
-                .HasForeignKey(x => x.PlanId)
+                .HasForeignKey(x => x.PlanCode)
+                .HasPrincipalKey(x => x.Code)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

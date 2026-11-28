@@ -183,7 +183,9 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                     "Purchased plan is missing a duration.");
             }
 
-            var user = await _context.Users.FirstOrDefaultAsync(item => item.Id == order.UserId, cancellationToken)
+            var user = await _context.Users
+                    .Include(item => item.UserPlan)
+                    .FirstOrDefaultAsync(item => item.Id == order.UserId, cancellationToken)
                 ?? throw new AppException(404, ApiErrorCodes.NotFound, "User not found.");
 
             var active = await _context.UserPlanEntitlements
@@ -402,9 +404,9 @@ namespace Yakku.Infrastructure.Persistence.Repositories
 
                 if (order.PurchaseType == PaymentPurchaseType.UserPlan)
                 {
-                    expiresAt = await _context.Users.AsNoTracking()
-                        .Where(user => user.Id == order.UserId)
-                        .Select(user => user.PlanExpiresAt)
+                    expiresAt = await _context.UserPlans.AsNoTracking()
+                        .Where(userPlan => userPlan.UserId == order.UserId)
+                        .Select(userPlan => userPlan.PlanExpiresAt)
                         .FirstOrDefaultAsync(cancellationToken);
                 }
             }

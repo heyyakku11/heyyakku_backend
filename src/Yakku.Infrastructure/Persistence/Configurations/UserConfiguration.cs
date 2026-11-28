@@ -38,18 +38,6 @@ namespace Yakku.Infrastructure.Persistence.Configurations
                 .HasMaxLength(32)
                 .HasDefaultValue(UserStatus.Active);
 
-            // Every user has a plan; rows created without one (or before plans existed) are on the free plan.
-            builder.Property(x => x.PlanId)
-                .IsRequired()
-                .HasDefaultValue(Plan.FreeId);
-
-            builder.HasIndex(x => x.PlanId)
-                .HasDatabaseName("IX_Users_PlanId");
-
-            // Set while a paid plan is active; null on the free plan. After the end date the user counts as free.
-            builder.Property(x => x.PlanActivatedAt);
-            builder.Property(x => x.PlanExpiresAt);
-
             builder.Property(x => x.CreatedAt)
                 .IsRequired();
 
@@ -59,6 +47,12 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.PhoneNumber)
                 .IsUnique()
                 .HasDatabaseName("IX_Users_PhoneNumber");
+
+            // The plan row is 1:1 with the user over the user id, created with the account and removed with it.
+            builder.HasOne(x => x.UserPlan)
+                .WithOne(x => x.User)
+                .HasForeignKey<UserPlan>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasOne(x => x.Permissions)
                 .WithOne(x => x.User)

@@ -130,7 +130,7 @@ public sealed class PaymentEntitlementPhase5Tests
         await FulfillAsync(context, loveOrder, $"pay_love_{Guid.NewGuid():N}");
 
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.YakkuLoveId, user.PlanId);
+        Assert.Equal(Plan.YakkuLoveCode, user.UserPlan.PlanCode);
         Assert.Equal(
             UserPlanEntitlementStatus.Superseded,
             await context.UserPlanEntitlements.Where(e => e.Id == liteEntitlementId).Select(e => e.Status).SingleAsync());

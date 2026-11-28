@@ -371,13 +371,13 @@ namespace Yakku.Infrastructure.Persistence.Repositories
                 .Where(item => item.OwnerUserId == ownerId && item.ContentType == contentType && item.ContentId == contentId)
                 .Select(item => (CardUnlockSource?)item.Source)
                 .FirstOrDefaultAsync(cancellationToken);
-            var plan = await _context.Users
+            var plan = await _context.UserPlans
                 .AsNoTracking()
-                .Where(user => user.Id == ownerId)
-                .Select(user => new { user.PlanId, user.PlanExpiresAt, user.Plan.UnlockTickets })
+                .Where(userPlan => userPlan.UserId == ownerId)
+                .Select(userPlan => new { userPlan.PlanCode, userPlan.PlanExpiresAt, userPlan.Plan.UnlockTickets })
                 .FirstOrDefaultAsync(cancellationToken);
             var planActive = plan is not null
-                && plan.PlanId != Plan.FreeId
+                && plan.PlanCode != Plan.FreeCode
                 && (plan.PlanExpiresAt == null || plan.PlanExpiresAt > now);
 
             var open = unlockSource == CardUnlockSource.Purchase

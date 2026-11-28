@@ -298,9 +298,9 @@ public sealed class AskBackEntitlementIntegrationTests
         await Assert.ThrowsAsync<AppException>(() => entitlements.UnlockAsync(asker.Id, cards[3].Vote.Id));
 
         // Pretend the first activation began a while ago, then buy the same plan again.
-        await context.Users.Where(u => u.Id == asker.Id).ExecuteUpdateAsync(set => set
-            .SetProperty(u => u.PlanActivatedAt, DateTime.UtcNow.AddDays(-3))
-            .SetProperty(u => u.PlanExpiresAt, DateTime.UtcNow.AddDays(4)));
+        await context.UserPlans.Where(p => p.UserId == asker.Id).ExecuteUpdateAsync(set => set
+            .SetProperty(p => p.PlanActivatedAt, DateTime.UtcNow.AddDays(-3))
+            .SetProperty(p => p.PlanExpiresAt, DateTime.UtcNow.AddDays(4)));
         context.ChangeTracker.Clear();
         var restarted = await entitlements.ActivatePlanAsync(asker.Id, Plan.YakkuLiteCode);
 

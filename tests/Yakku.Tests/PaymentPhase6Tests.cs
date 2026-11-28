@@ -112,7 +112,7 @@ public sealed class PaymentPhase6Tests
         Assert.True(result.CapturedFulfillments >= 1);
 
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.YakkuLiteId, user.PlanId);
+        Assert.Equal(Plan.YakkuLiteCode, user.UserPlan.PlanCode);
         Assert.Equal(
             PaymentOrderStatus.Paid,
             await context.PaymentOrders.Where(o => o.Id == order.Id).Select(o => o.Status).SingleAsync());
@@ -163,7 +163,7 @@ public sealed class PaymentPhase6Tests
         Assert.Contains("not automatically revoke", response.AccessNote, StringComparison.OrdinalIgnoreCase);
 
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.YakkuLiteId, user.PlanId);
+        Assert.Equal(Plan.YakkuLiteCode, user.UserPlan.PlanCode);
         Assert.Equal(
             1,
             await context.UserPlanEntitlements.CountAsync(e =>

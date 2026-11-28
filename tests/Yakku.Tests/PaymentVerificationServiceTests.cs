@@ -49,7 +49,7 @@ public sealed class PaymentVerificationServiceTests
         Assert.NotNull(result.PlanExpiresAt);
 
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.YakkuLiteId, user.PlanId);
+        Assert.Equal(Plan.YakkuLiteCode, user.UserPlan.PlanCode);
         Assert.Equal(1, await context.UserPlanEntitlements.CountAsync(e => e.UserId == user.Id));
         Assert.Equal(1, await context.PaymentAttempts.CountAsync(a => a.RazorpayPaymentId == paymentId));
     }
@@ -96,7 +96,7 @@ public sealed class PaymentVerificationServiceTests
 
         Assert.Equal(ApiErrorCodes.PaymentSignatureInvalid, error.ErrorCode);
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.FreeId, user.PlanId);
+        Assert.Equal(Plan.FreeCode, user.UserPlan.PlanCode);
     }
 
     [SkippableFact]
@@ -117,7 +117,7 @@ public sealed class PaymentVerificationServiceTests
 
         Assert.Equal(ApiErrorCodes.PaymentNotCaptured, error.ErrorCode);
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.FreeId, user.PlanId);
+        Assert.Equal(Plan.FreeCode, user.UserPlan.PlanCode);
     }
 
     [SkippableFact]
@@ -157,7 +157,7 @@ public sealed class PaymentVerificationServiceTests
         await service.VerifyAsync(user.Id, SignedRequest(order.RazorpayOrderId!, paymentId), "upgrade");
 
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.YakkuLoveId, user.PlanId);
+        Assert.Equal(Plan.YakkuLoveCode, user.UserPlan.PlanCode);
         Assert.Equal(
             1,
             await context.UserPlanEntitlements.CountAsync(

@@ -16,16 +16,8 @@ namespace Yakku.Domain.Entities
 
         public bool IsPendingDeletion => DeletionRequest is not null;
 
-        /// <summary>The user's current plan. Every user has one; new users start on the free plan.</summary>
-        public Guid PlanId { get; private set; } = Plan.FreeId;
-
-        public Plan Plan { get; private set; } = null!;
-
-        /// <summary>When the current paid plan was activated. Null on the free plan.</summary>
-        public DateTime? PlanActivatedAt { get; private set; }
-
-        /// <summary>When the current paid plan ends. Null on the free plan. After it, the user counts as free.</summary>
-        public DateTime? PlanExpiresAt { get; private set; }
+        /// <summary>The user's current plan and its dates. Every user has one; new users start on the free plan.</summary>
+        public UserPlan UserPlan { get; private set; } = null!;
 
         /// <summary>How the user appears in the app. Unique, compared without regard to case.</summary>
         public string AnonymousName { get; private set; } = string.Empty;
@@ -51,11 +43,11 @@ namespace Yakku.Domain.Entities
             Id = Guid.NewGuid();
             PhoneNumber = phoneNumber;
             Status = UserStatus.Active;
-            PlanId = Plan.FreeId;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = CreatedAt;
             LoginAt = DateTime.UtcNow;
             AnonymousName = anonymousName;
+            UserPlan = new UserPlan(Id);
             Permissions = new UserPermission(Id);
             PersonalityCard = new PersonalityCard(Id);
         }
@@ -66,18 +58,7 @@ namespace Yakku.Domain.Entities
         /// </summary>
         public void ActivatePlan(Plan plan, DateTime utcNow)
         {
-            PlanId = plan.Id;
-            if (plan.DurationDays is { } days)
-            {
-                PlanActivatedAt = utcNow;
-                PlanExpiresAt = utcNow.AddDays(days);
-            }
-            else
-            {
-                PlanActivatedAt = null;
-                PlanExpiresAt = null;
-            }
-
+            RequireUserPlan().Activate(plan, utcNow);
             UpdatedAt = utcNow;
         }
 
@@ -87,7 +68,14 @@ namespace Yakku.Domain.Entities
         /// </summary>
         public bool IsPlanActive(DateTime utcNow)
         {
-            return PlanId == Plan.FreeId || PlanExpiresAt is null || PlanExpiresAt > utcNow;
+            return RequireUserPlan().IsActive(utcNow);
+        }
+
+        // Every user has a plan row (created with the account), so a missing one means it was not loaded with the user.
+        private UserPlan RequireUserPlan()
+        {
+            return UserPlan ?? throw new InvalidOperationException(
+                "The user's plan is not loaded. Load the user with its UserPlan.");
         }
 
         public void RecordLogin()

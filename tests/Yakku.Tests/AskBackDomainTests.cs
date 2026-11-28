@@ -313,19 +313,20 @@ public class AskBackDomainTests
 
         user.ActivatePlan(lite, Now);
 
-        Assert.Equal(Plan.YakkuLiteId, user.PlanId);
-        Assert.Equal(Now, user.PlanActivatedAt);
-        Assert.Equal(Now.AddDays(7), user.PlanExpiresAt);
+        Assert.Equal(Plan.YakkuLiteCode, user.UserPlan.PlanCode);
+        Assert.Equal(Now, user.UserPlan.PlanActivatedAt);
+        Assert.Equal(Now.AddDays(7), user.UserPlan.PlanExpiresAt);
         Assert.True(user.IsPlanActive(Now.AddDays(6)));
         Assert.False(user.IsPlanActive(Now.AddDays(7).AddSeconds(1)));
 
         // Buying it again restarts the period from that moment.
         user.ActivatePlan(lite, Now.AddDays(5));
-        Assert.Equal(Now.AddDays(12), user.PlanExpiresAt);
+        Assert.Equal(Now.AddDays(12), user.UserPlan.PlanExpiresAt);
 
         user.ActivatePlan(free, Now.AddDays(6));
-        Assert.Null(user.PlanActivatedAt);
-        Assert.Null(user.PlanExpiresAt);
+        Assert.Equal(Plan.FreeCode, user.UserPlan.PlanCode);
+        Assert.Null(user.UserPlan.PlanActivatedAt);
+        Assert.Null(user.UserPlan.PlanExpiresAt);
         Assert.True(user.IsPlanActive(Now.AddYears(5)));
     }
 

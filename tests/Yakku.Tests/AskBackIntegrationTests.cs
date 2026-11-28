@@ -1034,9 +1034,9 @@ public sealed class AskBackIntegrationTests
     {
         var activatedAt = DateTime.UtcNow.AddDays(-8);
         var expiresAt = DateTime.UtcNow.AddDays(-1);
-        await context.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(set => set
-            .SetProperty(u => u.PlanActivatedAt, activatedAt)
-            .SetProperty(u => u.PlanExpiresAt, expiresAt));
+        await context.UserPlans.Where(p => p.UserId == userId).ExecuteUpdateAsync(set => set
+            .SetProperty(p => p.PlanActivatedAt, activatedAt)
+            .SetProperty(p => p.PlanExpiresAt, expiresAt));
         await context.UserPlanEntitlements
             .Where(e => e.UserId == userId && e.Status == UserPlanEntitlementStatus.Active)
             .ExecuteUpdateAsync(set => set

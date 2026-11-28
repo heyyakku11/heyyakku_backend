@@ -18,10 +18,10 @@ namespace Yakku.Application.Users.Mapper
                 {
                     CurrentPlan = new UserPlanResponse
                     {
-                        Code = user.Plan?.Code ?? Plan.FreeCode,
-                        ActivatedAt = user.PlanActivatedAt,
-                        ExpiresAt = user.PlanExpiresAt,
-                        IsExpired = !user.IsPlanActive(DateTime.UtcNow)
+                        Code = user.UserPlan?.PlanCode ?? Plan.FreeCode,
+                        ActivatedAt = user.UserPlan?.PlanActivatedAt,
+                        ExpiresAt = user.UserPlan?.PlanExpiresAt,
+                        IsExpired = user.UserPlan is not null && !user.IsPlanActive(DateTime.UtcNow)
                     }
                 }
             };

@@ -56,7 +56,7 @@ public sealed class PaymentOrderServiceTests
 
         // Phase 2 must not activate the plan.
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.FreeId, user.PlanId);
+        Assert.Equal(Plan.FreeCode, user.UserPlan.PlanCode);
         Assert.Equal(1, razorpay.CreateCalls);
     }
 
@@ -231,7 +231,7 @@ public sealed class PaymentOrderServiceTests
 
         // A top-up never changes the user's plan.
         await context.Entry(user).ReloadAsync();
-        Assert.Equal(Plan.FreeId, user.PlanId);
+        Assert.Equal(Plan.FreeCode, user.UserPlan.PlanCode);
     }
 
     [SkippableFact]

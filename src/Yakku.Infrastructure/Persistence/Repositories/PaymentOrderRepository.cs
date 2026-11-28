@@ -65,10 +65,15 @@ namespace Yakku.Infrastructure.Persistence.Repositories
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            var row = await _context.Users
+            var row = await _context.UserPlans
                 .AsNoTracking()
-                .Where(user => user.Id == userId)
-                .Select(user => new { user.PlanId, user.PlanActivatedAt, user.PlanExpiresAt })
+                .Where(userPlan => userPlan.UserId == userId)
+                .Select(userPlan => new
+                {
+                    PlanId = userPlan.Plan.Id,
+                    userPlan.PlanActivatedAt,
+                    userPlan.PlanExpiresAt
+                })
                 .FirstOrDefaultAsync(cancellationToken);
 
             return row is null ? null : (row.PlanId, row.PlanActivatedAt, row.PlanExpiresAt);

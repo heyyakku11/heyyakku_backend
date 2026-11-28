@@ -556,7 +556,9 @@ public sealed class AskBackHubTests
             }
 
             // The asker is on yakku_love so the chat has no question limit.
-            var askerRow = await context.Users.FirstAsync(user => user.Id == asker.UserId);
+            var askerRow = await context.Users
+                .Include(user => user.UserPlan)
+                .FirstAsync(user => user.Id == asker.UserId);
             var love = await context.Plans.FirstAsync(plan => plan.Code == Plan.YakkuLoveCode);
             askerRow.ActivatePlan(love, DateTime.UtcNow);
             await context.SaveChangesAsync();

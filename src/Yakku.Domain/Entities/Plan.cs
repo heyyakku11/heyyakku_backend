@@ -67,7 +67,8 @@ namespace Yakku.Domain.Entities
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
-        public ICollection<User> Users { get; private set; } = new List<User>();
+        /// <summary>The users currently on this plan.</summary>
+        public ICollection<UserPlan> UserPlans { get; private set; } = new List<UserPlan>();
 
         private Plan()
         {

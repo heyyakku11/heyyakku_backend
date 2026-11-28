@@ -56,8 +56,8 @@ public sealed class ConversationTopUpIntegrationTests
 
         // A top-up never changes the user's plan.
         Assert.Equal(
-            Plan.FreeId,
-            await context.Users.AsNoTracking().Where(u => u.Id == scene.Asker.Id).Select(u => u.PlanId).SingleAsync());
+            Plan.FreeCode,
+            await context.UserPlans.AsNoTracking().Where(p => p.UserId == scene.Asker.Id).Select(p => p.PlanCode).SingleAsync());
 
         // Each question spends one top-up question.
         await service.SendMessageAsync(scene.Asker.Id, conversation.Id, AskBackIntegrationTests.Send("More?"));

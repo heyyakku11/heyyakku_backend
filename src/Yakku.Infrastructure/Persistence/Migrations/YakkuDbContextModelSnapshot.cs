@@ -2558,9 +2558,8 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("IX_plans_code");
+                    b.HasAlternateKey("Code")
+                        .HasName("AK_plans_code");
 
                     b.HasIndex("SortOrder")
                         .IsUnique()
@@ -3287,17 +3286,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<DateTime?>("PlanActivatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("PlanExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("PlanId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasDefaultValue(new Guid("a1f3c0de-0000-4000-8000-000000000001"));
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -3317,9 +3305,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasIndex("PhoneNumber")
                         .IsUnique()
                         .HasDatabaseName("IX_Users_PhoneNumber");
-
-                    b.HasIndex("PlanId")
-                        .HasDatabaseName("IX_Users_PlanId");
 
                     b.ToTable("users", (string)null);
                 });
@@ -3585,6 +3570,36 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId");
 
                     b.ToTable("user_permissions", (string)null);
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserPlan", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime?>("PlanActivatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("plan_activated_at");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("free")
+                        .HasColumnName("plan_code");
+
+                    b.Property<DateTime?>("PlanExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("plan_expires_at");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("PlanCode")
+                        .HasDatabaseName("IX_user_plans_plan_code");
+
+                    b.ToTable("user_plans", (string)null);
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserPlanEntitlement", b =>
@@ -4522,17 +4537,6 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade);
                 });
 
-            modelBuilder.Entity("Yakku.Domain.Entities.User", b =>
-                {
-                    b.HasOne("Yakku.Domain.Entities.Plan", "Plan")
-                        .WithMany("Users")
-                        .HasForeignKey("PlanId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Plan");
-                });
-
             modelBuilder.Entity("Yakku.Domain.Entities.UserActivityDay", b =>
                 {
                     b.HasOne("Yakku.Domain.Entities.User", "User")
@@ -4615,6 +4619,26 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                         .HasForeignKey("Yakku.Domain.Entities.UserPermission", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Yakku.Domain.Entities.UserPlan", b =>
+                {
+                    b.HasOne("Yakku.Domain.Entities.Plan", "Plan")
+                        .WithMany("UserPlans")
+                        .HasForeignKey("PlanCode")
+                        .HasPrincipalKey("Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Yakku.Domain.Entities.User", "User")
+                        .WithOne("UserPlan")
+                        .HasForeignKey("Yakku.Domain.Entities.UserPlan", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
 
                     b.Navigation("User");
                 });
@@ -4723,7 +4747,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Yakku.Domain.Entities.Plan", b =>
                 {
-                    b.Navigation("Users");
+                    b.Navigation("UserPlans");
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.Poll", b =>
@@ -4765,6 +4789,9 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Navigation("Sessions");
 
                     b.Navigation("UploadSessions");
+
+                    b.Navigation("UserPlan")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Yakku.Domain.Entities.UserCheck", b =>
