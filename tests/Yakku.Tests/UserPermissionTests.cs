@@ -29,7 +29,7 @@ public sealed class UserPermissionUnitTests
         Assert.True(user.Permissions.AllowAskBack);
         Assert.False(user.Permissions.PushNotification);
         Assert.True(user.Permissions.Sms);
-        Assert.True(user.Permissions.WhatsApp);
+        Assert.False(user.Permissions.WhatsApp);
         Assert.Equal("QuietFox", user.AnonymousName);
     }
 
@@ -43,7 +43,7 @@ public sealed class UserPermissionUnitTests
         Assert.False(permission.AllowAskBack);
         Assert.False(permission.PushNotification);
         Assert.True(permission.Sms);
-        Assert.True(permission.WhatsApp);
+        Assert.False(permission.WhatsApp);
         Assert.Equal(Now, permission.UpdatedAt);
 
         permission.Apply(allowAskBack: null, pushNotification: true, sms: false, whatsApp: false, Now.AddMinutes(1));
@@ -233,7 +233,7 @@ public sealed class UserPermissionIntegrationTests
         Assert.True(stored.AllowAskBack);
         Assert.False(stored.PushNotification);
         Assert.True(stored.Sms);
-        Assert.True(stored.WhatsApp);
+        Assert.False(stored.WhatsApp);
     }
 
     [SkippableFact]
@@ -255,7 +255,7 @@ public sealed class UserPermissionIntegrationTests
         Assert.False(updated.AllowAskBack);
         Assert.True(updated.PushNotification);
         Assert.True(updated.Sms);
-        Assert.True(updated.WhatsApp);
+        Assert.False(updated.WhatsApp);
 
         await using var check = _fixture.CreateContext();
         var repository = new UserPermissionRepository(check);

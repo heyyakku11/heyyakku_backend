@@ -32,7 +32,7 @@ namespace Yakku.Infrastructure.Persistence.Configurations
             builder.Property(x => x.WhatsApp)
                 .HasColumnName("whatsapp")
                 .IsRequired()
-                .HasDefaultValue(true);
+                .HasDefaultValue(false);
 
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();

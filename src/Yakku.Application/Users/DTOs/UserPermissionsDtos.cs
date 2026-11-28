@@ -12,8 +12,8 @@ namespace Yakku.Application.Users.DTOs
         /// <summary>Whether the user wants SMS messages. On by default.</summary>
         public bool Sms { get; set; } = true;
 
-        /// <summary>Whether the user wants WhatsApp messages. On by default.</summary>
-        public bool WhatsApp { get; set; } = true;
+        /// <summary>Whether the user wants WhatsApp messages. Off by default.</summary>
+        public bool WhatsApp { get; set; } = false;
     }
 
     /// <summary>A partial update: only the permissions that are sent change.</summary>

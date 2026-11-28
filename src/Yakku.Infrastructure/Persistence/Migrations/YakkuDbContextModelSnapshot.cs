@@ -3519,7 +3519,7 @@ namespace Yakku.Infrastructure.Persistence.Migrations
                     b.Property<bool>("WhatsApp")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
-                        .HasDefaultValue(true)
+                        .HasDefaultValue(false)
                         .HasColumnName("whatsapp");
 
                     b.HasKey("UserId");

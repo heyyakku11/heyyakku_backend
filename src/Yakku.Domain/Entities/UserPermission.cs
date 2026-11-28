@@ -20,8 +20,8 @@ namespace Yakku.Domain.Entities
         /// <summary>Whether the user wants SMS messages. On by default.</summary>
         public bool Sms { get; private set; } = true;
 
-        /// <summary>Whether the user wants WhatsApp messages. On by default.</summary>
-        public bool WhatsApp { get; private set; } = true;
+        /// <summary>Whether the user wants WhatsApp messages. Off by default.</summary>
+        public bool WhatsApp { get; private set; } = false;
 
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }

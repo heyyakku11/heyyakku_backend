@@ -51,7 +51,7 @@ namespace Yakku.API.Controllers
 
         [HttpGet("permissions")]
         [EndpointSummary("Get My Permissions")]
-        [EndpointDescription("Returns what the signed-in user allows: allowAskBack (people they answer may ask them back; on by default), pushNotification (off by default), sms (on by default) and whatsapp (on by default). Every user has these, created with the account.")]
+        [EndpointDescription("Returns what the signed-in user allows: allowAskBack (people they answer may ask them back; on by default), pushNotification (off by default), sms (on by default) and whatsapp (off by default). Every user has these, created with the account.")]
         [ProducesResponseType(typeof(ApiResponse<UserPermissionsResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
