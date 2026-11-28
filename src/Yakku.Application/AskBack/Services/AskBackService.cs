@@ -381,13 +381,16 @@ namespace Yakku.Application.AskBack.Services
             Notification? notification = null;
             AskBackOutboxEvent? outbox = null;
 
-            // Always write an inbox row for the recipient. Presence only skips the push
-            // (AskBackPushDispatcher); the Activity list must still show start/reply events.
-            if (recipientId is { } recipient)
+            // The first message always gets an inbox row. A reply gets one too, unless the recipient is looking at
+            // this conversation right now (joined its SignalR group): they see the reply live, so no "They
+            // replied" row and no push (the outbox row is skipped as well, otherwise the dispatcher would send a
+            // generic push with no inbox row if they leave within the push delay).
+            var isFirstMessage = conversation.AskerMessageCount + conversation.VoterMessageCount == 1;
+            var recipientIsViewing = recipientId is { } viewer && _presence.IsViewing(conversationId, viewer);
+            if (recipientId is { } recipient && (isFirstMessage || !recipientIsViewing))
             {
                 var senderNameForInbox = await _repository.GetAnonymousNameAsync(userId, cancellationToken)
                     ?? AskBackOptions.DeletedUserName;
-                var isFirstMessage = conversation.AskerMessageCount + conversation.VoterMessageCount == 1;
                 var eventType = isFirstMessage
                     ? NotificationEventType.AskBackStarted
                     : NotificationEventType.AskBackReply;

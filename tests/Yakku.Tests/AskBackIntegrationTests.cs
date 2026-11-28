@@ -933,6 +933,44 @@ public sealed class AskBackIntegrationTests
     }
 
     [SkippableFact]
+    public async Task Reply_WhileRecipientIsViewing_WritesNoInboxRowAndNoPush_ButStillDelivers()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (scene, conversationId) = await StartedAsync(context);
+        await ServiceFor(context).SendMessageAsync(scene.Asker.Id, conversationId, Send("first question"));
+
+        // The asker has the chat open (joined its group) when the voter replies.
+        var viewing = new FixedPresence(conversationId, scene.Asker.Id);
+        var reply = await ServiceFor(context, presence: viewing)
+            .SendMessageAsync(scene.Voter.Id, conversationId, Send("live reply"));
+
+        Assert.True(reply.IsMine);
+        Assert.Equal(0, await context.Notifications.CountAsync(n =>
+            n.UserId == scene.Asker.Id && n.EventType == NotificationEventType.AskBackReply));
+        Assert.Equal(1, await context.AskBackOutbox.CountAsync(o => o.ConversationId == conversationId));
+        Assert.Equal(2, await context.AskBackMessages.CountAsync(m => m.ConversationId == conversationId));
+    }
+
+    [SkippableFact]
+    public async Task Reply_WhileRecipientIsNotViewing_WritesInboxRowAndPush()
+    {
+        Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+        await using var context = _fixture.CreateContext();
+        var (scene, conversationId) = await StartedAsync(context);
+        await ServiceFor(context).SendMessageAsync(scene.Asker.Id, conversationId, Send("first question"));
+
+        // Presence says the asker is looking at a different conversation.
+        var elsewhere = new FixedPresence(Guid.NewGuid(), scene.Asker.Id);
+        await ServiceFor(context, presence: elsewhere)
+            .SendMessageAsync(scene.Voter.Id, conversationId, Send("offline reply"));
+
+        Assert.Equal(1, await context.Notifications.CountAsync(n =>
+            n.UserId == scene.Asker.Id && n.EventType == NotificationEventType.AskBackReply));
+        Assert.Equal(2, await context.AskBackOutbox.CountAsync(o => o.ConversationId == conversationId));
+    }
+
+    [SkippableFact]
     public async Task Push_ClaimedByOneWorker_IsNotSentTwice()
     {
         Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);

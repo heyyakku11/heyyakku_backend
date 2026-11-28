@@ -14,7 +14,10 @@ namespace Yakku.Domain.Entities
         public Guid MessageId { get; private set; }
         public Guid RecipientUserId { get; private set; }
 
-        /// <summary>Inbox row created with this push; removed if presence skips delivery.</summary>
+        /// <summary>
+        /// Inbox row created with this push. Not written at all for a reply sent while the recipient is viewing the
+        /// conversation; the row is kept if the push is skipped later.
+        /// </summary>
         public Guid? NotificationId { get; private set; }
 
         public AskBackOutboxStatus Status { get; private set; }
